@@ -105,7 +105,9 @@ int main(int argc, char **argv)
         fa_ar = 1;
         fa_ar_turn(0, 1);                               /* MODE: OFF -> UP */
         fa_ar_turn(1, 1);
-        fa_ar_turn(4, 5);
+        fa_ar_turn(4, 1);                               /* HOLD on */
+        if (!TSEL->p[P_AHOLD]) { printf("arp hold\n"); return 1; }
+        fa_ar_turn(5, 5);
         if (TSEL->p[P_AMODE] != 1) { printf("arp mode\n"); return 1; }
         ui.force = 1;
         fa_draw();

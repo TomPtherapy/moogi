@@ -411,15 +411,15 @@ static void fa_dialog(void)
 /* ARP: a pop-up like SAVE's. KNOB 1..4 are MODE, RATE, OCT, GATE; SELECT picks a line (the fifth is the tempo) and
  * ALGORITHM changes it; ARP again, HOME or a page button closes it. The arpeggio goes on after closing */
 static uint8_t fa_ar;                                     /* 1: the pop-up is open */
-static uint8_t fa_ar_row;                                 /* 0 MODE, 1 RATE, 2 OCT, 3 GATE, 4 BPM */
-#define FA_AR_N 5u
-static const uint8_t FA_AR_ID[4] = {P_AMODE, P_ARATE, P_AOCT, P_AGATE};
-static const char *const FA_AR_LB[FA_AR_N] = {"MODE", "RATE", "OCTAVES", "GATE", "TEMPO"};
+static uint8_t fa_ar_row;                                 /* 0 MODE, 1 RATE, 2 OCT, 3 GATE, 4 HOLD, 5 BPM */
+#define FA_AR_N 6u
+static const uint8_t FA_AR_ID[5] = {P_AMODE, P_ARATE, P_AOCT, P_AGATE, P_AHOLD};
+static const char *const FA_AR_LB[FA_AR_N] = {"MODE", "RATE", "OCTAVES", "GATE", "HOLD", "TEMPO"};
 
 static void fa_ar_turn(uint32_t row, int32_t s)
 {
     track_t *t = TSEL;
-    if (row < 4u) {
+    if (row < 5u) {
         const param_desc_t *d = track_desc(t, FA_AR_ID[row]);
         int16_t *vp = &t->p[FA_AR_ID[row]];
         *vp = (int16_t)param_turn(d, *vp, s);
@@ -434,29 +434,26 @@ static void fa_ar_dialog(void)
     uint32_t i;
     const track_t *t = TSEL;
     const uint16_t bgd = FA_RGB(0x1B, 0x19, 0x17);
-    cv_rect(16, 56, 208, 130, FA_OR);
-    cv_rect(18, 58, 204, 126, bgd);
-    fa_ctext(120, 65, &AF_S, "ARPEGGIATOR", FA_CR);
+    cv_rect(16, 50, 208, 144, FA_OR);
+    cv_rect(18, 52, 204, 140, bgd);
+    fa_ctext(120, 59, &AF_S, "ARPEGGIATOR", FA_CR);
     for (i = 0; i < FA_AR_N; i++) {
         char val[16];
         const char *un;
-        int32_t y = 84 + (int32_t)i * 18;
+        int32_t y = 78 + (int32_t)i * 16;
         int hot = i == fa_ar_row;
-        if (i < 4u)
+        if (i < 5u)
             param_format(track_desc(t, FA_AR_ID[i]), t->p[FA_AR_ID[i]], val, &un);
         else
             fmt_int(val, song.g[G_BPM]);
         if (hot)
-            cv_rect(24, y - 3, 192, 16, FA_RGB(0x2A, 0x25, 0x20));
+            cv_rect(24, y - 3, 192, 15, FA_RGB(0x2A, 0x25, 0x20));
         fa_ltext(30, y, &AF_S, FA_AR_LB[i], hot ? FA_OR : FA_CR);
-        if (i < 4u)
-            fa_rtext(208, y, &AF_S, val, hot ? FA_OR : FA_CR);
-        else
-            fa_rtext(208, y, &AF_S, val, hot ? FA_OR : FA_CR);
+        fa_rtext(208, y, &AF_S, val, hot ? FA_OR : FA_CR);
         if (i < 4u)
             fa_ltext(30 + 70, y + 2, &AF_X, i == 0u ? "K1" : i == 1u ? "K2" : i == 2u ? "K3" : "K4", FA_RGB(0x5D, 0x55, 0x4A));
     }
-    fa_ctext(120, 174, &AF_X, "SELECT LINE  ALGO CHANGE  ARP CLOSE", FA_MU);
+    fa_ctext(120, 178, &AF_X, "SELECT LINE  ALGO CHANGE  ARP CLOSE", FA_MU);
 }
 
 static void fa_scene(void)
