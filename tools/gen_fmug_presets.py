@@ -48,7 +48,6 @@ p("SEQ BASS", ("16", "SAW"), ("16", "PW", 65), ("32", "SQR"), (100, 90, 80, 0), 
 p("DRIVE BASS", ("16", "SAW"), ("16", "SAW", 66), ("32", "SAW"), (127, 127, 127, 0), 55, 50, 70, (0, 58, 30), (0, 70, 115, 30), fx=(60, 0, 0, 0))
 p("HOLLOW BASS", ("16", "PN"), ("16", "PN", 66), ("32", "SQR"), (100, 90, 80, 0), 52, 70, 50, (0, 60, 40), (0, 75, 110, 30))
 p("RUBBER BASS", ("16", "SAW"), ("16", "TRI", 66), ("32", "SQR"), (100, 90, 90, 0), 33, 80, 120, (0, 46, 0), (0, 55, 95, 20))
-p("LATELY BASS", ("16", "SAW"), ("16", "SQR", 65), ("32", "SQR"), (100, 90, 90, 0), 38, 75, 100, (0, 50, 10), (0, 55, 100, 15), kbd=70)
 p("SOFT BASS", ("16", "TRI"), ("16", "SAW", 64), ("32", "SQR"), (100, 60, 70, 0), 42, 20, 55, (10, 60, 40), (8, 70, 110, 40))
 p("BUZZ BASS", ("16", "SHK"), ("16", "SAW", 67), ("32", "SAW"), (100, 100, 90, 0), 58, 60, 70, (0, 65, 40), (0, 75, 112, 30), fx=(20, 0, 0, 0))
 p("OCTAVE BASS", ("16", "SAW"), ("8", "SAW", 64), ("32", "SQR"), (100, 70, 90, 0), 46, 45, 80, (0, 56, 25), (0, 66, 108, 25), pat=4)
@@ -64,6 +63,7 @@ p("SINGING", ("8", "TRI"), ("8", "SAW", 65), ("4", "TRI", 64), (100, 80, 60, 0),
 p("PULSE LEAD", ("8", "PW"), ("8", "PN", 66), ("16", "SQR"), (100, 90, 60, 0), 72, 45, 55, (0, 68, 60), (0, 78, 110, 38), flags="GL", gl=15, fx=(0, 10, 30, 25), pat=4)
 p("SQUARE LEAD", ("8", "SQR"), ("8", "SQR", 66), ("4", "SQR"), (100, 90, 40, 0), 76, 35, 50, (0, 70, 70), (0, 80, 110, 35), flags="GL", gl=18, fx=(0, 5, 30, 25))
 p("SAW LEAD", ("8", "SAW"), ("8", "SAW", 65), ("4", "SAW"), (100, 90, 50, 0), 80, 40, 45, (0, 72, 70), (0, 82, 112, 35), flags="GL", gl=20, fx=(15, 10, 30, 25), pat=4)
+p("SINE LEAD", ("8", "TRI"), ("8", "TRI", 66), ("16", "TRI", 63), (127, 127, 110, 0), 100, 12, 30, (0, 70, 90), (0, 85, 118, 45), mod=18, flags="MOSC GL", gl=38, kbd=100, fx=(22, 36, 34, 14), pat=4)
 p("GLIDE LEAD", ("8", "SAW"), ("8", "SQR", 66), ("16", "SQR"), (100, 90, 70, 0), 68, 55, 55, (0, 66, 60), (0, 78, 112, 40), flags="GL", gl=60, fx=(0, 10, 35, 30), pat=4)
 p("RESO LEAD", ("8", "SAW"), ("8", "SAW", 66), ("16", "SQR"), (100, 90, 60, 0), 60, 100, 70, (0, 64, 40), (0, 76, 110, 38), flags="GL", gl=18, fx=(10, 10, 30, 25), pat=4)
 p("WARM LEAD", ("8", "TRI"), ("8", "SAW", 65), ("16", "TRI"), (100, 80, 70, 0), 62, 40, 40, (8, 78, 80), (6, 85, 115, 45), mod=15, flags="MOSC GL", gl=22, fx=(0, 15, 35, 35), pat=5)
@@ -102,7 +102,7 @@ p("SWEEP PAD", ("8", "SAW"), ("8", "SAW", 62), ("4", "SAW", 66), (90, 90, 60, 0)
 p("CHOIR", ("8", "PN"), ("8", "PW", 65), ("4", "PN", 63), (90, 80, 50, 0), 44, 70, 30, (60, 90, 90), (65, 95, 112, 80), mod=12, flags="MOSC", kbd=30, fx=(0, 40, 30, 60), pat=5)
 p("DRONE", ("16", "SAW"), ("16", "SAW", 64), ("32", "SAW"), (100, 100, 100, 0), 52, 40, 20, (0, 100, 110), (20, 100, 127, 70), mod=12, flags="MFLT", fx=(10, 20, 25, 45), pat=5)
 p("ORGAN", ("16", "SQR"), ("8", "SQR", 64), ("4", "SQR", 64), (100, 80, 60, 0), 96, 5, 0, (0, 60, 127), (0, 40, 127, 5), kbd=100, fx=(0, 20, 0, 20), pat=5)
-p("FIFTHS", ("8", "SAW"), ("8", "SAW", 127), ("16", "SQR"), (100, 100, 60, 0), 66, 40, 60, (0, 70, 70), (0, 80, 112, 40), flags="GL", gl=18, fx=(0, 15, 35, 30), pat=4)
+p("5TH LEAD", ("8", "SAW"), ("8", "SAW", 127), ("16", "SQR"), (100, 100, 60, 0), 66, 40, 60, (0, 70, 70), (0, 80, 112, 40), flags="GL", gl=18, fx=(0, 15, 35, 30), pat=4)
 # ---- keys, plucks, percussion-like tones (15)
 p("CLAVI", ("8", "PN"), ("8", "PN", 65), ("4", "SQR"), (100, 80, 40, 0), 60, 40, 80, (0, 24, 0), (0, 34, 0, 10), kbd=90, fx=(0, 0, 10, 10), pat=3)
 p("PLUCK", ("8", "PN"), ("8", "SQR", 70), ("4", "SAW"), (100, 80, 0, 0), 55, 45, 85, (0, 50, 0), (0, 60, 0, 40), kbd=90, fx=(0, 15, 35, 30), pat=3)
@@ -136,6 +136,56 @@ p("ALARM", ("8", "SQR"), ("4", "SQR", 80), ("8", "SQR", 64), (100, 70, 50, 0), 8
 p("SCI-FI", ("8", "SAW"), ("4", "TRI", 70), ("8", "SQR", 60), (100, 60, 50, 0), 60, 70, 60, (30, 90, 40), (20, 100, 100, 70), mod=70, flags="MOSC MFLT", fx=(10, 25, 40, 50), mm=60, pat=7)
 p("HOWL", ("16", "SHK"), ("16", "SAW", 64), ("8", "PN"), (100, 90, 40, 0), 50, 85, 80, (60, 100, 30), (50, 100, 100, 80), mod=60, flags="MOSC MFLT GL", gl=70, fx=(20, 20, 35, 50), mm=30, pat=7)
 
+# ---- effects: every patch its own (DIST, CHORUS, DELAY, REVERB); the reverb is for pads, bells and atmospheres only
+FXMAP = {
+ "MOOG BASS": (6, 0, 0, 4), "SUB BASS": (0, 0, 0, 0), "FAT BASS": (8, 28, 0, 5), "FUNK BASS": (12, 0, 22, 0), "RESO BASS": (18, 0, 0, 0),
+ "ACID BASS": (35, 0, 32, 0), "PULSE BASS": (0, 18, 0, 6), "SQUARE BASS": (10, 0, 0, 0), "GROWL BASS": (55, 0, 0, 0), "DEEP BASS": (0, 0, 0, 10),
+ "THUMP BASS": (22, 0, 0, 0), "SLAP BASS": (0, 0, 16, 4), "STAB BASS": (14, 0, 26, 8), "SEQ BASS": (0, 0, 40, 6), "DRIVE BASS": (80, 0, 0, 0),
+ "HOLLOW BASS": (0, 40, 0, 8), "RUBBER BASS": (28, 0, 18, 0), "SOFT BASS": (0, 22, 0, 12), "BUZZ BASS": (45, 12, 0, 0), "OCTAVE BASS": (16, 0, 24, 0),
+ "PEDAL BASS": (0, 0, 0, 18), "WOBBLE BASS": (30, 0, 28, 0), "PHAT BASS": (20, 45, 0, 4), "PLUCK BASS": (0, 0, 34, 8),
+ "MOOG LEAD": (0, 0, 28, 8), "FAT LEAD": (18, 35, 30, 10), "SOLO LEAD": (10, 0, 45, 14), "SINGING": (0, 26, 22, 24), "PULSE LEAD": (0, 32, 18, 6),
+ "SQUARE LEAD": (15, 0, 38, 0), "SAW LEAD": (20, 12, 34, 10), "SINE LEAD": (22, 36, 34, 14), "GLIDE LEAD": (0, 0, 52, 16), "RESO LEAD": (25, 0, 26, 6),
+ "WARM LEAD": (0, 38, 0, 22), "BITE LEAD": (50, 0, 18, 0), "FLUTE LEAD": (0, 0, 14, 30), "REED LEAD": (6, 22, 0, 10), "VOX LEAD": (0, 48, 0, 26),
+ "ROCK LEAD": (85, 0, 22, 6), "PROG LEAD": (30, 16, 56, 12), "SCREAM LEAD": (75, 0, 30, 0), "OCTAVE LEAD": (0, 0, 36, 6), "DUAL LEAD": (12, 60, 0, 6),
+ "SOFT LEAD": (0, 24, 0, 28), "WHISTLE": (0, 0, 30, 36), "CRY LEAD": (22, 0, 40, 18), "SWEEP LEAD": (8, 30, 0, 24), "THIN LEAD": (0, 0, 26, 6),
+ "BIG LEAD": (35, 50, 38, 20), "5TH LEAD": (28, 10, 44, 8),
+ "BRASS": (4, 0, 0, 12), "SOFT BRASS": (0, 16, 0, 18), "BRASS STAB": (12, 0, 20, 8), "HORN": (0, 0, 0, 26), "TRUMPET": (0, 0, 18, 10),
+ "SYN BRASS": (0, 52, 0, 14), "OBOE": (0, 0, 0, 16), "CLARINET": (0, 0, 0, 22), "SAX": (14, 0, 12, 14), "STRINGS": (0, 70, 0, 22),
+ "SLOW STRING": (0, 55, 0, 40), "SOFT PAD": (0, 40, 0, 34), "MOOG PAD": (6, 24, 26, 28), "WARM PAD": (0, 45, 0, 30), "DARK PAD": (14, 0, 0, 50),
+ "SWEEP PAD": (0, 64, 22, 36), "CHOIR": (0, 30, 0, 44), "DRONE": (30, 12, 16, 26), "ORGAN": (8, 52, 0, 10),
+ "CLAVI": (18, 0, 12, 0), "PLUCK": (0, 0, 40, 8), "HARPSI": (0, 0, 14, 10), "MARIMBA": (0, 0, 30, 16), "XYLO": (0, 0, 24, 10), "KALIMBA": (0, 10, 38, 20),
+ "E PIANO": (0, 55, 0, 14), "BELL": (0, 0, 36, 40), "GLASS": (0, 14, 44, 34), "HARP": (0, 0, 28, 32), "STEEL DRUM": (0, 22, 22, 18), "BLIP": (0, 0, 30, 0),
+ "ARP SAW": (0, 10, 48, 6), "ARP PULSE": (6, 0, 54, 4), "SYNC-ISH": (24, 0, 22, 4),
+ "NOISE FX": (40, 20, 35, 30), "WIND": (0, 60, 20, 45), "JET": (0, 70, 38, 30), "SIREN": (0, 0, 48, 22), "LASER": (20, 0, 56, 10), "ZAP": (30, 0, 44, 8),
+ "THUNDER": (0, 0, 0, 60), "KICK": (18, 0, 0, 2), "TOM": (0, 0, 0, 10), "SNARE": (10, 0, 0, 18), "HI HAT": (0, 0, 0, 6), "CLAP": (0, 0, 0, 34),
+ "ALARM": (22, 0, 26, 8), "SCI-FI": (12, 36, 40, 30), "HOWL": (28, 24, 34, 40),
+}
+for x in P:
+    x["fx"] = FXMAP[x["name"]]
+assert set(FXMAP) == {x["name"] for x in P}, set(FXMAP) ^ {x["name"] for x in P}
+
+def _cat(i, n):                        # the groups, by a patch's place before the showcase moves it
+    if n in ("FIFTHS", "5TH LEAD", "ARP SAW", "ARP PULSE", "SYNC-ISH", "SINE LEAD"): return "L"
+    if i < 24: return "B"
+    if i < 50: return "L"
+    if n in ("ORGAN", "CLAVI", "E PIANO"): return "K"
+    if n in ("KICK", "TOM", "SNARE", "HI HAT", "CLAP"): return "D"
+    if i < 70: return "P"
+    if i < 85: return "U"
+    return "F"
+for i, x in enumerate(P):
+    x["cat"] = _cat(i, x["name"])
+
+# ---- the first ten: a showcase of very different sounds; the groups follow
+SHOW = ["SAW LEAD", "SINE LEAD", "MOOG BASS", "ACID BASS", "5TH LEAD", "PLUCK", "HARP", "JET", "SIREN", "WARM PAD"]
+SHOWCAT = "LLBBLUUFFP"
+byname = {x["name"]: x for x in P}
+P[:] = [byname[n] for n in SHOW] + [x for x in P if x["name"] not in SHOW]
+for i, x in enumerate(P):
+    if i < 10:
+        x["cat"] = SHOWCAT[i]
+    x["e"][7] = i                      # SLOT = its place in the list
+
 assert len(P) == 100, len(P)
 names = [x["name"] for x in P]
 assert len(set(names)) == 100, [n for n in names if names.count(n) > 1]
@@ -149,13 +199,7 @@ for x in P:
 out.append("};\n")
 out.append("/* {CUT, EMPH, CNTR, F.ATK, F.DEC, F.SUS, MOD, SLOT}: the factory patch; every one is MONO (legato) */")
 def cat(i, n):
-    if i < 25: return "B"
-    if i < 50 or n in ("FIFTHS", "ARP SAW", "ARP PULSE", "SYNC-ISH"): return "L"
-    if n in ("ORGAN", "CLAVI", "E PIANO"): return "K"
-    if n in ("KICK", "TOM", "SNARE", "HI HAT", "CLAP"): return "D"
-    if i < 70: return "P"
-    if i < 85: return "U"
-    return "F"
+    return P[i]["cat"]
 out.append('#define FMUG_CATS "' + "".join(cat(i, x["name"]) for i, x in enumerate(P)) + '"   /* category.c: B bass, L lead, P pad, U pluck, K keys, D drum, F fx */')
 out.append("static const preset_t FMUG_PRESETS[] = {")
 for x in P:
