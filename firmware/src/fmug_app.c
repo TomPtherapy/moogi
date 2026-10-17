@@ -408,6 +408,57 @@ static void fa_dialog(void)
     fa_ctext(120, 154, &AF_X, "SAVE = WRITE   ANY PAGE = CANCEL", FA_MU);
 }
 
+/* ARP: a pop-up like SAVE's. KNOB 1..4 are MODE, RATE, OCT, GATE; SELECT picks a line (the fifth is the tempo) and
+ * ALGORITHM changes it; ARP again, HOME or a page button closes it. The arpeggio goes on after closing */
+static uint8_t fa_ar;                                     /* 1: the pop-up is open */
+static uint8_t fa_ar_row;                                 /* 0 MODE, 1 RATE, 2 OCT, 3 GATE, 4 BPM */
+#define FA_AR_N 5u
+static const uint8_t FA_AR_ID[4] = {P_AMODE, P_ARATE, P_AOCT, P_AGATE};
+static const char *const FA_AR_LB[FA_AR_N] = {"MODE", "RATE", "OCTAVES", "GATE", "TEMPO"};
+
+static void fa_ar_turn(uint32_t row, int32_t s)
+{
+    track_t *t = TSEL;
+    if (row < 4u) {
+        const param_desc_t *d = track_desc(t, FA_AR_ID[row]);
+        int16_t *vp = &t->p[FA_AR_ID[row]];
+        *vp = (int16_t)param_turn(d, *vp, s);
+        motion_capture(t, FA_AR_ID[row], *vp);
+        ml_knob(t, FA_AR_ID[row]);
+    } else {
+        song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + fmg_acc(EN_ALGO, s, 200), GP[G_BPM].min, GP[G_BPM].max);
+    }
+}
+static void fa_ar_dialog(void)
+{
+    uint32_t i;
+    const track_t *t = TSEL;
+    const uint16_t bgd = FA_RGB(0x1B, 0x19, 0x17);
+    cv_rect(16, 56, 208, 130, FA_OR);
+    cv_rect(18, 58, 204, 126, bgd);
+    fa_ctext(120, 65, &AF_S, "ARPEGGIATOR", FA_CR);
+    for (i = 0; i < FA_AR_N; i++) {
+        char val[16];
+        const char *un;
+        int32_t y = 84 + (int32_t)i * 18;
+        int hot = i == fa_ar_row;
+        if (i < 4u)
+            param_format(track_desc(t, FA_AR_ID[i]), t->p[FA_AR_ID[i]], val, &un);
+        else
+            fmt_int(val, song.g[G_BPM]);
+        if (hot)
+            cv_rect(24, y - 3, 192, 16, FA_RGB(0x2A, 0x25, 0x20));
+        fa_ltext(30, y, &AF_S, FA_AR_LB[i], hot ? FA_OR : FA_CR);
+        if (i < 4u)
+            fa_rtext(208, y, &AF_S, val, hot ? FA_OR : FA_CR);
+        else
+            fa_rtext(208, y, &AF_S, val, hot ? FA_OR : FA_CR);
+        if (i < 4u)
+            fa_ltext(30 + 70, y + 2, &AF_X, i == 0u ? "K1" : i == 1u ? "K2" : i == 2u ? "K3" : "K4", FA_RGB(0x5D, 0x55, 0x4A));
+    }
+    fa_ctext(120, 174, &AF_X, "SELECT LINE  ALGO CHANGE  ARP CLOSE", FA_MU);
+}
+
 static void fa_scene(void)
 {
     uint32_t pg = fa_page, i, cur = fmg_curi(pg), ex = fmg_count(pg) > 4u ? fmg_count(pg) - 4u : 0u;
@@ -486,7 +537,9 @@ static void fa_scene(void)
         b[3] = 0;
         fa_rtext(226, 232, &AF_X, b, FA_RGB(0x7A, 0x71, 0x64));
     }
-    if (fa_sv)
+    if (fa_ar)
+        fa_ar_dialog();
+    else if (fa_sv)
         fa_dialog();
     else if (fa_msg_on()) {
         int32_t mw = text_w(&AF_M, fa_msg) + 20;
@@ -507,7 +560,7 @@ static uint32_t fa_signature(void)
         h = (h ^ fmug_patch[0][i]) * 16777619u;
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
-    h = (h ^ fa_sv) * 16777619u;
+    h = (h ^ fa_sv ^ (uint32_t)fa_ar << 4 ^ (uint32_t)fa_ar_row << 5 ^ (uint32_t)song.g[G_BPM] << 8) * 16777619u;
     h = (h ^ fa_sv_slot ^ (uint32_t)fa_sv_pos << 8 ^ (uint32_t)t->user << 16 ^ (uint32_t)fa_msg_on() << 24) * 16777619u;
     for (i = 0; i < 12u; i++)
         h = (h ^ (uint8_t)fa_sv_name[i]) * 16777619u;
@@ -532,17 +585,19 @@ static void fa_draw(void)
     }
 }
 
-static void fa_splash(void)                              /* power-on: the name, large, and "by Ruppert" under it (3 s: main.c) */
+#include "fmini_splash.h"
+static void fa_splash(void)                              /* power-on: the picture (assets/fmini-splash.png), 3 s (main.c) */
 {
-    const uint16_t bg = FA_RGB(0x14, 0x12, 0x11);
-    lcd_fill(0, 0, 240, 240, bg);
-    cv_begin(240, 80, bg);
-    cv_oy = 0;
-    cv_text_on(120 - text_w(&AF_H, "FMini-1") / 2, 0, &AF_H, "FMini-1", FA_OR, bg);
-    cv_blit(0, 60);
-    cv_begin(240, 24, bg);
-    cv_text_on(120 - text_w(&AF_M, "by Ruppert") / 2, 2, &AF_M, "by Ruppert", FA_CR, bg);
-    cv_blit(0, 150);
+    uint32_t band, x, y;
+    for (band = 0; band < 2u; band++) {
+        cv_begin(240, 120, 0);
+        cv_oy = -(int32_t)band * 120;
+        for (y = band * 120u; y < band * 120u + 120u; y++)
+            for (x = 0; x < 240u; x++)
+                cv_pset((int32_t)x, (int32_t)y, FMINI_SPLASH_PAL[FMINI_SPLASH[y * 240u + x]]);
+        cv_oy = 0;
+        cv_blit(0, band * 120u);
+    }
 }
 
 /* ---------------------------------------------------------- control --- */
@@ -592,7 +647,19 @@ static void fa_buttons(uint32_t pressed)
 {
     static const uint8_t PG_BTN[6] = {B_LFO, B_EDIT, B_SCL, B_GLO, B_FX, B_ENV};
     uint32_t i;
+    if ((pressed >> panel.btn[B_HOME]) & 1u) {            /* HOME: the first screen, CTRL; the pop-ups close */
+        fa_sv = 0;
+        fa_ar = 0;
+        fa_goto(0);
+        return;
+    }
+    if ((pressed >> panel.btn[B_ARP]) & 1u) {             /* ARP: the pop-up */
+        fa_sv = 0;
+        fa_ar = (uint8_t)!fa_ar;
+        return;
+    }
     if ((pressed >> panel.btn[B_SAVE]) & 1u) {            /* SAVE: open the dialog; again: write */
+        fa_ar = 0;
         if (fa_sv)
             fa_sv_do();
         else
@@ -602,6 +669,7 @@ static void fa_buttons(uint32_t pressed)
     for (i = 0; i < 6u; i++)
         if ((pressed >> panel.btn[PG_BTN[i]]) & 1u) {
             fa_sv = 0;                                    /* a page button cancels the dialog */
+            fa_ar = 0;
             if (PG_BTN[i] == B_ENV) {
                 fa_env_last = (uint8_t)(fa_page == 4u ? 5u : 4u);
                 fa_goto(fa_env_last);
@@ -616,13 +684,13 @@ static void fa_buttons(uint32_t pressed)
         song.octave = song.octave < 3 ? song.octave + 1 : song.octave;
 }
 
-/* the instrument is monophonic, like the one it follows: one voice, legato (no retrigger while a key is held), the
- * lowest key wins; every patch and every saved preset plays this way whatever its record says */
+/* the instrument is monophonic, like the one it follows: one voice (a new key retriggers the contours and glides when GLIDE
+ * is on), the lowest key wins; every patch and every saved preset plays this way whatever its record says */
 static void fa_mono(void)
 {
     uint32_t i;
     for (i = 0; i < NTRK; i++) {
-        trk[i].p[P_VOICE] = V_LEGATO;
+        trk[i].p[P_VOICE] = V_MONO;
         trk[i].p[P_PRIO] = 1;
     }
 }
@@ -643,10 +711,23 @@ static void fa_input(void)
     }
     song.sel = 0;
     fa_mono();
+    fmg_glide_sync();                                       /* the patch's GLIDE switch and time -> the track's */
     fmg_force_page = (int8_t)fa_page;
     fa_buttons(pressed);
     if ((s = panel_enc(EN_PRESET)) != 0)
         fa_preset(s);
+    if (fa_ar) {                                          /* the ARP pop-up */
+        if ((s = panel_enc(EN_SELECT)) != 0)
+            fa_ar_row = (uint8_t)((fa_ar_row + FA_AR_N + (s > 0 ? 1u : FA_AR_N - 1u)) % FA_AR_N);
+        if ((s = panel_enc(EN_ALGO)) != 0)
+            fa_ar_turn(fa_ar_row, s);
+        for (k = 0; k < 4u; k++)
+            if ((s = panel_enc(EN_K1 + k)) != 0) {
+                fa_ar_turn(k, s);
+                fa_ar_row = (uint8_t)k;
+            }
+        return;
+    }
     if (fa_sv) {                                          /* the SAVE dialog: name editing; the knobs wait */
         if ((s = panel_enc(EN_SELECT)) != 0)
             fa_sv_pos = (uint8_t)((fa_sv_pos + 12u + (s > 0 ? 1u : 11u)) % 12u);
@@ -699,6 +780,8 @@ static void fa_leds(void)
         static const uint8_t PG_LED[FA_NPAGE] = {B_LFO, B_EDIT, B_SCL, B_GLO, B_ENV, B_ENV, B_FX};
         led_put(nl, panel.btn[PG_LED[fa_page]], 1);          /* the page's button */
     }
+    led_put(nl, panel.btn[B_ARP], fa_ar || TSEL->p[P_AMODE] != 0);
+    led_put(nl, panel.btn[B_SAVE], fa_sv);
     led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
     led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
     c = fm1_in.notes;

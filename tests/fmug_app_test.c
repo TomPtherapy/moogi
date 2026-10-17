@@ -85,12 +85,35 @@ int main(int argc, char **argv)
         if (fa_on_user() || TSEL->p[P_E7] != 0) { printf("save: no wrap\n"); return 1; }
         TSEL->p[P_VOICE] = V_POLY;
         fa_mono();
-        if (TSEL->p[P_VOICE] != V_LEGATO) { printf("not mono\n"); return 1; }
+        if (TSEL->p[P_VOICE] != V_MONO) { printf("not mono\n"); return 1; }
         {
             uint32_t k;
             for (k = 0; k < FMUG_NFACTORY; k++)
                 if (!ENGINES[ENGI_FMUG]->presets[k].mono) { printf("preset %u is poly\n", k); return 1; }
         }
+    }
+    {   /* GLIDE: the knob alone makes the track glide; ARP pop-up changes the arp; HOME */
+        int i;
+        fa_page = 0;
+        fmg_force_page = 0;
+        fmug_load_slot(0, 0);
+        TSEL->p[P_E7] = 0;
+        fmg_glide_sync();
+        for (i = 0; i < 10; i++)
+            fmg_knob(1, 2);
+        if (TSEL->p[P_GLIDE] <= 0) { printf("glide knob does not glide (%d)\n", TSEL->p[P_GLIDE]); return 1; }
+        fa_ar = 1;
+        fa_ar_turn(0, 1);                               /* MODE: OFF -> UP */
+        fa_ar_turn(1, 1);
+        fa_ar_turn(4, 5);
+        if (TSEL->p[P_AMODE] != 1) { printf("arp mode\n"); return 1; }
+        ui.force = 1;
+        fa_draw();
+        dump(dir, 12);
+        fa_ar = 0;
+        fa_page = 5;
+        fa_goto(0);
+        if (fa_page != 0) { printf("home\n"); return 1; }
     }
     printf("fmug_app_test: ok\n");
     return 0;

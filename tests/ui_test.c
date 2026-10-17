@@ -9133,7 +9133,9 @@ static int test_fmug_panel(void)
     fmg_cur[0] = 6;
     turn(EN_ALGO, -1);
     ok = TSEL->p[P_GLIDE] == 0;
-    turn(EN_K2, 10);                                 /* GLIDE knob: the time is kept, P_GLIDE stays 0 while off */
+    turn(EN_K2, 10);                                 /* GLIDE knob: a time above 0 switches GLIDE on (FMini-1) */
+    ok &= fmug_patch[tr][FG_GLID] > 0u && (fmug_patch[tr][FG_SW2] & FT_GLIDE) && TSEL->p[P_GLIDE] == (int16_t)fmug_patch[tr][FG_GLID];
+    turn(EN_ALGO, -1);                               /* the switch off: no glide, the time kept */
     ok &= TSEL->p[P_GLIDE] == 0 && fmug_patch[tr][FG_GLID] > 0u;
     turn(EN_ALGO, 1);
     ok &= TSEL->p[P_GLIDE] == (int16_t)fmug_patch[tr][FG_GLID];

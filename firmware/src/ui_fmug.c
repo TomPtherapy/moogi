@@ -161,8 +161,12 @@ static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
     }
     default:                                                      /* FK_BYTE, FK_GLIDE */
         fmg_write(f->a, (uint32_t)clamp((int32_t)fmg_byte(f->a) + fmg_acc(role, s, 127), 0, 127));
-        if (f->kind == FK_GLIDE)
+        if (f->kind == FK_GLIDE) {                       /* the knob is the GLIDE: any time above 0 switches it on, 0 off */
+            uint32_t sw2 = fmg_byte(FG_SW2), want = fmg_byte(f->a) ? (sw2 | FT_GLIDE) : (sw2 & ~(uint32_t)FT_GLIDE);
+            if (want != sw2)
+                fmg_write(FG_SW2, want);
             fmg_glide_sync();
+        }
         break;
     }
 }
