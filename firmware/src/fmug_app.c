@@ -463,13 +463,105 @@ static void fa_ar_dialog(void)
     fa_ctext(120, 196, &AF_S, "SELECT  ALGO  K1-K4  ARP=CLOSE", FA_MU);
 }
 
+/* the ARP button: a tap turns it on / off, held HOLD on / off; the pop-up shows the settings for a few seconds */
+static uint8_t fa_arp_down, fa_arp_done, fa_ar_last = 1;
+static uint32_t fa_arp_t0, fa_ar_until;
+
+/* ----------------------------------------------------------- SEQ --- */
+/* SEQ: a pop-up with the 16 slots of a sequence of up to 16 notes. REC (it lights) records the notes you play into the
+ * next slots (a take of 16 ends by itself; REC again ends it), PLAY / STOP plays the loop at the TEMPO (ALGORITHM
+ * changes it); the slot playing is lit, and so are the keys of the notes that sound. The steps are the track's own */
+static uint8_t fa_sq;                                     /* 1: the pop-up is open */
+static uint8_t fa_sq_rec;                                 /* REC armed */
+static uint8_t fa_sq_cur;                                 /* the slot the next note goes into */
+static uint8_t fa_sq_fresh;                               /* armed, nothing played yet: the old take is still there */
+static uint32_t fa_sq_blink(void) { return fa_sq_rec ? (fm1_ms >> 8) & 1u : 0u; }
+
+static void fa_seq_note(track_t *t, uint32_t note)
+{
+    step_t *s;
+    uint32_t i;
+    if (!fa_sq_rec || t != &trk[0] || note > 127u)
+        return;
+    if (fa_sq_fresh) {                                    /* the first note of a take: the old one goes */
+        for (i = 0; i < NSTEP; i++)
+            memset(&t->step[i], 0, sizeof t->step[i]);
+        fa_sq_fresh = 0;
+        fa_sq_cur = 0;
+    }
+    if (fa_sq_cur >= 16u)
+        return;
+    s = &t->step[fa_sq_cur];
+    memset(s, 0, sizeof *s);
+    s->note[0] = (uint8_t)note;
+    s->n = 1;
+    s->time = ST_NOTE;
+    s->vel = 100;
+    fa_sq_cur++;
+    t->p[P_SLEN] = fa_sq_cur;
+    if (fa_sq_cur >= 16u)
+        fa_sq_rec = 0;                                    /* 16 notes: the take is done */
+}
+
+static void fa_note_name(char *b, uint32_t note)
+{
+    static const char NM[12][3] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    uint32_t n = note % 12u;
+    uint32_t k = 0;
+    b[k++] = NM[n][0];
+    if (NM[n][1])
+        b[k++] = NM[n][1];
+    b[k++] = (char)('0' + (int32_t)(note / 12u) - 1);     /* C4 = 60 */
+    b[k] = 0;
+}
+
+static void fa_seq_dialog(void)
+{
+    const track_t *t = TSEL;
+    uint32_t i, len = (uint32_t)clamp(t->p[P_SLEN], 1, 16), now = song.playing ? t->seq_idx % len : 99u;
+    char b[16];
+    fa_frame("SEQUENCER");
+    for (i = 0; i < 16u; i++) {
+        int32_t x = 15 + (int32_t)(i % 4u) * 53, y = 52 + (int32_t)(i / 4u) * 32;
+        int rec_here = fa_sq_rec && i == fa_sq_cur, playing = i == now;
+        const step_t *s = &t->step[i];
+        uint16_t bg = playing ? FA_OR : FA_RGB(0x2A, 0x25, 0x20), fg = playing ? FA_RGB(0x14, 0x12, 0x10) : FA_CR;
+        cv_rect(x, y, 50, 28, rec_here && fa_sq_blink() ? FA_RED : bg);
+        if (i < len && s->n) {
+            fa_note_name(b, s->note[0]);
+            fa_ctext(x + 25, y + 6, &AF_M, b, fg);
+        } else {
+            fa_ctext(x + 25, y + 6, &AF_M, "-", FA_RGB(0x6A, 0x62, 0x58));
+        }
+    }
+    b[0] = 0;
+    str_cpy(b, fa_sq_rec ? "REC" : song.playing ? "PLAY" : "STOP", 5);
+    fa_ltext(20, 182, &AF_M, b, fa_sq_rec ? FA_RED : song.playing ? FA_OR : FA_MU);
+    fmt_int(b, song.g[G_BPM]);
+    fa_rtext(220, 182, &AF_M, b, FA_CR);
+    fa_ctext(120, 198, &AF_S, "REC  PLAY  ALGO=TEMPO  SEQ=CLOSE", FA_MU);
+}
+
+/* the keys of the notes that sound (the arpeggio, the sequence, MIDI): lit like the keys held */
+static uint32_t fa_sound_keys(void)
+{
+    const track_t *t = &trk[0];
+    uint32_t m = 0, i, k;
+    for (i = 0; i < NVOICE; i++)
+        if (t->v[i].active && t->v[i].gate)
+            for (k = 0; k < 27u; k++)
+                if (kb_map(t, k) == t->v[i].note)
+                    m |= 1u << k;
+    return m;
+}
+
 /* ----------------------------------------------------------- GLO --- */
 /* GLO opens the global settings pop-up: MIDI IN (USB / MIDI / BLUETOOTH / ALL), CHANNEL (ALL / 1..16), MIDI CC (every
  * knob, switch and wave box of every screen and the ARP's lines, each with its own CC, 0 = none; a CC sent from the
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.2.0"
+#define FMINI_VERSION "v1.3.0"
 #define FA_NPG 43u                                        /* the controls of the seven screens (FMG_PAGE: 8+7+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -503,7 +595,7 @@ static void fa_cfg_load(void)
         fm_midi_src = (uint8_t)(src > 3u ? 3u : src);
         fm_midi_ch = (uint8_t)(ch > 16u ? 0u : ch);
         fm_bend_mode = (uint8_t)(*fa_cfg_byte(4u + FA_NCC) & 3u);
-        fm_bt = (uint8_t)(*fa_cfg_byte(5u + FA_NCC) != 1u);   /* 1 = OFF, anything else (2, or never saved) = ON */
+        fm_bt = (uint8_t)(*fa_cfg_byte(5u + FA_NCC) == 2u);   /* 2 = ON; OFF unless chosen (there is no radio driver yet) */
         for (i = 0; i < FA_NCC; i++) {
             uint32_t c = *fa_cfg_byte(4u + i);
             fa_cc[i] = (uint8_t)(fa_cc_valid(c) ? c : FA_CC0[i]);
@@ -512,7 +604,7 @@ static void fa_cfg_load(void)
         fm_midi_src = 3;
         fm_midi_ch = 0;
         fm_bend_mode = 0;
-        fm_bt = 1;
+        fm_bt = 0;
         memcpy(fa_cc, FA_CC0, sizeof fa_cc);
     }
 }
@@ -536,6 +628,13 @@ static void fa_gl_close(void)
 {
     fa_gl = 0;
     fa_cfg_save();
+}
+static void fa_arp_show(void)
+{
+    fa_sv = 0;
+    fa_gl_close();
+    fa_ar = 1;
+    fa_ar_until = fm1_ms + 4000u;
 }
 
 /* control n of the list -> its page and place, its tag and name */
@@ -657,7 +756,7 @@ static void fa_gl_dialog(void)
         fa_line(140, "MIDI CC", ">", fa_gl_row == 4u);
         fa_line(161, "ABOUT", ">", fa_gl_row == 5u);
         if (fm_bt)
-            fa_ctext(120, 182, &AF_S, "BLUETOOTH: NO RADIO DRIVER YET", FA_RED);
+            fa_ctext(120, 182, &AF_S, "NO BLUETOOTH DRIVER IN THIS FIRMWARE", FA_RED);
         fa_ctext(120, 198, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
     } else {                                              /* MIDI CC: a window of six lines on the list */
         uint32_t top = fa_cc_i < 3u ? 0u : fa_cc_i - 3u, k;
@@ -809,6 +908,8 @@ static void fa_scene(void)
     }
     if (fa_gl == 1u || fa_gl == 2u)
         fa_gl_dialog();
+    else if (fa_sq)
+        fa_seq_dialog();
     else if (fa_ar)
         fa_ar_dialog();
     else if (fa_sv)
@@ -835,13 +936,17 @@ static uint32_t fa_signature(void)
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h = (h ^ fa_base ^ (uint32_t)fa_pp_on() << 8) * 16777619u;
-    h = (h ^ fa_gl ^ (uint32_t)fa_gl_row << 3 ^ (uint32_t)fa_cc_i << 6 ^ (uint32_t)fm_midi_src << 12 ^ (uint32_t)fm_bt << 17 ^ (uint32_t)fm_midi_ch << 14) * 16777619u;
+    h = (h ^ fa_gl ^ (uint32_t)fa_gl_row << 3 ^ (uint32_t)fa_cc_i << 6 ^ (uint32_t)fm_midi_src << 12 ^ (uint32_t)fm_bt << 17 ^ (uint32_t)fm_midi_ch << 14 ^ (uint32_t)fm_bend_mode << 19) * 16777619u;
     for (i = 0; i < FA_NCC; i++)
         h = (h ^ fa_cc[i]) * 16777619u;
     h = (h ^ fa_sv ^ (uint32_t)fa_ar << 4 ^ (uint32_t)fa_ar_row << 5 ^ (uint32_t)song.g[G_BPM] << 8) * 16777619u;
     h = (h ^ fa_sv_slot ^ (uint32_t)fa_sv_pos << 8 ^ (uint32_t)t->user << 16 ^ (uint32_t)fa_msg_on() << 24) * 16777619u;
     for (i = 0; i < 12u; i++)
         h = (h ^ (uint8_t)fa_sv_name[i]) * 16777619u;
+    h = (h ^ fa_sq ^ (uint32_t)fa_sq_rec << 1 ^ (uint32_t)fa_sq_cur << 2 ^ (uint32_t)song.playing << 8 ^
+         (uint32_t)(song.playing ? t->seq_idx : 0u) << 9 ^ (uint32_t)fa_sq_blink() << 16) * 16777619u;
+    for (i = 0; i < 16u; i++)
+        h = (h ^ (uint32_t)(t->step[i].n ? t->step[i].note[0] : 0u)) * 16777619u;
     return (h ^ t->preset) * 16777619u;
 }
 
@@ -931,11 +1036,13 @@ static void fa_preset(int32_t s)
 /* a page button: the tap opens it */
 static void fa_buttons(uint32_t pressed)
 {
-    static const uint8_t PG_BTN[6] = {B_LFO, B_EDIT, B_SCL, B_SEQ, B_FX, B_ENV};   /* (GLO is the global pop-up) */
+    static const uint8_t PG_BTN[5] = {B_LFO, B_EDIT, B_SCL, B_FX, B_ENV};   /* (GLO: global, ARP, SEQ, REC, PLAY: their own) */
     uint32_t i;
     if ((pressed >> panel.btn[B_HOME]) & 1u) {            /* HOME: the first screen, CTRL; the pop-ups close */
         fa_sv = 0;
         fa_ar = 0;
+        fa_sq = 0;
+        fa_sq_rec = 0;
         fa_gl_close();
         fa_goto(0);
         return;
@@ -943,6 +1050,8 @@ static void fa_buttons(uint32_t pressed)
     if ((pressed >> panel.btn[B_GLO]) & 1u) {             /* GLO: the global pop-up; inside a list, one level back */
         fa_sv = 0;
         fa_ar = 0;
+        fa_sq = 0;
+        fa_sq_rec = 0;
         if (!fa_gl)
             fa_gl = 1;
         else if (fa_gl > 1u)
@@ -951,14 +1060,58 @@ static void fa_buttons(uint32_t pressed)
             fa_gl_close();
         return;
     }
-    if ((pressed >> panel.btn[B_ARP]) & 1u) {             /* ARP: the pop-up */
+    {   /* ARP: a tap turns the arpeggiator on / off (the button lights); held, HOLD on / off. The pop-up shows it */
+        uint32_t down = (fm1_in.buttons >> panel.btn[B_ARP]) & 1u;
+        if ((pressed >> panel.btn[B_ARP]) & 1u) {
+            fa_arp_down = 1;
+            fa_arp_done = 0;
+            fa_arp_t0 = fm1_ms;
+        }
+        if (fa_arp_down) {
+            if (!down) {
+                fa_arp_down = 0;
+                if (!fa_arp_done) {                           /* the tap */
+                    track_t *t = TSEL;
+                    if (t->p[P_AMODE]) {
+                        fa_ar_last = (uint8_t)t->p[P_AMODE];
+                        t->p[P_AMODE] = 0;
+                    } else {
+                        t->p[P_AMODE] = fa_ar_last ? fa_ar_last : 1;
+                    }
+                    fa_arp_show();
+                }
+            } else if (!fa_arp_done && (uint32_t)(fm1_ms - fa_arp_t0) >= 450u) {   /* the hold */
+                fa_arp_done = 1;
+                TSEL->p[P_AHOLD] = (int16_t)!TSEL->p[P_AHOLD];
+                fa_arp_show();
+            }
+        }
+    }
+    if ((pressed >> panel.btn[B_REC]) & 1u) {             /* REC: the next notes go into the SEQ slots (it lights) */
+        fa_sq_rec = (uint8_t)!fa_sq_rec;
+        if (fa_sq_rec) {
+            fa_sq_cur = 0;
+            fa_sq_fresh = 1;
+            fa_sv = 0;
+            fa_ar = 0;
+            fa_gl_close();
+            fa_sq = 1;
+        }
+    }
+    if ((pressed >> panel.btn[B_PLAY]) & 1u)              /* PLAY / STOP the sequence */
+        transport_req = (song.playing || transport_req == 1u) ? 2u : 1u;
+    if ((pressed >> panel.btn[B_SEQ]) & 1u) {             /* SEQ: the sequencer pop-up */
         fa_sv = 0;
+        fa_ar = 0;
         fa_gl_close();
-        fa_ar = (uint8_t)!fa_ar;
-        return;
+        fa_sq = (uint8_t)!fa_sq;
+        if (!fa_sq)
+            fa_sq_rec = 0;
     }
     if ((pressed >> panel.btn[B_SAVE]) & 1u) {            /* SAVE: open the dialog; again: write */
         fa_ar = 0;
+        fa_sq = 0;
+        fa_sq_rec = 0;
         fa_gl_close();
         if (fa_sv)
             fa_sv_do();
@@ -966,17 +1119,19 @@ static void fa_buttons(uint32_t pressed)
             fa_sv_open();
         return;
     }
-    for (i = 0; i < 6u; i++)
+    for (i = 0; i < 5u; i++)
         if ((pressed >> panel.btn[PG_BTN[i]]) & 1u) {
             fa_sv = 0;                                    /* a page button cancels the dialog */
             fa_ar = 0;
+            fa_sq = 0;
+            fa_sq_rec = 0;
             fa_gl_close();
             if (PG_BTN[i] == B_ENV) {
                 fa_env_last = (uint8_t)(fa_page == 4u ? 5u : 4u);
                 fa_goto(fa_env_last);
             } else {
-                static const uint8_t TO[6] = {0, 1, 2, 3, 6, 4};   /* LFO OSC.. EDIT, SCL MIX, SEQ FILT, FX, ENV */
-                fa_goto(TO[i]);
+                static const uint8_t TO[5] = {0, 1, 2, 6, 4};      /* LFO CTRL, EDIT OSC, SCL MIX / FILT, FX, ENV */
+                fa_goto(PG_BTN[i] == B_SCL && fa_page == 2u ? 3u : TO[i]);
             }
         }
     if ((pressed >> panel.btn[B_OCTDN]) & 1u)
@@ -1061,19 +1216,37 @@ static void fa_input(void)
                 fa_cc[fa_cc_i] = (uint8_t)c;
                 fa_cfg_dirty = 1;
             }
-        } else {
-            (void)panel_enc(EN_SELECT);
-            (void)panel_enc(EN_ALGO);
+        } else {                                            /* ABOUT: either encoder goes back */
+            if (panel_enc(EN_SELECT) != 0 || panel_enc(EN_ALGO) != 0)
+                fa_gl = 1;
         }
         return;
     }
-    if (fa_ar) {                                          /* the ARP pop-up */
-        if ((s = panel_enc(EN_SELECT)) != 0)
-            fa_ar_row = (uint8_t)((fa_ar_row + FA_AR_N + (s > 0 ? 1u : FA_AR_N - 1u)) % FA_AR_N);
+    if (fa_sq) {                                          /* the SEQ pop-up: ALGORITHM is the tempo */
         if ((s = panel_enc(EN_ALGO)) != 0)
+            song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + fmg_acc(EN_ALGO, s, 200), GP[G_BPM].min, GP[G_BPM].max);
+        (void)panel_enc(EN_SELECT);
+        for (k = 0; k < 4u; k++)
+            (void)panel_enc(EN_K1 + k);
+        return;
+    }
+    if (fa_ar) {                                          /* the ARP pop-up */
+        if (fa_ar_until && (int32_t)(fm1_ms - fa_ar_until) >= 0 && !fa_arp_down)
+            fa_ar = 0;                                    /* a few seconds without a touch: it closes */
+        if ((s = panel_enc(EN_SELECT)) != 0) {
+            fa_ar_until = fm1_ms + 4000u;
+        }
+        if (!fa_ar)
+            return;
+        if (s)
+            fa_ar_row = (uint8_t)((fa_ar_row + FA_AR_N + (s > 0 ? 1u : FA_AR_N - 1u)) % FA_AR_N);
+        if ((s = panel_enc(EN_ALGO)) != 0) {
             fa_ar_turn(fa_ar_row, s);
+            fa_ar_until = fm1_ms + 4000u;
+        }
         for (k = 0; k < 4u; k++)
             if ((s = panel_enc(EN_K1 + k)) != 0) {
+                fa_ar_until = fm1_ms + 4000u;
                 fa_ar_turn(k, s);
                 fa_ar_row = (uint8_t)k;
             }
@@ -1128,15 +1301,18 @@ static void fa_leds(void)
     for (k = 0; k < NB; k++)
         led_put(nd, panel.btn[k], 1);                       /* every button's glow */
     {
-        static const uint8_t PG_LED[FA_NPAGE] = {B_LFO, B_EDIT, B_SCL, B_SEQ, B_ENV, B_ENV, B_FX};
+        static const uint8_t PG_LED[FA_NPAGE] = {B_LFO, B_EDIT, B_SCL, B_SCL, B_ENV, B_ENV, B_FX};
         led_put(nl, panel.btn[PG_LED[fa_page]], 1);          /* the page's button */
     }
-    led_put(nl, panel.btn[B_ARP], fa_ar || TSEL->p[P_AMODE] != 0);
+    led_put(nl, panel.btn[B_ARP], TSEL->p[P_AMODE] != 0);
+    led_put(nl, panel.btn[B_SEQ], fa_sq != 0u);
+    led_put(nl, panel.btn[B_REC], fa_sq_rec != 0u);
+    led_put(nl, panel.btn[B_PLAY], song.playing != 0u);
     led_put(nl, panel.btn[B_SAVE], fa_sv);
     led_put(nl, panel.btn[B_GLO], fa_gl != 0u);
     led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
     led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
-    c = fm1_in.notes;
+    c = fm1_in.notes | fa_sound_keys();                     /* the keys held, and the notes sounding: arpeggio, sequence, MIDI */
     for (k = 0; k < 27u; k++)
         led_put(nl, 14u + k, (int)((c >> k) & 1u));
     for (k = 0; k < FM1_NCOL; k++) {

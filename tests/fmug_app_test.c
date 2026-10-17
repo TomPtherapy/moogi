@@ -21,6 +21,33 @@ static void dump(const char *dir, int n)
     }
     fclose(f);
 }
+/* the FMini-1 loop's frame: fa_input is its input (ui_input is Felucca's) */
+static void fframe(void) { host_ticks += 16000u; fm1_ms += 16u; fa_input(); }
+static void fframes(uint32_t ms) { uint32_t i; for (i = 0; i < ms / 16u; i++) fframe(); }
+static void fpress(uint32_t label)
+{
+    fm1_in.buttons |= 1u << panel.btn[label];
+    host_pressed |= 1u << panel.btn[label];
+    fframe();
+    fm1_in.buttons &= ~(1u << panel.btn[label]);
+    fframe();
+}
+static void fhold(uint32_t label)
+{
+    uint32_t k;
+    fm1_in.buttons |= 1u << panel.btn[label];
+    host_pressed |= 1u << panel.btn[label];
+    for (k = 0; k < 52u; k++)
+        fframe();
+    fm1_in.buttons &= ~(1u << panel.btn[label]);
+    fframe();
+}
+static void fturn(uint32_t role, int32_t d)
+{
+    host_enc[panel.enc[role]] += d * panel.dir[role];
+    fframe();
+    host_ticks += 200000u;
+}
 int main(int argc, char **argv)
 {
     int pg;
@@ -156,6 +183,7 @@ int main(int argc, char **argv)
         if (fa_cc[3] != 80) { printf("learn: %u\n", fa_cc[3]); return 1; }
         /* the filter: USB 1, MIDI 2, BT 3 */
         fm_midi_src = 0; fm_midi_ch = 0;
+        fm_bt = 1;
         if (!fm_midi_ok(1, 5) || fm_midi_ok(2, 5) || fm_midi_ok(3, 5)) { printf("src USB\n"); return 1; }
         fm_midi_src = 1;
         if (fm_midi_ok(1, 5) || !fm_midi_ok(2, 5)) { printf("src MIDI\n"); return 1; }
@@ -216,6 +244,77 @@ int main(int argc, char **argv)
         if (trk[0].mw != 127) { printf("mod wheel not stored (%d)\n", trk[0].mw); return 1; }
         midi_event(0xB0u, 0, 1, 0);
         if (trk[0].mw != 0) { printf("mod wheel back\n"); return 1; }
+    }
+    {   /* buttons: ARP tap / hold, SEQ + REC + PLAY, the lit keys, GLO fixes */
+        panel_init();
+        uint32_t sig, k, i;
+        fa_init();
+        trk[0].p[P_AMODE] = 0; trk[0].p[P_AHOLD] = 0; fa_ar = 0;
+        fpress(B_ARP);
+        if (trk[0].p[P_AMODE] != 1 || !fa_ar) { printf("arp tap on (%d) down=%d done=%d btn=%u pressedmask=%u\n", trk[0].p[P_AMODE], fa_arp_down, fa_arp_done, panel.btn[B_ARP], host_pressed); return 1; }
+        fpress(B_ARP);
+        if (trk[0].p[P_AMODE] != 0) { printf("arp tap off\n"); return 1; }
+        fpress(B_ARP);
+        fhold(B_ARP);
+        if (!trk[0].p[P_AHOLD] || trk[0].p[P_AMODE] != 1) { printf("arp hold: hold %d mode %d\n", trk[0].p[P_AHOLD], trk[0].p[P_AMODE]); return 1; }
+        fhold(B_ARP);
+        if (trk[0].p[P_AHOLD]) { printf("arp hold off\n"); return 1; }
+        fframes(4500);
+        if (fa_ar) { printf("arp pop-up stays\n"); return 1; }
+        trk[0].p[P_AMODE] = 0;
+        /* the sequencer */
+        fpress(B_SEQ);
+        if (!fa_sq) { printf("seq pop-up\n"); return 1; }
+        fpress(B_REC);
+        if (!fa_sq_rec) { printf("rec\n"); return 1; }
+        input_on(&trk[0], 60, 100); input_on(&trk[0], 64, 100); input_on(&trk[0], 67, 100);
+        trk_all_off(&trk[0]);
+        if (fa_sq_cur != 3 || trk[0].step[0].note[0] != 60 || trk[0].step[2].note[0] != 67 || trk[0].p[P_SLEN] != 3) { printf("seq record %d\n", fa_sq_cur); return 1; }
+        fpress(B_REC);
+        if (fa_sq_rec) { printf("rec off\n"); return 1; }
+        fpress(B_PLAY);
+        if (transport_req != 1) { printf("play request\n"); return 1; }
+        for (i = 0; i < 400; i++) { events_block(CTL); mix_block((int32_t[2 * CTL]){0}, CTL); }
+        if (!song.playing) { printf("not playing\n"); return 1; }
+        {   uint32_t seen = 0, lit = 0;
+            for (i = 0; i < 1200; i++) {
+                int32_t o[2 * CTL];
+                mix_block(o, CTL);
+                seen |= 1u << (trk[0].seq_idx % 3u);
+                lit |= fa_sound_keys();
+            }
+            if (seen != 7u) { printf("seq steps seen %u\n", seen); return 1; }
+            if (!lit) { printf("no key lit while playing\n"); return 1; }
+        }
+        ui.force = 1; fa_draw(); dump(dir, 18);
+        fpress(B_PLAY);
+        events_block(CTL);
+        if (song.playing) { printf("stop\n"); return 1; }
+        fpress(B_REC);                                   /* a take of 16 ends by itself */
+        for (k = 0; k < 20u; k++) input_on(&trk[0], 50u + k, 100);
+        trk_all_off(&trk[0]);
+        if (fa_sq_rec || trk[0].p[P_SLEN] != 16 || trk[0].step[15].note[0] != 65) { printf("take of 16 (%d)\n", trk[0].p[P_SLEN]); return 1; }
+        ui.force = 1; fa_draw(); dump(dir, 19);
+        fpress(B_SEQ);
+        if (fa_sq) { printf("seq close\n"); return 1; }
+        /* the keys of a sounding note light */
+        trk_note_on(&trk[0], kb_map(&trk[0], 5), 100);
+        if (!((fa_sound_keys() >> 5) & 1u)) { printf("key led\n"); return 1; }
+        trk_all_off(&trk[0]);
+        /* GLO: PITCH BEND draws at once, ABOUT closes with either encoder */
+        fa_gl = 1; fa_gl_row = 3; fm_bend_mode = 0;
+        sig = fa_signature();
+        fturn(EN_ALGO, 1);
+        if (fm_bend_mode != 1 || fa_signature() == sig) { printf("bend redraw\n"); return 1; }
+        fa_gl = 3; fturn(EN_ALGO, 1);
+        if (fa_gl != 1) { printf("about ALGO\n"); return 1; }
+        fa_gl = 3; fturn(EN_SELECT, 1);
+        if (fa_gl != 1) { printf("about SELECT\n"); return 1; }
+        fa_gl = 0;
+        fpress(B_SCL);                                   /* SCL: MIX, then FILT */
+        if (fa_page != 2) { printf("SCL -> MIX (%d)\n", fa_page); return 1; }
+        fpress(B_SCL);
+        if (fa_page != 3) { printf("SCL -> FILT (%d)\n", fa_page); return 1; }
     }
     printf("fmug_app_test: ok\n");
     return 0;

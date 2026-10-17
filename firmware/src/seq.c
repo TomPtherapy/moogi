@@ -619,8 +619,14 @@ static __attribute__((noinline)) void cin_keep(track_t *t, uint32_t note, uint32
     cin_up[i] &= (uint8_t)~(1u << k);
 }
 
+#if FELUCCA_FMUG_ONLY
+static void fa_seq_note(track_t *t, uint32_t note);      /* fmug_app.c: the SEQ pop-up's step recording */
+#endif
 static void input_on(track_t *t, uint32_t note, uint32_t vel)
 {
+#if FELUCCA_FMUG_ONLY
+    fa_seq_note(t, note);
+#endif
     last_note = (uint8_t)note;
     if (cin_left)
         cin_keep(t, note, vel);
@@ -1202,7 +1208,7 @@ static uint8_t midi_route;                 /* the G_ROUTE events_block last saw 
 static volatile uint8_t fm_midi_src = 3;                 /* 0 USB, 1 MIDI, 2 BLUETOOTH, 3 ALL */
 static volatile uint8_t fm_midi_ch;                      /* 0 ALL (omni), 1..16 */
 static volatile uint8_t fm_bend_mode;                    /* GLO > PITCH BEND: 0 +-2, 1 +-12, 2 +2 -12, 3 +2 -24 */
-static volatile uint8_t fm_bt = 1;                       /* GLO > BLUETOOTH ON/OFF: the Bluetooth MIDI source is heard only when ON */
+static volatile uint8_t fm_bt;                       /* GLO > BLUETOOTH ON/OFF: the Bluetooth MIDI source is heard only when ON */
 static volatile uint8_t fm_cc_rx[128];
 static volatile uint32_t fm_cc_pend[4];
 static int fm_midi_ok(uint32_t source, uint32_t ch)
