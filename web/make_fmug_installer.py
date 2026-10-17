@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from make_site import HERE, strip_module, product_of  # noqa: E402
 
 
-def main(pkg, out, version="1.4.1"):
+def main(pkg, out, version="1.4.2"):
     raw = Path(pkg).read_bytes()
     product = product_of(raw)
     if not re.fullmatch(r"FM-1_9\d\d", product) or b"FELUCCA-LOADER-1" not in raw:

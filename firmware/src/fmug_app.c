@@ -561,7 +561,7 @@ static uint32_t fa_sound_keys(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.1"
+#define FMINI_VERSION "v1.4.2"
 #define FA_NPG 43u                                        /* the controls of the seven screens (FMG_PAGE: 8+7+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -860,7 +860,14 @@ static void fa_scene(void)
         cv_rect(232, (int32_t)i + 3, 8, 1, FA_RGB(0x42, 0x20, 0x0D));
     }
     cv_rect(8, 0, 224, 22, FA_RGB(0x0E, 0x0D, 0x0C));        /* the header: the name and the seven tabs */
-    cv_text_on(12, 3, &AF_S, "FMini-1", FA_OR, FA_RGB(0x0E, 0x0D, 0x0C));
+    {                                                    /* the logo as on the splash: FM and 1 orange, ini- cream */
+        int32_t lx = 12;
+        cv_text_on(lx, 3, &AF_S, "FM", FA_OR, FA_RGB(0x0E, 0x0D, 0x0C));
+        lx += text_w(&AF_S, "FM");
+        cv_text_on(lx, 3, &AF_S, "ini-", FA_CR, FA_RGB(0x0E, 0x0D, 0x0C));
+        lx += text_w(&AF_S, "ini-");
+        cv_text_on(lx, 3, &AF_S, "1", FA_OR, FA_RGB(0x0E, 0x0D, 0x0C));
+    }
     {
         static const uint8_t TW[FA_NPAGE] = {24, 22, 20, 22, 30, 30, 18};
         int32_t tx = 60;
