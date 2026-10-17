@@ -130,8 +130,8 @@ static void fa_knob_draw(int32_t cx, int32_t cy)
 }
 
 /* ------------------------------------------------------------- text --- */
-static int32_t fa_cap_y(const aafont_t *f) { return f == &AF_X ? AF_X_CAP_Y : f == &AF_S ? AF_S_CAP_Y : AF_M_CAP_Y; }
-static int32_t fa_cap_h(const aafont_t *f) { return f == &AF_X ? AF_X_CAP_H : f == &AF_S ? AF_S_CAP_H : AF_M_CAP_H; }
+static int32_t fa_cap_y(const aafont_t *f) { return f == &AF_N ? AF_N_CAP_Y : f == &AF_X ? AF_X_CAP_Y : f == &AF_S ? AF_S_CAP_Y : AF_M_CAP_Y; }
+static int32_t fa_cap_h(const aafont_t *f) { return f == &AF_N ? AF_N_CAP_H : f == &AF_X ? AF_X_CAP_H : f == &AF_S ? AF_S_CAP_H : AF_M_CAP_H; }
 /* text with its capitals starting at row ytop, centred on cx */
 static void fa_ctext(int32_t cx, int32_t ytop, const aafont_t *f, const char *s, uint16_t fg)
 {
@@ -355,9 +355,9 @@ static void fa_scene(void)
             b[0] = '-';
             b[1] = '-';
         }
-        w = text_w(&AF_M, b);
-        fa_ltext(14, 220, &AF_M, b, FA_OR);
-        fa_ltext(14 + w + 6, 220, &AF_M, sl >= 0 && sl < 8 ? ps->name : "OWN", FA_CR);
+        w = text_w(&AF_N, b);
+        fa_ltext(14, 214, &AF_N, b, FA_OR);
+        fa_ltext(14 + w + 6, 214, &AF_N, sl >= 0 && sl < 8 ? ps->name : "OWN", FA_CR);
         b[0] = (char)('1' + pg);
         b[1] = '/';
         b[2] = '7';

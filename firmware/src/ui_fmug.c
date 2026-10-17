@@ -96,6 +96,25 @@ static void fmg_glide_sync(void)
     }
 }
 
+/* FMug-1 (the app's own screen): speed-dependent steps. A slow turn is 2 values a detent (a 0..127 knob crosses its
+ * range in ~64 detents), a faster one 3, 5, 8, 12, 18 by the time per detent, always in the turn's direction;
+ * a reversal or a pause starts again slow. Names and switches are one step a detent. */
+static uint32_t fmg_tl[16];
+static int32_t fmg_acc(uint32_t role, int32_t s, int32_t range)
+{
+    uint32_t now = fm1_ms, dt, a = (uint32_t)(s < 0 ? -s : s), last = fmg_tl[role & 15u];
+    int32_t m = 2;
+    if (fmg_force_page < 0 || range <= 32 || !s)
+        return s;
+    dt = (now - (last & 0x7FFFFFFFu)) & 0x7FFFFFFFu;
+    fmg_tl[role & 15u] = (now & 0x7FFFFFFFu) | (s > 0 ? 0x80000000u : 0u);
+    if (!last || ((last >> 31) != (s > 0 ? 1u : 0u)) || dt > 150u)
+        return s * 2;
+    dt /= a;
+    m = dt >= 80u ? 2 : dt >= 50u ? 3 : dt >= 30u ? 5 : dt >= 18u ? 8 : dt >= 9u ? 12 : 18;
+    return s * m;
+}
+
 /* control i of page pg moved s steps (a knob of the page, or ALGORITHM on the cursor's control) */
 static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
 {
@@ -133,15 +152,15 @@ static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
         fmg_write(f->a, (uint32_t)clamp((int32_t)fmg_byte(f->a) + s, 0, 5));   /* a detent each */
         break;
     case FK_PAR: {
-        const param_desc_t *d = &TP[f->a];
+        const param_desc_t *d = track_desc(TSEL, f->a);
         int16_t *vp = &t->p[f->a];
-        *vp = (int16_t)param_turn(d, *vp, accel(role, s, d->fmt == F_ENUM ? 0 : d->max - d->min));
+        *vp = (int16_t)param_turn(d, *vp, fmg_acc(role, s, d->fmt == F_ENUM ? 0 : d->max - d->min));
         motion_capture(t, f->a, *vp);
         ml_knob(t, f->a);
         break;
     }
     default:                                                      /* FK_BYTE, FK_GLIDE */
-        fmg_write(f->a, (uint32_t)clamp((int32_t)fmg_byte(f->a) + accel(role, s, 127), 0, 127));
+        fmg_write(f->a, (uint32_t)clamp((int32_t)fmg_byte(f->a) + fmg_acc(role, s, 127), 0, 127));
         if (f->kind == FK_GLIDE)
             fmg_glide_sync();
         break;
@@ -177,8 +196,8 @@ static void fmg_range(uint32_t pg, uint32_t i, int32_t *lo, int32_t *hi)
     *lo = 0;
     *hi = f->kind == FK_SW || f->kind == FK_BYP || f->kind == FK_INS ? 1 : f->kind == FK_NAME ? 5 : 127;
     if (f->kind == FK_PAR) {
-        *lo = TP[f->a].min;
-        *hi = TP[f->a].max;
+        *lo = track_desc(TSEL, f->a)->min;
+        *hi = track_desc(TSEL, f->a)->max;
     }
 }
 
@@ -212,7 +231,7 @@ static void fmg_card_at(uint32_t pg, uint32_t i, int32_t vo, const char **label,
     *icon = f->icon;
     switch (f->kind) {
     case FK_PAR: {
-        const param_desc_t *d = &TP[f->a];
+        const param_desc_t *d = track_desc(TSEL, f->a);
         v = vo >= 0 ? vo : t->p[f->a];
         param_format(d, v, val, unit);
         *ratio = RATIO(d, v);

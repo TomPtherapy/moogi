@@ -34,6 +34,22 @@ int main(int argc, char **argv)
         fa_draw();
         dump(dir, pg);
     }
+    {   /* every knob of FILT / F.ENV / A.ENV / FX moves when turned */
+        int pgs[4] = {3, 4, 5, 6}, k, bad = 0;
+        for (k = 0; k < 16; k++) {
+            int pg2 = pgs[k / 4], kn = k % 4;
+            uint32_t before = 0, after = 0, i;
+            fa_page = (uint8_t)pg2;
+            for (i = 0; i < FG_SIZE; i++) before = before * 31u + fmug_patch[0][i];
+            for (i = 0; i < P_COUNT; i++) before = before * 31u + (uint32_t)TSEL->p[i];
+            fmg_force_page = pg2;
+            fmg_knob((uint32_t)kn, 3);
+            for (i = 0; i < FG_SIZE; i++) after = after * 31u + fmug_patch[0][i];
+            for (i = 0; i < P_COUNT; i++) after = after * 31u + (uint32_t)TSEL->p[i];
+            if (before == after) { printf("page %d knob %d does not move\n", pg2, kn); bad++; }
+        }
+        if (bad) return 1;
+    }
     printf("fmug_app_test: ok\n");
     return 0;
 }
