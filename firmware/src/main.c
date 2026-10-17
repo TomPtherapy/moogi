@@ -99,6 +99,15 @@ static void fm1_fault(const fm1_crash_t *c)
 }
 
 /* power-on: the parts with their default sounds (TRK_DEF); the sequencers empty */
+#if FELUCCA_FMUG_ONLY
+#define UI_INPUT fa_input
+#define UI_LEDS fa_leds
+#define UI_DRAW fa_draw
+#else
+#define UI_INPUT ui_input
+#define UI_LEDS ui_leds
+#define UI_DRAW ui_draw
+#endif
 static void felucca_init(void)
 {
     uint32_t i;
@@ -166,7 +175,11 @@ static void fm1_main(void)
     settings_init();
     usb_serial_apply();                                 /* (#67: the saved USB SERIAL before usb_start) */
     lcd_init();
+#if FELUCCA_FMUG_ONLY
+    fa_splash();
+#else
     draw_splash();                                      /* ui_draw.c (1.1.5) */
+#endif
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;
@@ -212,6 +225,9 @@ static void fm1_main(void)
         settings_save();
     }
     autosave_boot(boot_clean);                /* (1.2) the last session's music, under the splash */
+#if FELUCCA_FMUG_ONLY
+    fa_init();                                /* FMug-1: track 1 = the instrument, whatever the autosave held */
+#endif
     for (ms = 0; ms < 400u; ms += 10u) {      /* the splash; the pot followed (MIDI IN plays under it) */
         fm1_delay_ms(10);
         master_poll();
@@ -305,15 +321,15 @@ static void fm1_main(void)
         felucca_dbg.page = ui.page;
         felucca_dbg.home = ui.home;
         felucca_dbg.stage = 1;
-        ui_input();
+        UI_INPUT();
         settings_poll();                              /* queued settings save: only while stopped */
         autosave_poll();                              /* (1.2) the music, stopped and idle: project.c */
         felucca_dbg.stage = 2;
-        ui_leds();
-        ui_draw();
+        UI_LEDS();
+        UI_DRAW();
         felucca_dbg.stage = 9;
         while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
-            ui_input();
+            UI_INPUT();
 #if FELUCCA_OTA
             ed_service();                       /* editor replies without waiting for the next frame */
 #endif

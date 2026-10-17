@@ -14,7 +14,7 @@
 static void ml_knob(const track_t *t, uint32_t id);              /* (midi_learn.c) */
 static uint8_t fmg_cur[7];                                        /* the cursor of each page: 0..3 the knobs, 4.. extras */
 
-enum { FK_BYTE, FK_PAR, FK_SW, FK_NAME, FK_GLIDE };
+enum { FK_BYTE, FK_PAR, FK_SW, FK_NAME, FK_GLIDE, FK_BYP, FK_INS };   /* FK_BYP: a send's on / off (its value kept aside); FK_INS: the INSERT */
 typedef struct {
     const char *lb;                                               /* card label (<= 6) */
     uint8_t kind, a, b;                                           /* a: byte index or param id; b: switch bit / names */
@@ -24,33 +24,35 @@ enum { FN_RANGE, FN_WAVE };
 #define FMG_NF 9u
 static const struct { const char *name; uint8_t n; fmgf_t f[FMG_NF]; } FMG_PAGE[7] = {
     {"CONTROLLERS", 8, {{"TUNE", FK_BYTE, FG_TUNE, 0, ICON_TUNE}, {"GLIDE", FK_GLIDE, FG_GLID, 0, ICON_GLIDE},
-                        {"MODMIX", FK_BYTE, FG_MMIX, 0, ICON_MOD}, {"LFO", FK_PAR, P_LRATE, 0, ICON_RATE},
+                        {"MOD MIX", FK_BYTE, FG_MMIX, 0, ICON_MOD}, {"LFO RATE", FK_PAR, P_LRATE, 0, ICON_RATE},
                         {"MOD OSC", FK_SW, FG_SW1, FS_MOSC, ICON_MOD}, {"MOD FLT", FK_SW, FG_SW1, FS_MFLT, ICON_MOD},
                         {"GLIDE", FK_SW, FG_SW2, FT_GLIDE, ICON_GLIDE}, {"LFO SQR", FK_SW, FG_SW2, FT_SQR, ICON_LFO_WAVE}}},
-    {"OSCILLATORS", 8, {{"RANGE1", FK_NAME, FG_R1, FN_RANGE, ICON_OCTAVE}, {"RANGE2", FK_NAME, FG_R2, FN_RANGE, ICON_OCTAVE},
-                        {"RANGE3", FK_NAME, FG_R3, FN_RANGE, ICON_OCTAVE}, {"OSC2", FK_BYTE, FG_F2, 0, ICON_DETUNE},
-                        {"WAVE1", FK_NAME, FG_W1, FN_WAVE, ICON_WAVE}, {"WAVE2", FK_NAME, FG_W2, FN_WAVE, ICON_WAVE},
-                        {"WAVE3", FK_NAME, FG_W3, FN_WAVE, ICON_WAVE}, {"OSC3", FK_BYTE, FG_F3, 0, ICON_DETUNE}}},
-    {"MIXER", 9, {{"OSC1", FK_BYTE, FG_L1, 0, ICON_LEVEL}, {"OSC2", FK_BYTE, FG_L2, 0, ICON_LEVEL},
-                  {"OSC3", FK_BYTE, FG_L3, 0, ICON_LEVEL}, {"NOISE", FK_BYTE, FG_LN, 0, ICON_NOISE},
-                  {"OSC1", FK_SW, FG_SW1, FS_O1, ICON_LEVEL}, {"OSC2", FK_SW, FG_SW1, FS_O2, ICON_LEVEL},
-                  {"OSC3", FK_SW, FG_SW1, FS_O3, ICON_LEVEL}, {"NOISE", FK_SW, FG_SW1, FS_NZ, ICON_NOISE},
-                  {"PINK", FK_SW, FG_SW1, FS_PINK, ICON_NOISE}}},
-    {"FILTER", 4, {{"CUTOFF", FK_PAR, P_E0, 0, ICON_CUTOFF}, {"EMPH", FK_PAR, P_E1, 0, ICON_RESO},
-                   {"CONT", FK_PAR, P_E2, 0, ICON_SWEEP}, {"KBD", FK_BYTE, FG_KBD, 0, ICON_KEYTRACK}}},
-    {"FILTER ENV", 4, {{"ATTACK", FK_PAR, P_E3, 0, ICON_ATTACK}, {"DECAY", FK_PAR, P_E4, 0, ICON_DECAY},
+    {"OSCILLATOR BANK", 7, {{"OSC 1", FK_NAME, FG_R1, FN_RANGE, ICON_OCTAVE}, {"OSC 2", FK_NAME, FG_R2, FN_RANGE, ICON_OCTAVE},
+                        {"OSC 3", FK_NAME, FG_R3, FN_RANGE, ICON_OCTAVE}, {"DETUNE", FK_BYTE, FG_F2, 0, ICON_DETUNE},
+                        {"OSC 1", FK_NAME, FG_W1, FN_WAVE, ICON_WAVE}, {"OSC 2", FK_NAME, FG_W2, FN_WAVE, ICON_WAVE},
+                        {"OSC 3", FK_NAME, FG_W3, FN_WAVE, ICON_WAVE}}},
+    {"MIXER", 8, {{"OSC 1", FK_BYTE, FG_L1, 0, ICON_LEVEL}, {"OSC 2", FK_BYTE, FG_L2, 0, ICON_LEVEL},
+                  {"OSC 3", FK_BYTE, FG_L3, 0, ICON_LEVEL}, {"NOISE", FK_BYTE, FG_LN, 0, ICON_NOISE},
+                  {"OSC 1", FK_SW, FG_SW1, FS_O1, ICON_LEVEL}, {"OSC 2", FK_SW, FG_SW1, FS_O2, ICON_LEVEL},
+                  {"OSC 3", FK_SW, FG_SW1, FS_O3, ICON_LEVEL}, {"NOISE", FK_SW, FG_SW1, FS_NZ, ICON_NOISE}}},
+    {"FILTER", 4, {{"CUTOFF", FK_PAR, P_E0, 0, ICON_CUTOFF}, {"EMPHASIS", FK_PAR, P_E1, 0, ICON_RESO},
+                   {"CONTOUR", FK_PAR, P_E2, 0, ICON_SWEEP}, {"KBD CTRL", FK_BYTE, FG_KBD, 0, ICON_KEYTRACK}}},
+    {"FILTER CONTOUR", 4, {{"ATTACK", FK_PAR, P_E3, 0, ICON_ATTACK}, {"DECAY", FK_PAR, P_E4, 0, ICON_DECAY},
                        {"SUSTAIN", FK_PAR, P_E5, 0, ICON_SUSTAIN}, {"AMOUNT", FK_PAR, P_E2, 0, ICON_SWEEP}}},
-    {"LOUDNESS ENV", 4, {{"ATTACK", FK_PAR, P_ATK, 0, ICON_ATTACK}, {"DECAY", FK_PAR, P_DEC, 0, ICON_DECAY},
+    {"LOUDNESS CONTOUR", 4, {{"ATTACK", FK_PAR, P_ATK, 0, ICON_ATTACK}, {"DECAY", FK_PAR, P_DEC, 0, ICON_DECAY},
                          {"SUSTAIN", FK_PAR, P_SUS, 0, ICON_SUSTAIN}, {"LEVEL", FK_PAR, P_LEVEL, 0, ICON_LEVEL}}},
-    {"EFFECTS", 4, {{"REVERB", FK_PAR, P_REV, 0, ICON_REVERB}, {"DELAY", FK_PAR, P_DLY, 0, ICON_DELAY},
-                    {"CHORUS", FK_PAR, P_CHOR, 0, ICON_CHORUS}, {"DRIVE", FK_PAR, P_DIST, 0, ICON_DRIVE}}},
+    {"EFFECTS", 8, {{"REVERB", FK_PAR, P_REV, 0, ICON_REVERB}, {"DELAY", FK_PAR, P_DLY, 0, ICON_DELAY},
+                    {"CHORUS", FK_PAR, P_CHOR, 0, ICON_CHORUS}, {"DRIVE", FK_PAR, P_DIST, 0, ICON_DRIVE},
+                    {"REV", FK_BYP, P_REV, 0, ICON_REVERB}, {"DLY", FK_BYP, P_DLY, 1, ICON_DELAY},
+                    {"CHO", FK_BYP, P_CHOR, 2, ICON_CHORUS}, {"INSERT", FK_INS, P_ITYPE, 0, ICON_DRIVE}}},
 };
 static const char *const FMG_RANGE[6] = {"LO", "32'", "16'", "8'", "4'", "2'"};
 static const char *const FMG_WAVE[6] = {"TRI", "SHARK", "SAW", "SQR", "PLS W", "PLS N"};
 
 static int fmg_page(uint32_t g) { return g >= GR_FMG0 && g <= GR_FMG6; }
 static int fmg_ok(void) { return TSEL->eng_req % NENGINES == ENGI_FMUG; }
-static uint32_t fmg_pg(void) { return (cur_page()->graph - GR_FMG0) % 7u; }
+static int8_t fmg_force_page = -1;                               /* FELUCCA_FMUG_ONLY: fmug_app.c's page */
+static uint32_t fmg_pg(void) { return fmg_force_page >= 0 ? (uint32_t)fmg_force_page % 7u : (cur_page()->graph - GR_FMG0) % 7u; }
 static uint32_t fmg_count(uint32_t pg) { return FMG_PAGE[pg % 7u].n; }
 static const fmgf_t *fmg_field(uint32_t pg, uint32_t i) { return &FMG_PAGE[pg % 7u].f[i % FMG_NF]; }
 /* the control under the page's cursor */
@@ -74,7 +76,15 @@ static void fmg_write(uint32_t b, uint32_t v)
     motion_undo_done(t);
 }
 static uint32_t fmg_byte(uint32_t b) { return fmug_patch[song.sel % NTRK][b % FG_SIZE]; }
-static int fmg_sw_on(const fmgf_t *f) { return (fmg_byte(f->a) & f->b) != 0u; }
+static uint8_t fmg_shadow[3];                                    /* a send's value while its switch is off (REV DLY CHO) */
+static int fmg_sw_on(const fmgf_t *f)
+{
+    if (f->kind == FK_BYP)
+        return TSEL->p[f->a] > 0;
+    if (f->kind == FK_INS)
+        return TSEL->p[P_ITYPE] != 0;
+    return (fmg_byte(f->a) & f->b) != 0u;
+}
 /* the GLIDE switch and knob drive the part's common GLIDE time (voice.c): on = the kept time, off = none */
 static void fmg_glide_sync(void)
 {
@@ -101,6 +111,24 @@ static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
             fmg_glide_sync();
         break;
     }
+    case FK_BYP: {                                    /* a send on (its value back, 40 first time) / off (kept aside) */
+        int16_t *vp = &t->p[f->a];
+        if (s > 0 && !*vp)
+            *vp = (int16_t)(fmg_shadow[f->b % 3u] ? fmg_shadow[f->b % 3u] : 40);
+        else if (s < 0 && *vp) {
+            fmg_shadow[f->b % 3u] = (uint8_t)*vp;
+            *vp = 0;
+        } else
+            break;
+        motion_capture(t, f->a, *vp);
+        ml_knob(t, f->a);
+        break;
+    }
+    case FK_INS:                                      /* the track's INSERT: a phaser on / off */
+        t->p[P_ITYPE] = (int16_t)(s > 0 ? IT_PHASER : 0);
+        t->p[P_IMIX] = 127;
+        motion_capture(t, P_ITYPE, t->p[P_ITYPE]);
+        break;
     case FK_NAME:
         fmg_write(f->a, (uint32_t)clamp((int32_t)fmg_byte(f->a) + s, 0, 5));   /* a detent each */
         break;
@@ -147,7 +175,7 @@ static void fmg_range(uint32_t pg, uint32_t i, int32_t *lo, int32_t *hi)
 {
     const fmgf_t *f = fmg_field(pg, i);
     *lo = 0;
-    *hi = f->kind == FK_SW ? 1 : f->kind == FK_NAME ? 5 : 127;
+    *hi = f->kind == FK_SW || f->kind == FK_BYP || f->kind == FK_INS ? 1 : f->kind == FK_NAME ? 5 : 127;
     if (f->kind == FK_PAR) {
         *lo = TP[f->a].min;
         *hi = TP[f->a].max;
@@ -191,6 +219,8 @@ static void fmg_card_at(uint32_t pg, uint32_t i, int32_t vo, const char **label,
         return;
     }
     case FK_SW:
+    case FK_BYP:
+    case FK_INS:
         v = vo >= 0 ? vo : (int32_t)fmg_sw_on(f);
         str_cpy(val, v ? "ON" : "OFF", 12);
         return;
