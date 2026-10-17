@@ -287,6 +287,12 @@ static int __attribute__((noinline)) midi_learned(uint32_t cc, uint32_t value)
 static void __attribute__((noinline)) midi_cc_map(track_t *t, uint32_t cc, uint32_t value)
 {
     uint32_t i, id = 0xFFFFu, e;
+#if FELUCCA_FMUG_ONLY
+    (void)t; (void)i; (void)id; (void)e;
+    fm_cc_rx[cc & 127u] = (uint8_t)value;                /* FMini-1: GLO > MIDI CC's map, applied by the main loop */
+    fm_cc_pend[(cc & 127u) >> 5] |= 1u << (cc & 31u);
+    return;
+#endif
     if (midi_learned(cc, value))                /* (a learned CC is the user's: not the map's) */
         return;
     for (i = 0; i < NELEM(MIDI_CC_MAP); i++)

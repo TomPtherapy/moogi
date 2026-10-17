@@ -429,31 +429,253 @@ static void fa_ar_turn(uint32_t row, int32_t s)
         song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + fmg_acc(EN_ALGO, s, 200), GP[G_BPM].min, GP[G_BPM].max);
     }
 }
+/* a pop-up's frame: the orange border, the title (the same size for every pop-up) */
+static void fa_frame(const char *title)
+{
+    cv_rect(10, 24, 220, 186, FA_OR);
+    cv_rect(12, 26, 216, 182, FA_RGB(0x1B, 0x19, 0x17));
+    fa_ctext(120, 36, &AF_M, title, FA_CR);
+}
+/* a line of a pop-up: the label on the left, the value on the right, the highlight under the chosen one */
+static void fa_line(int32_t y, const char *lb, const char *val, int hot)
+{
+    if (hot)
+        cv_rect(16, y - 5, 208, 21, FA_RGB(0x2E, 0x28, 0x22));
+    fa_ltext(22, y, &AF_M, lb, hot ? FA_OR : FA_CR);
+    fa_rtext(218, y, &AF_M, val, hot ? FA_OR : FA_CR);
+}
 static void fa_ar_dialog(void)
 {
     uint32_t i;
     const track_t *t = TSEL;
-    const uint16_t bgd = FA_RGB(0x1B, 0x19, 0x17);
-    cv_rect(16, 50, 208, 144, FA_OR);
-    cv_rect(18, 52, 204, 140, bgd);
-    fa_ctext(120, 59, &AF_S, "ARPEGGIATOR", FA_CR);
+    fa_frame("ARPEGGIATOR");
     for (i = 0; i < FA_AR_N; i++) {
         char val[16];
         const char *un;
-        int32_t y = 78 + (int32_t)i * 16;
-        int hot = i == fa_ar_row;
         if (i < 5u)
             param_format(track_desc(t, FA_AR_ID[i]), t->p[FA_AR_ID[i]], val, &un);
         else
             fmt_int(val, song.g[G_BPM]);
-        if (hot)
-            cv_rect(24, y - 3, 192, 15, FA_RGB(0x2A, 0x25, 0x20));
-        fa_ltext(30, y, &AF_S, FA_AR_LB[i], hot ? FA_OR : FA_CR);
-        fa_rtext(208, y, &AF_S, val, hot ? FA_OR : FA_CR);
-        if (i < 4u)
-            fa_ltext(30 + 70, y + 2, &AF_X, i == 0u ? "K1" : i == 1u ? "K2" : i == 2u ? "K3" : "K4", FA_RGB(0x5D, 0x55, 0x4A));
+        fa_line(62 + (int32_t)i * 22, FA_AR_LB[i], val, i == fa_ar_row);
     }
-    fa_ctext(120, 178, &AF_X, "SELECT LINE  ALGO CHANGE  ARP CLOSE", FA_MU);
+    fa_ctext(120, 196, &AF_S, "SELECT  ALGO  K1-K4  ARP=CLOSE", FA_MU);
+}
+
+/* ----------------------------------------------------------- GLO --- */
+/* GLO opens the global settings pop-up: MIDI IN (USB / MIDI / BLUETOOTH / ALL), CHANNEL (ALL / 1..16), MIDI CC (every
+ * knob, switch and wave box of every screen and the ARP's lines, each with its own CC, 0 = none; a CC sent from the
+ * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
+ * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
+ * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
+#define FMINI_VERSION "v1.0.0"
+#define FA_NPG 43u                                        /* the controls of the seven screens (FMG_PAGE: 8+7+8+4+4+4+8) */
+#define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
+static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
+static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 MIDI CC, 3 ABOUT */
+static uint8_t fa_cc_i;                                   /* the control highlighted in MIDI CC */
+static uint8_t fa_cc[FA_NCC];                             /* its CC, 0 = none */
+static uint8_t fa_cfg_dirty;
+static const char *const FA_SRC[4] = {"USB", "MIDI", "BLUETOOTH", "ALL"};
+static const char *const FA_PG_TAG[8] = {"CTRL", "OSC", "MIX", "FILT", "F.ENV", "A.ENV", "FX", "ARP"};
+/* the CC each control answers to out of the box: the usual ones where there is one (5 glide time, 7 volume, 71 emphasis,
+ * 73 attack, 74 cutoff, 75 decay, 91 / 93 / 94 sends), the free ones in order for the rest */
+static const uint8_t FA_CC0[FA_NCC] = {
+    20, 5, 21, 22, 23, 24, 25, 26,                        /* CTRL: TUNE GLIDE MOD MIX LFO RATE, MOD OSC MOD FLT GLIDE LFO SQR */
+    27, 28, 29, 30, 31, 33, 34,                           /* OSC: ranges, DETUNE, waves */
+    35, 36, 37, 39, 40, 41, 42, 43,                       /* MIX: levels, NOISE, switches */
+    74, 71, 44, 45,                                       /* FILT */
+    46, 47, 48, 49,                                       /* F.ENV */
+    73, 75, 50, 7,                                        /* A.ENV: ATTACK DECAY SUSTAIN LEVEL */
+    91, 94, 93, 51, 52, 53, 54, 55,                       /* FX: REVERB DELAY CHORUS DRIVE, switches */
+    56, 57, 58, 59, 60, 61,                               /* ARP: MODE RATE OCTAVES GATE HOLD TEMPO */
+};
+static int fa_cc_valid(uint32_t cc) { return cc == 0u || ml_free_cc(cc); }
+
+static uint8_t *fa_cfg_byte(uint32_t i) { return &favorites.factory[7u + i / 32u][i % 32u]; }
+static void fa_cfg_load(void)
+{
+    uint32_t i;
+    if (*fa_cfg_byte(0) == 0xA7u && *fa_cfg_byte(1) == 0x4Du) {
+        uint32_t src = *fa_cfg_byte(2), ch = *fa_cfg_byte(3);
+        fm_midi_src = (uint8_t)(src > 3u ? 3u : src);
+        fm_midi_ch = (uint8_t)(ch > 16u ? 0u : ch);
+        for (i = 0; i < FA_NCC; i++) {
+            uint32_t c = *fa_cfg_byte(4u + i);
+            fa_cc[i] = (uint8_t)(fa_cc_valid(c) ? c : FA_CC0[i]);
+        }
+    } else {
+        fm_midi_src = 3;
+        fm_midi_ch = 0;
+        memcpy(fa_cc, FA_CC0, sizeof fa_cc);
+    }
+}
+static void fa_cfg_save(void)
+{
+    uint32_t i;
+    if (!fa_cfg_dirty)
+        return;
+    fa_cfg_dirty = 0;
+    *fa_cfg_byte(0) = 0xA7;
+    *fa_cfg_byte(1) = 0x4D;
+    *fa_cfg_byte(2) = fm_midi_src;
+    *fa_cfg_byte(3) = fm_midi_ch;
+    for (i = 0; i < FA_NCC; i++)
+        *fa_cfg_byte(4u + i) = fa_cc[i];
+    settings_save();                                      /* (deferred while anything plays) */
+}
+static void fa_gl_close(void)
+{
+    fa_gl = 0;
+    fa_cfg_save();
+}
+
+/* control n of the list -> its page and place, its tag and name */
+static void fa_ctl_loc(uint32_t n, uint32_t *pg, uint32_t *i)
+{
+    uint32_t p = 0;
+    while (p < 7u && n >= fmg_count(p))
+        n -= fmg_count(p++);
+    *pg = p;
+    *i = n;
+}
+static void fa_ctl_name(uint32_t n, const char **tag, char *name)
+{
+    uint32_t pg, i;
+    const char *lb;
+    if (n >= FA_NPG) {
+        *tag = FA_PG_TAG[7];
+        str_cpy(name, FA_AR_LB[n - FA_NPG], 16);
+        return;
+    }
+    fa_ctl_loc(n, &pg, &i);
+    lb = fmg_field(pg, i)->lb;
+    *tag = FA_PG_TAG[pg];
+    str_cpy(name, lb, 16);
+    if (pg == 1u)
+        str_cpy(name + str_len(name), i < 3u ? " RANGE" : " WAVE", 7);
+    else if (pg == 2u)
+        str_cpy(name + str_len(name), i < 4u ? " LEVEL" : " ON", 7);
+    else if (pg == 0u && i == 1u)
+        str_cpy(name, "GLIDE TIME", 16);
+    else if (pg == 0u && i == 6u)
+        str_cpy(name, "GLIDE ON", 16);
+    else if (pg == 6u && i >= 4u && i < 7u)
+        str_cpy(name + str_len(name), " ON", 4);
+}
+
+/* a CC value v (0..127) for control n */
+static void fa_ctl_apply(uint32_t n, uint32_t v)
+{
+    uint32_t pg, i;
+    const fmgf_t *f;
+    track_t *t = TSEL;
+    if (n >= FA_NPG) {
+        n -= FA_NPG;
+        if (n < 5u)
+            midi_cc_set(t, FA_AR_ID[n], v);
+        else
+            song.g[G_BPM] = (int16_t)(40 + (int32_t)v * 200 / 127);
+        return;
+    }
+    fa_ctl_loc(n, &pg, &i);
+    f = fmg_field(pg, i);
+    switch (f->kind) {
+    case FK_PAR:
+        midi_cc_set(t, f->a, v);
+        break;
+    case FK_NAME:
+        fmg_write(f->a, v * 6u / 128u);
+        break;
+    case FK_GLIDE:
+        fmg_write(f->a, v);
+        {
+            uint32_t sw2 = fmg_byte(FG_SW2), want = v ? (sw2 | FT_GLIDE) : (sw2 & ~(uint32_t)FT_GLIDE);
+            if (want != sw2)
+                fmg_write(FG_SW2, want);
+        }
+        fmg_glide_sync();
+        break;
+    case FK_BYTE:
+        fmg_write(f->a, v);
+        break;
+    default:                                              /* a switch: on from 64 */
+        fmg_turn(pg, i, v >= 64u ? 1 : -1, EN_ALGO);
+        break;
+    }
+}
+/* the CCs the ISR has noted: applied here (the main loop), or, in the MIDI CC list, taken for the highlighted line */
+static void fa_cc_poll(void)
+{
+    uint32_t w, b, pend[4];
+    fm1_irq_off();
+    for (w = 0; w < 4u; w++) {
+        pend[w] = fm_cc_pend[w];
+        fm_cc_pend[w] = 0;
+    }
+    fm1_irq_on();
+    for (w = 0; w < 4u; w++)
+        for (b = 0; pend[w] >> b; b++)
+            if ((pend[w] >> b) & 1u) {
+                uint32_t cc = w * 32u + b, n, v = fm_cc_rx[cc];
+                if (fa_gl == 2u) {
+                    if (ml_free_cc(cc)) {
+                        fa_cc[fa_cc_i] = (uint8_t)cc;
+                        fa_cfg_dirty = 1;
+                    }
+                    continue;
+                }
+                for (n = 0; n < FA_NCC; n++)
+                    if (fa_cc[n] == cc) {
+                        fmg_force_page = (int8_t)fa_page;
+                        fa_ctl_apply(n, v);
+                    }
+            }
+}
+
+static void fa_gl_dialog(void)
+{
+    char b[24];
+    if (fa_gl == 1u) {
+        fa_frame("GLOBAL");
+        fa_line(62, "MIDI IN", FA_SRC[fm_midi_src & 3u], fa_gl_row == 0u);
+        if (fm_midi_ch)
+            fmt_int(b, fm_midi_ch);
+        else
+            str_cpy(b, "ALL", 4);
+        fa_line(84, "MIDI CHANNEL", b, fa_gl_row == 1u);
+        fa_line(106, "MIDI CC", ">", fa_gl_row == 2u);
+        fa_line(128, "ABOUT", ">", fa_gl_row == 3u);
+        if (fm_midi_src >= 2u)
+            fa_ctext(120, 160, &AF_S, "BLUETOOTH: NOT AVAILABLE YET", FA_RED);
+        fa_ctext(120, 196, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
+    } else {                                              /* MIDI CC: a window of six lines on the list */
+        uint32_t top = fa_cc_i < 3u ? 0u : fa_cc_i - 3u, k;
+        if (top + 6u > FA_NCC)
+            top = FA_NCC - 6u;
+        str_cpy(b, "MIDI CC  ", 10);
+        fmt_int(b + 9, (int32_t)fa_cc_i + 1);
+        str_cpy(b + str_len(b), "/", 2);
+        fmt_int(b + str_len(b), FA_NCC);
+        fa_frame(b);
+        for (k = 0; k < 6u; k++) {
+            uint32_t n = top + k;
+            const char *tag;
+            char nm[16], cc[8];
+            int32_t y = 58 + (int32_t)k * 21;
+            int hot = n == fa_cc_i;
+            fa_ctl_name(n, &tag, nm);
+            if (fa_cc[n])
+                fmt_int(cc, fa_cc[n]);
+            else
+                str_cpy(cc, "OFF", 4);
+            if (hot)
+                cv_rect(16, y - 4, 208, 20, FA_RGB(0x2E, 0x28, 0x22));
+            fa_ltext(20, y + 3, &AF_X, tag, FA_MU);
+            fa_ltext(54, y, &AF_M, nm, hot ? FA_OR : FA_CR);
+            fa_rtext(218, y, &AF_M, cc, hot ? FA_OR : FA_CR);
+        }
+        fa_ctext(120, 190, &AF_S, "ALGO = CC   OR SEND A CC", FA_MU);
+    }
 }
 
 static void fa_scene(void)
@@ -534,7 +756,9 @@ static void fa_scene(void)
         b[3] = 0;
         fa_rtext(226, 232, &AF_X, b, FA_RGB(0x7A, 0x71, 0x64));
     }
-    if (fa_ar)
+    if (fa_gl == 1u || fa_gl == 2u)
+        fa_gl_dialog();
+    else if (fa_ar)
         fa_ar_dialog();
     else if (fa_sv)
         fa_dialog();
@@ -557,6 +781,9 @@ static uint32_t fa_signature(void)
         h = (h ^ fmug_patch[0][i]) * 16777619u;
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
+    h = (h ^ fa_gl ^ (uint32_t)fa_gl_row << 3 ^ (uint32_t)fa_cc_i << 6 ^ (uint32_t)fm_midi_src << 12 ^ (uint32_t)fm_midi_ch << 14) * 16777619u;
+    for (i = 0; i < FA_NCC; i++)
+        h = (h ^ fa_cc[i]) * 16777619u;
     h = (h ^ fa_sv ^ (uint32_t)fa_ar << 4 ^ (uint32_t)fa_ar_row << 5 ^ (uint32_t)song.g[G_BPM] << 8) * 16777619u;
     h = (h ^ fa_sv_slot ^ (uint32_t)fa_sv_pos << 8 ^ (uint32_t)t->user << 16 ^ (uint32_t)fa_msg_on() << 24) * 16777619u;
     for (i = 0; i < 12u; i++)
@@ -564,6 +791,7 @@ static uint32_t fa_signature(void)
     return (h ^ t->preset) * 16777619u;
 }
 
+static void fa_splash_v(int ver);
 static void fa_draw(void)
 {
     uint32_t sig = fa_signature(), band;
@@ -572,6 +800,10 @@ static void fa_draw(void)
     fa_sig_prev = sig;
     ui.force = 0;
     fmg_force_page = (int8_t)fa_page;
+    if (fa_gl == 3u) {                                    /* ABOUT: the splash, the version bottom right */
+        fa_splash_v(1);
+        return;
+    }
     for (band = 0; band < 2u; band++) {
         cv_begin(240, 120, FA_RGB(0x17, 0x15, 0x13));
         cv_oy = -(int32_t)band * 120;
@@ -583,7 +815,7 @@ static void fa_draw(void)
 }
 
 #include "fmini_splash.h"
-static void fa_splash(void)                              /* power-on: the picture (assets/fmini-splash.png), 3 s (main.c) */
+static void fa_splash_v(int ver)                         /* the picture (assets/fmini-splash.png); ver: with the version */
 {
     uint32_t band, x, y;
     for (band = 0; band < 2u; band++) {
@@ -592,10 +824,13 @@ static void fa_splash(void)                              /* power-on: the pictur
         for (y = band * 120u; y < band * 120u + 120u; y++)
             for (x = 0; x < 240u; x++)
                 cv_pset((int32_t)x, (int32_t)y, FMINI_SPLASH_PAL[FMINI_SPLASH[y * 240u + x]]);
+        if (ver)
+            cv_text_on(232 - text_w(&AF_S, FMINI_VERSION), 220, &AF_S, FMINI_VERSION, FA_CR, 0);
         cv_oy = 0;
         cv_blit(0, band * 120u);
     }
 }
+static void fa_splash(void) { fa_splash_v(0); }           /* power-on: 3 s (main.c) */
 
 /* ---------------------------------------------------------- control --- */
 static void fa_goto(uint32_t pg) { fa_page = (uint8_t)(pg % FA_NPAGE); }
@@ -642,21 +877,35 @@ static void fa_preset(int32_t s)
 /* a page button: the tap opens it */
 static void fa_buttons(uint32_t pressed)
 {
-    static const uint8_t PG_BTN[6] = {B_LFO, B_EDIT, B_SCL, B_GLO, B_FX, B_ENV};
+    static const uint8_t PG_BTN[6] = {B_LFO, B_EDIT, B_SCL, B_SEQ, B_FX, B_ENV};   /* (GLO is the global pop-up) */
     uint32_t i;
     if ((pressed >> panel.btn[B_HOME]) & 1u) {            /* HOME: the first screen, CTRL; the pop-ups close */
         fa_sv = 0;
         fa_ar = 0;
+        fa_gl_close();
         fa_goto(0);
+        return;
+    }
+    if ((pressed >> panel.btn[B_GLO]) & 1u) {             /* GLO: the global pop-up; inside a list, one level back */
+        fa_sv = 0;
+        fa_ar = 0;
+        if (!fa_gl)
+            fa_gl = 1;
+        else if (fa_gl > 1u)
+            fa_gl = 1;
+        else
+            fa_gl_close();
         return;
     }
     if ((pressed >> panel.btn[B_ARP]) & 1u) {             /* ARP: the pop-up */
         fa_sv = 0;
+        fa_gl_close();
         fa_ar = (uint8_t)!fa_ar;
         return;
     }
     if ((pressed >> panel.btn[B_SAVE]) & 1u) {            /* SAVE: open the dialog; again: write */
         fa_ar = 0;
+        fa_gl_close();
         if (fa_sv)
             fa_sv_do();
         else
@@ -667,11 +916,12 @@ static void fa_buttons(uint32_t pressed)
         if ((pressed >> panel.btn[PG_BTN[i]]) & 1u) {
             fa_sv = 0;                                    /* a page button cancels the dialog */
             fa_ar = 0;
+            fa_gl_close();
             if (PG_BTN[i] == B_ENV) {
                 fa_env_last = (uint8_t)(fa_page == 4u ? 5u : 4u);
                 fa_goto(fa_env_last);
             } else {
-                static const uint8_t TO[6] = {0, 1, 2, 3, 6, 4};
+                static const uint8_t TO[6] = {0, 1, 2, 3, 6, 4};   /* LFO OSC.. EDIT, SCL MIX, SEQ FILT, FX, ENV */
                 fa_goto(TO[i]);
             }
         }
@@ -711,8 +961,47 @@ static void fa_input(void)
     fmg_glide_sync();                                       /* the patch's GLIDE switch and time -> the track's */
     fmg_force_page = (int8_t)fa_page;
     fa_buttons(pressed);
-    if ((s = panel_enc(EN_PRESET)) != 0)
+    if ((s = panel_enc(EN_PRESET)) != 0 && !fa_gl)
         fa_preset(s);
+    fa_cc_poll();                                         /* the CCs the MIDI inputs brought */
+    if (fa_gl) {                                          /* the GLO pop-up (the page's knobs wait) */
+        for (k = 0; k < 4u; k++)
+            (void)panel_enc(EN_K1 + k);
+        (void)panel_enc(EN_PRESET);
+        if (fa_gl == 1u) {
+            if ((s = panel_enc(EN_SELECT)) != 0)
+                fa_gl_row = (uint8_t)((fa_gl_row + 4u + (s > 0 ? 1u : 3u)) % 4u);
+            if ((s = panel_enc(EN_ALGO)) != 0) {
+                if (fa_gl_row == 0u) {
+                    fm_midi_src = (uint8_t)clamp((int32_t)fm_midi_src + (s > 0 ? 1 : -1), 0, 3);
+                    panic_req |= 1u;                       /* a note of the source left must not hang */
+                    fa_cfg_dirty = 1;
+                } else if (fa_gl_row == 1u) {
+                    fm_midi_ch = (uint8_t)clamp((int32_t)fm_midi_ch + (s > 0 ? 1 : -1), 0, 16);
+                    panic_req |= 1u;
+                    fa_cfg_dirty = 1;
+                } else
+                    fa_gl = fa_gl_row == 2u ? 2u : 3u;
+            }
+        } else if (fa_gl == 2u) {
+            if ((s = panel_enc(EN_SELECT)) != 0)
+                fa_cc_i = (uint8_t)((fa_cc_i + FA_NCC + (s > 0 ? 1u : FA_NCC - 1u)) % FA_NCC);
+            if ((s = panel_enc(EN_ALGO)) != 0) {
+                int32_t c = fa_cc[fa_cc_i], n;
+                for (n = 0; n < 121; n++) {                /* the next valid CC, round through 0 = none */
+                    c = (c + 121 + (s > 0 ? 1 : 120)) % 121;
+                    if (fa_cc_valid((uint32_t)c))
+                        break;
+                }
+                fa_cc[fa_cc_i] = (uint8_t)c;
+                fa_cfg_dirty = 1;
+            }
+        } else {
+            (void)panel_enc(EN_SELECT);
+            (void)panel_enc(EN_ALGO);
+        }
+        return;
+    }
     if (fa_ar) {                                          /* the ARP pop-up */
         if ((s = panel_enc(EN_SELECT)) != 0)
             fa_ar_row = (uint8_t)((fa_ar_row + FA_AR_N + (s > 0 ? 1u : FA_AR_N - 1u)) % FA_AR_N);
@@ -774,11 +1063,12 @@ static void fa_leds(void)
     for (k = 0; k < NB; k++)
         led_put(nd, panel.btn[k], 1);                       /* every button's glow */
     {
-        static const uint8_t PG_LED[FA_NPAGE] = {B_LFO, B_EDIT, B_SCL, B_GLO, B_ENV, B_ENV, B_FX};
+        static const uint8_t PG_LED[FA_NPAGE] = {B_LFO, B_EDIT, B_SCL, B_SEQ, B_ENV, B_ENV, B_FX};
         led_put(nl, panel.btn[PG_LED[fa_page]], 1);          /* the page's button */
     }
     led_put(nl, panel.btn[B_ARP], fa_ar || TSEL->p[P_AMODE] != 0);
     led_put(nl, panel.btn[B_SAVE], fa_sv);
+    led_put(nl, panel.btn[B_GLO], fa_gl != 0u);
     led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
     led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
     c = fm1_in.notes;
@@ -809,6 +1099,7 @@ static void fa_init(void)
         t->p[P_MUTE] = i ? 1 : 0;
     }
     song.sel = 0;
+    fa_cfg_load();
     fa_mono();
     fa_page = 0;
     ui.force = 1;

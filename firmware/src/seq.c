@@ -1195,9 +1195,26 @@ static void seq_tick(track_t *t, uint32_t n)
 static uint8_t midi_route;                 /* the G_ROUTE events_block last saw (a change to a block: midi_route_block;
                                             * MIDI_ROUTE_AGAIN: TRACK's channels changed, the same again) */
 #define MIDI_ROUTE_AGAIN 0xFFu
+#if FELUCCA_FMUG_ONLY
+/* FMini-1 (fmug_app.c, GLO): the one instrument is track 1 on every channel the setting accepts; the sources are 1 USB,
+ * 2 MIDI (TRS), 3 Bluetooth (no radio driver in this firmware yet: nothing arrives with that number). The CC map is the
+ * app's own: the ISR only notes the last value of each CC (fm_cc_rx, bit cc of fm_cc_pend); the main loop applies it */
+static volatile uint8_t fm_midi_src = 3;                 /* 0 USB, 1 MIDI, 2 BLUETOOTH, 3 ALL */
+static volatile uint8_t fm_midi_ch;                      /* 0 ALL (omni), 1..16 */
+static volatile uint8_t fm_cc_rx[128];
+static volatile uint32_t fm_cc_pend[4];
+static int fm_midi_ok(uint32_t source, uint32_t ch)
+{
+    return (fm_midi_src == 3u || fm_midi_src + 1u == source) && (!fm_midi_ch || fm_midi_ch - 1u == ch);
+}
+#endif
 static int32_t midi_slot(uint32_t ch)      /* the track channel ch plays, -1 none (and with SEL) */
 {
     int32_t b = midi_base(), omni = -1;
+#if FELUCCA_FMUG_ONLY
+    (void)b; (void)omni; (void)ch;
+    return 0;
+#endif
     uint32_t i;
     if (b != -2)
         return b >= 0 && ch - (uint32_t)b < NPART ? (int32_t)(ch - (uint32_t)b) : -1;
@@ -1383,6 +1400,9 @@ static void events_block(uint32_t n)
                     midi_clock_transport(status, ms);
             }
         } else
+#if FELUCCA_FMUG_ONLY
+        if (fm_midi_ok(source, ch))
+#endif
             midi_event(st, ch, d1, d2);
     }
     if (clock_mode) {
