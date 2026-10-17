@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # FMini-1: the README's pictures (assets/readme/) in the splash's look: the banner (the logo, "by Ruppert" 20 % smaller,
-# the instrument) and the eight screens drawn by the firmware's own code (tools/readme_shots.c).
+# the instrument) and the eight screens, one picture each, drawn by the firmware's own code (tools/readme_shots.c).
 #   python3 -c "import sys; sys.path.insert(0, 'tools'); import build; build.generate()"      # build/gen
 #   cc -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o /tmp/shots tools/readme_shots.c -lm && /tmp/shots /tmp/fa
 #   python3 tools/gen_readme_art.py /tmp/fa
@@ -60,20 +60,15 @@ def banner(splash):
     return im
 
 
-def screens(src, cols=4, scale=2):
-    """the eight screens in a grid on black, each in a dark frame over its name"""
-    gap, pad, cap = 36, 30, 64
+def screen(src, name, label, scale=2):
+    """one screen in its own picture: a dark rounded frame (transparent corners) with the name under the screen"""
+    pad, cap = 12, 58
     sw = 240 * scale
-    rows = (len(SHOTS) + cols - 1) // cols
-    im = Image.new("RGB", (pad * 2 + cols * sw + (cols - 1) * gap, pad + rows * (sw + cap + gap) - gap + 10), BLACK)
+    im = Image.new("RGBA", (sw + 2 * pad, sw + pad + cap), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    f = font("Poppins-Medium.ttf", 30)
-    for i, (name, label) in enumerate(SHOTS):
-        s = Image.open(src / f"shot_{name}.ppm").convert("RGB").resize((sw, sw), Image.NEAREST)
-        x, y = pad + (i % cols) * (sw + gap), pad + (i // cols) * (sw + cap + gap)
-        d.rounded_rectangle((x - 8, y - 8, x + sw + 7, y + sw + 7), 10, fill=FRAME)
-        im.paste(s, (x, y))
-        spaced(d, x + sw / 2, y + sw + 50, label.upper(), f, CREAM, 4)
+    d.rounded_rectangle((0, 0, im.width - 1, im.height - 1), 16, fill=FRAME + (255,))
+    im.paste(Image.open(src / f"shot_{name}.ppm").convert("RGB").resize((sw, sw), Image.NEAREST), (pad, pad))
+    spaced(d, im.width / 2, pad + sw + 42, label.upper(), font("Poppins-Medium.ttf", 28), CREAM, 4)
     return im
 
 
@@ -81,7 +76,8 @@ def main(src):
     OUT.mkdir(parents=True, exist_ok=True)
     splash = Image.open(SPLASH).convert("RGB")
     banner(splash).save(OUT / "banner.png", optimize=True)
-    screens(pathlib.Path(src)).save(OUT / "screens.png", optimize=True)
+    for name, label in SHOTS:
+        screen(pathlib.Path(src), name, label).save(OUT / f"screen-{name}.png", optimize=True)
     print("wrote", ", ".join(sorted(p.name for p in OUT.iterdir())))
 
 
