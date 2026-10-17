@@ -469,7 +469,7 @@ static void fa_ar_dialog(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.1.0"
+#define FMINI_VERSION "v1.2.0"
 #define FA_NPG 43u                                        /* the controls of the seven screens (FMG_PAGE: 8+7+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -503,6 +503,7 @@ static void fa_cfg_load(void)
         fm_midi_src = (uint8_t)(src > 3u ? 3u : src);
         fm_midi_ch = (uint8_t)(ch > 16u ? 0u : ch);
         fm_bend_mode = (uint8_t)(*fa_cfg_byte(4u + FA_NCC) & 3u);
+        fm_bt = (uint8_t)(*fa_cfg_byte(5u + FA_NCC) != 1u);   /* 1 = OFF, anything else (2, or never saved) = ON */
         for (i = 0; i < FA_NCC; i++) {
             uint32_t c = *fa_cfg_byte(4u + i);
             fa_cc[i] = (uint8_t)(fa_cc_valid(c) ? c : FA_CC0[i]);
@@ -511,6 +512,7 @@ static void fa_cfg_load(void)
         fm_midi_src = 3;
         fm_midi_ch = 0;
         fm_bend_mode = 0;
+        fm_bt = 1;
         memcpy(fa_cc, FA_CC0, sizeof fa_cc);
     }
 }
@@ -527,6 +529,7 @@ static void fa_cfg_save(void)
     for (i = 0; i < FA_NCC; i++)
         *fa_cfg_byte(4u + i) = fa_cc[i];
     *fa_cfg_byte(4u + FA_NCC) = fm_bend_mode;
+    *fa_cfg_byte(5u + FA_NCC) = fm_bt ? 2u : 1u;
     settings_save();                                      /* (deferred while anything plays) */
 }
 static void fa_gl_close(void)
@@ -643,18 +646,19 @@ static void fa_gl_dialog(void)
     char b[24];
     if (fa_gl == 1u) {
         fa_frame("GLOBAL");
-        fa_line(62, "MIDI IN", FA_SRC[fm_midi_src & 3u], fa_gl_row == 0u);
+        fa_line(56, "BLUETOOTH", fm_bt ? "ON" : "OFF", fa_gl_row == 0u);
+        fa_line(77, "MIDI IN", FA_SRC[fm_midi_src & 3u], fa_gl_row == 1u);
         if (fm_midi_ch)
             fmt_int(b, fm_midi_ch);
         else
             str_cpy(b, "ALL", 4);
-        fa_line(84, "MIDI CHANNEL", b, fa_gl_row == 1u);
-        fa_line(106, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 2u);
-        fa_line(128, "MIDI CC", ">", fa_gl_row == 3u);
-        fa_line(150, "ABOUT", ">", fa_gl_row == 4u);
-        if (fm_midi_src >= 2u)
-            fa_ctext(120, 174, &AF_S, "BLUETOOTH: NOT AVAILABLE YET", FA_RED);
-        fa_ctext(120, 196, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
+        fa_line(98, "MIDI CHANNEL", b, fa_gl_row == 2u);
+        fa_line(119, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 3u);
+        fa_line(140, "MIDI CC", ">", fa_gl_row == 4u);
+        fa_line(161, "ABOUT", ">", fa_gl_row == 5u);
+        if (fm_bt)
+            fa_ctext(120, 182, &AF_S, "BLUETOOTH: NO RADIO DRIVER YET", FA_RED);
+        fa_ctext(120, 198, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
     } else {                                              /* MIDI CC: a window of six lines on the list */
         uint32_t top = fa_cc_i < 3u ? 0u : fa_cc_i - 3u, k;
         if (top + 6u > FA_NCC)
@@ -831,7 +835,7 @@ static uint32_t fa_signature(void)
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h = (h ^ fa_base ^ (uint32_t)fa_pp_on() << 8) * 16777619u;
-    h = (h ^ fa_gl ^ (uint32_t)fa_gl_row << 3 ^ (uint32_t)fa_cc_i << 6 ^ (uint32_t)fm_midi_src << 12 ^ (uint32_t)fm_midi_ch << 14) * 16777619u;
+    h = (h ^ fa_gl ^ (uint32_t)fa_gl_row << 3 ^ (uint32_t)fa_cc_i << 6 ^ (uint32_t)fm_midi_src << 12 ^ (uint32_t)fm_bt << 17 ^ (uint32_t)fm_midi_ch << 14) * 16777619u;
     for (i = 0; i < FA_NCC; i++)
         h = (h ^ fa_cc[i]) * 16777619u;
     h = (h ^ fa_sv ^ (uint32_t)fa_ar << 4 ^ (uint32_t)fa_ar_row << 5 ^ (uint32_t)song.g[G_BPM] << 8) * 16777619u;
@@ -1021,24 +1025,28 @@ static void fa_input(void)
         (void)panel_enc(EN_PRESET);
         if (fa_gl == 1u) {
             if ((s = panel_enc(EN_SELECT)) != 0)
-                fa_gl_row = (uint8_t)((fa_gl_row + 5u + (s > 0 ? 1u : 4u)) % 5u);
+                fa_gl_row = (uint8_t)((fa_gl_row + 6u + (s > 0 ? 1u : 5u)) % 6u);
             if ((s = panel_enc(EN_ALGO)) != 0) {
                 if (fa_gl_row == 0u) {
+                    fm_bt = (uint8_t)!fm_bt;
+                    panic_req |= 1u;
+                    fa_cfg_dirty = 1;
+                } else if (fa_gl_row == 1u) {
                     fm_midi_src = (uint8_t)clamp((int32_t)fm_midi_src + (s > 0 ? 1 : -1), 0, 3);
                     panic_req |= 1u;                       /* a note of the source left must not hang */
                     fa_cfg_dirty = 1;
-                } else if (fa_gl_row == 1u) {
+                } else if (fa_gl_row == 2u) {
                     fm_midi_ch = (uint8_t)clamp((int32_t)fm_midi_ch + (s > 0 ? 1 : -1), 0, 16);
                     panic_req |= 1u;
                     fa_cfg_dirty = 1;
-                } else if (fa_gl_row == 2u) {
+                } else if (fa_gl_row == 3u) {
                     uint32_t ch;
                     fm_bend_mode = (uint8_t)clamp((int32_t)fm_bend_mode + (s > 0 ? 1 : -1), 0, 3);
                     for (ch = 0; ch < 16u; ch++)           /* the bend held now follows the new range */
                         midi_expression_channel(ch);
                     fa_cfg_dirty = 1;
                 } else
-                    fa_gl = fa_gl_row == 3u ? 2u : 3u;
+                    fa_gl = fa_gl_row == 4u ? 2u : 3u;
             }
         } else if (fa_gl == 2u) {
             if ((s = panel_enc(EN_SELECT)) != 0)

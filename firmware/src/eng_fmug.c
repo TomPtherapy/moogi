@@ -19,7 +19,7 @@
 #define FMUG_POLY 4
 #define FG_SIZE 32u
 #ifndef FMUG_KMAX
-#define FMUG_KMAX 21500
+#define FMUG_KMAX 18400
 #endif
 #define FMUG_NFACTORY 100u
 #define FMUG_OWN FMUG_NFACTORY
@@ -262,11 +262,12 @@ static int32_t fmug_range16(uint32_t r)
 
 static void fmug_note_on(track_t *t, voice_t *v)
 {
-    (void)t;
     if (!v->env && !v->env_out) {                          /* from silence: the ladder and the contour from 0 */
         v->s[0] = v->s[1] = v->s[2] = v->s[3] = 0;
         v->s[4] = 0;
         v->s[7] = 0;
+        v->s[5] = (int32_t)(noise32(&fmug_nst[(uint32_t)(t - trk) % NTRK]) >> 20) - 2048;   /* the VCOs start a little apart: drift, cents * 256 */
+        v->s[6] = (int32_t)(noise32(&fmug_nst[(uint32_t)(t - trk) % NTRK]) >> 20) - 2048;
     }
     v->s[7] = (int32_t)(1u << 24) | (v->s[7] & 0xFFFFFF);  /* the contour attacks from where it is */
 }
@@ -280,7 +281,10 @@ static int32_t fmug_contour(const int16_t *p, voice_t *v)
         st = 3;
     switch (st) {
     case 1:
-        e += (int32_t)(ENV_LIN[p[P_E3] & 127] >> 1);
+        {   /* the capacitor charges toward a level above full: a concave rise that ends in a corner, as in the Minimoog */
+            int32_t step = (int32_t)(ENV_LIN[p[P_E3] & 127] >> 1), d = (int32_t)(((int64_t)((5 << 21) - e) * step * 824) >> 32);
+            e += d < 1 ? 1 : d;
+        }
         if (e >= (1 << 23)) {
             e = 1 << 23;
             st = 2;
@@ -305,7 +309,7 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     const uint8_t *g = fmug_eff[(uint32_t)(t - trk) % NTRK].p;
     int32_t mix[CTL];
     int32_t env15, mod, lfo, cut, p16, fine, k, G16, gain;
-    int32_t l1 = 0, l2 = 0, l3 = 0, ln = 0;
+    int32_t l1 = 0, l2 = 0, l3 = 0, ln = 0, dr1, dr2, dr3;
     uint32_t tr = (uint32_t)(t - trk) % NTRK, i, sw = g[FG_SW1];
     uint32_t inc1, inc2, inc3;
     int32_t s0 = v->s[0], s1 = v->s[1], s2 = v->s[2], s3 = v->s[3], y4 = v->s[4];
@@ -327,9 +331,19 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     /* oscillator pitches */
     p16 = m->pitch16 + (sw & FS_MOSC ? (mod * 16) >> 14 : 0);    /* full depth: +-2 semitones */
     fine = m->fine + ((int32_t)g[FG_TUNE] - 64) * 237 / 64;
-    inc1 = cents_inc(clamp(p16 + fmug_range16(g[FG_R1]), 0, 2047), 0, fine);
-    inc2 = cents_inc(clamp(p16 + fmug_range16(g[FG_R2]), 0, 2047), ((int32_t)g[FG_F2] - 64) * 11, fine);
-    inc3 = cents_inc(clamp(p16 + fmug_range16(g[FG_R3]), 0, 2047), ((int32_t)g[FG_F3] - 64) * 11, fine);
+    {   /* the VCOs wander a few cents (temperature, the integrators): a slow random walk per oscillator, about +-2 cents */
+        int32_t d1 = v->s[5], d2 = v->s[6];
+        d1 += ((int32_t)(noise32(&fmug_nst[tr]) >> 20) - 2048 >> 6) - (d1 >> 11);
+        d2 += ((int32_t)(noise32(&fmug_nst[tr]) >> 20) - 2048 >> 6) - (d2 >> 11);
+        v->s[5] = d1;
+        v->s[6] = d2;
+        dr1 = d1 >> 8;
+        dr2 = d2 >> 8;
+        dr3 = (d1 - d2) >> 9;
+    }
+    inc1 = cents_inc(clamp(p16 + fmug_range16(g[FG_R1]), 0, 2047), dr1, fine);
+    inc2 = cents_inc(clamp(p16 + fmug_range16(g[FG_R2]), 0, 2047), ((int32_t)g[FG_F2] - 64) * 11 + dr2, fine);
+    inc3 = cents_inc(clamp(p16 + fmug_range16(g[FG_R3]), 0, 2047), ((int32_t)g[FG_F3] - 64) * 11 + dr3, fine);
 
     /* mixer levels: a squared curve */
     if (sw & FS_O1) l1 = (int32_t)(g[FG_L1] * g[FG_L1] * 2) + 0;
@@ -369,21 +383,21 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     }
     k = (int32_t)p[P_E1] * FMUG_KMAX / 127;                         /* the resonance, Q12 (4 * 4096 = the ladder's self-oscillation) */
     k = mulq16(k, (uint32_t)(65536 - G16));                        /* the delayed feedback needs less as the cutoff rises */
-    gain = 4096 + (k >> 2);                                       /* a part of the loss the resonance makes at low frequencies */
+    gain = 4096 + (k >> 3);                                       /* the real ladder loses its bass as EMPHASIS rises: only an eighth is given back */
 
     for (i = 0; i < n; i++) {
         int32_t x = softclip(mix[i]), u, v1, v2, v3, v4;           /* the mixer overloads softly */
         u = softclip(x - ((k * y4) >> 12));                       /* the ladder's input, the feedback around it */
-        v1 = mulq16(u - s0, (uint32_t)G16);
+        v1 = mulq16(softclip(u) - s0, (uint32_t)G16);     /* each stage is a differential pair: tanh in front of it */
         u = v1 + s0;
         s0 = u + v1;
-        v2 = mulq16(u - s1, (uint32_t)G16);
+        v2 = mulq16(softclip(u) - s1, (uint32_t)G16);
         u = v2 + s1;
         s1 = u + v2;
-        v3 = mulq16(u - s2, (uint32_t)G16);
+        v3 = mulq16(softclip(u) - s2, (uint32_t)G16);
         u = v3 + s2;
         s2 = u + v3;
-        v4 = mulq16(u - s3, (uint32_t)G16);
+        v4 = mulq16(softclip(u) - s3, (uint32_t)G16);
         y4 = v4 + s3;
         s3 = y4 + v4;
         out[i] += voice_amp((y4 * gain) >> 12, m, i) << 1;

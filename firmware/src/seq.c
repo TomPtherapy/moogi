@@ -1202,10 +1202,13 @@ static uint8_t midi_route;                 /* the G_ROUTE events_block last saw 
 static volatile uint8_t fm_midi_src = 3;                 /* 0 USB, 1 MIDI, 2 BLUETOOTH, 3 ALL */
 static volatile uint8_t fm_midi_ch;                      /* 0 ALL (omni), 1..16 */
 static volatile uint8_t fm_bend_mode;                    /* GLO > PITCH BEND: 0 +-2, 1 +-12, 2 +2 -12, 3 +2 -24 */
+static volatile uint8_t fm_bt = 1;                       /* GLO > BLUETOOTH ON/OFF: the Bluetooth MIDI source is heard only when ON */
 static volatile uint8_t fm_cc_rx[128];
 static volatile uint32_t fm_cc_pend[4];
 static int fm_midi_ok(uint32_t source, uint32_t ch)
 {
+    if (source == 3u && !fm_bt)
+        return 0;
     return (fm_midi_src == 3u || fm_midi_src + 1u == source) && (!fm_midi_ch || fm_midi_ch - 1u == ch);
 }
 #endif

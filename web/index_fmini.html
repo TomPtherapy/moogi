@@ -1,0 +1,424 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     FMini-1 installer. Based on the Felucca installer (Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments) -->
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>FMini-1 installer</title>
+<style>
+  :root {
+    --bg: #070605; --panel: #12100e; --panel2: #191613; --line: #2a251f;
+    --fg: #f3ede2; --dim: #9a9084; --or: #ff6a13; --or2: #ff8a3d; --teal: #2fb4b0; --red: #ff5a4a; --ok: #7bd88f;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; color: var(--fg); min-height: 100vh;
+         font: 16px/1.55 "Avenir Next", "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif;
+         background: radial-gradient(900px 520px at 50% -80px, #2b1707 0%, rgba(43,23,7,0) 70%), var(--bg); }
+  main { max-width: 680px; margin: 0 auto; padding: 28px 18px 56px; }
+  .top { display: flex; justify-content: flex-end; }
+  .lang { font: 600 12px/1 inherit; letter-spacing: .08em; color: var(--dim); background: transparent; border: 1px solid var(--line);
+          border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+  .lang:hover { color: var(--fg); border-color: var(--or); }
+
+  .hero { text-align: center; padding: 10px 0 0; }
+  .logo { margin: 0; font-weight: 900; font-style: italic; letter-spacing: -.045em; line-height: .95;
+          font-size: clamp(56px, 15vw, 104px); font-family: "Montserrat", "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  .logo .f { color: var(--or); }
+  .by { display: flex; align-items: center; gap: 16px; justify-content: center; margin: 10px auto 0; max-width: 420px;
+        font-weight: 700; font-size: clamp(20px, 5vw, 28px); letter-spacing: -.01em; }
+  .by::before, .by::after { content: ""; height: 1px; flex: 1; background: linear-gradient(90deg, transparent, #6b625a); }
+  .by::after { background: linear-gradient(270deg, transparent, #6b625a); }
+  .tag { color: var(--dim); margin: 14px 0 0; font-size: 15px; }
+  .feat { color: var(--or2); font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; margin: 6px 0 0; font-weight: 600; }
+
+  .synth { position: relative; margin: 22px -4px 0; }
+  .synth img { display: block; width: 100%; height: auto; border-radius: 14px; }
+  .synth::after { content: ""; position: absolute; inset: 0; border-radius: 14px; pointer-events: none;
+                  background: linear-gradient(180deg, rgba(7,6,5,.55) 0%, rgba(7,6,5,0) 22%, rgba(7,6,5,0) 70%, var(--bg) 100%); }
+  .ver { position: absolute; right: 12px; top: 12px; z-index: 1; font: 700 12px/1 inherit; letter-spacing: .06em; color: #1b1208;
+         background: var(--or); border-radius: 999px; padding: 6px 10px; }
+
+  .card { background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line); border-radius: 18px;
+          padding: 20px; margin-top: -34px; position: relative; z-index: 2; box-shadow: 0 18px 50px rgba(0,0,0,.55); }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; list-style: none; margin: 0 0 18px; padding: 0; }
+  .steps li { background: #0e0c0a; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .steps b { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .steps b i { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--or); color: #1b1208;
+               font: 800 12px/1 inherit; font-style: normal; }
+  .steps span { display: block; color: var(--dim); font-size: 12.5px; line-height: 1.4; margin-top: 6px; }
+  @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
+
+  #go { width: 100%; font: 800 18px/1 inherit; letter-spacing: .02em; color: #1b1208; border: 0; border-radius: 14px; padding: 18px 20px;
+        cursor: pointer; background: linear-gradient(180deg, var(--or2), var(--or)); box-shadow: 0 8px 24px rgba(255,106,19,.28), inset 0 1px 0 rgba(255,255,255,.35);
+        transition: transform .08s, filter .15s; }
+  #go:hover:not(:disabled) { filter: brightness(1.07); }
+  #go:active:not(:disabled) { transform: translateY(1px); }
+  #go:disabled { cursor: default; background: #2a2520; color: #6b625a; box-shadow: none; }
+  body.busy #go { background: #2a2520; color: var(--or2); }
+
+  .prog { margin-top: 18px; }
+  .bar { position: relative; height: 14px; border-radius: 999px; background: #0b0908; border: 1px solid var(--line); overflow: hidden; }
+  .fill { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #ff5a0a, var(--or2));
+          transition: width .25s ease; box-shadow: 0 0 14px rgba(255,106,19,.55); position: relative; }
+  body.busy .fill::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(255,255,255,.22) 0 10px, rgba(255,255,255,0) 10px 22px);
+                           animation: slide 1s linear infinite; }
+  @keyframes slide { to { background-position: 44px 0; } }
+  body.finished .fill { background: linear-gradient(90deg, #3aa55a, var(--ok)); box-shadow: 0 0 14px rgba(123,216,143,.5); }
+  .row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; gap: 12px; }
+  #pct { font: 800 22px/1 inherit; font-variant-numeric: tabular-nums; }
+  #status { color: var(--fg); font-size: 14.5px; text-align: right; min-height: 1.5em; }
+  body.bad #status { color: var(--red); }
+  body.finished #status { color: var(--ok); font-weight: 700; }
+
+  #phases { display: flex; list-style: none; padding: 0; margin: 14px 0 0; gap: 6px; }
+  #phases li { flex: 1; text-align: center; font-size: 11.5px; letter-spacing: .03em; color: #6b625a; padding-top: 10px; position: relative; }
+  #phases li::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: 3px; background: #26211b; }
+  #phases li.now { color: var(--or2); font-weight: 700; }
+  #phases li.now::before { background: var(--or); }
+  #phases li.done { color: var(--dim); }
+  #phases li.done::before { background: #6e4a2a; }
+  body.finished #phases li.done::before { background: var(--ok); }
+
+  .note { color: var(--dim); font-size: 13px; margin: 16px 0 0; }
+  .note.warn { color: #ffb37a; }
+  details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  summary { cursor: pointer; color: var(--dim); font-size: 13.5px; }
+  summary:hover { color: var(--fg); }
+  details p { color: var(--dim); font-size: 13px; margin: 10px 0; }
+  details a { color: var(--or2); }
+  details button { font: 700 14px/1 inherit; color: var(--fg); background: #26211b; border: 1px solid var(--line); border-radius: 10px; padding: 11px 16px; cursor: pointer; }
+  details button:disabled { opacity: .35; cursor: default; }
+  input[type=file] { color: var(--dim); font-size: 13px; max-width: 100%; }
+  pre { color: #7d746a; font-size: 11.5px; white-space: pre-wrap; margin: 10px 0 0; max-height: 220px; overflow: auto; }
+  footer { color: #6f665c; font-size: 11.5px; line-height: 1.6; margin-top: 30px; text-align: center; }
+  footer a { color: #8c8276; }
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><button class="lang" id="lang" aria-label="Language"></button></div>
+
+  <section class="hero">
+    <h1 class="logo"><span class="f">F</span>Mini-1</h1>
+    <div class="by">by Ruppert</div>
+    <p class="tag" data-t="tagline"></p>
+    <p class="feat" data-t="feat"></p>
+  </section>
+
+  <div class="synth"><span class="ver" id="ver">v1.1.0</span><img alt="FMini-1" src="/*HERO*/"></div>
+
+  <section class="card">
+    <ol class="steps">
+      <li><b><i>1</i><span data-t="step1" style="display:inline;color:inherit;font-size:inherit;margin:0"></span></b><span data-t="s1"></span></li>
+      <li><b><i>2</i><span data-t="step2" style="display:inline;color:inherit;font-size:inherit;margin:0"></span></b><span data-t="s2"></span></li>
+      <li><b><i>3</i><span data-t="step3" style="display:inline;color:inherit;font-size:inherit;margin:0"></span></b><span data-t="s3"></span></li>
+    </ol>
+
+    <button id="go" disabled data-t="install"></button>
+
+    <div class="prog">
+      <div class="bar" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="fill"></div></div>
+      <div class="row"><span id="pct">0%</span><span id="status" aria-live="polite"></span></div>
+      <ul id="phases">
+        <li data-t="ph_verify"></li><li data-t="ph_loader"></li><li data-t="ph_write"></li><li data-t="ph_reboot"></li><li data-t="ph_done"></li>
+      </ul>
+    </div>
+
+    <p class="note" data-t="intro"></p>
+    <p class="note warn" data-t="warn"></p>
+    <p class="note" data-t="direct"></p>
+    <p class="note" data-t="beta"></p>
+    <p class="note"><span data-t="brick"></span>
+      <a href="https://github.com/kurogedelic/FM-1-transporter" target="_blank" rel="noopener" style="color:#ff8a3d">FM-1-transporter</a></p>
+
+    <details>
+      <summary data-t="stockTitle"></summary>
+      <p data-t="back"></p>
+      <p><a href="https://www.m-vave.com/download" target="_blank" rel="noopener">M-VAVE Downloads</a></p>
+      <p><label><span data-t="stockFile"></span><br><input id="stock-file" type="file" accept=".fwsc"></label></p>
+      <p><button id="stock-go" disabled data-t="stockGo"></button></p>
+      <p data-t="stockBackup"></p>
+      <p><label><input id="stock-recovery" type="checkbox"> <span data-t="stockRecovery"></span></label></p>
+    </details>
+    <details>
+      <summary data-t="logT"></summary>
+      <pre id="log"></pre>
+    </details>
+  </section>
+
+  <footer>
+    FMini-1 by Ruppert, a custom firmware based on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>, with its CrispyZebra waveforms, drum voices, Sample Pack and Fukiai icons (MIT).<br>
+    Font: Inter Tight (The Inter Project Authors, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and VCSL (CC0 1.0).<br>
+    FM6 engine: msfa from Dexed (Google Inc., Pascal Gauthier, Apache-2.0). The package also holds three JieLi AC79 SDK files, uboot.boot, cfg_tool.bin and eq_cfg_hw.bin (JieLi Technology, Apache-2.0). Licences: <a href="https://github.com/hugelton/Felucca/blob/main/LICENSING.md">LICENSING</a>, <a href="https://github.com/hugelton/Felucca/blob/main/LICENSE">GPL-3.0</a>, <a href="https://github.com/hugelton/Felucca/tree/main/LICENSES/">all</a>.<br>
+    M-VAVE and FM-1 are trademarks of their respective owners.<br>
+    <span data-t="license"></span> <a href="https://github.com/hugelton/Felucca" target="_blank" rel="noopener">github.com/hugelton/Felucca</a>
+  </footer>
+</main>
+<script type="module">
+/*LIB*/
+const $ = (id) => document.getElementById(id);
+const TEXT = {
+  pt: {
+    intro: "Conecte o FM-1 por USB. (Funciona no Chrome ou no Edge.)",
+    warn: "Não desconecte o cabo USB durante a gravação.",
+    install: "Instalar", other: "English",
+    editor: "Editor",
+    direct: "Ligue o cabo USB direto no computador. Não precisa de Probe nem de Transporter.",
+    brick: "Se a instalação falhar e o FM-1 não ligar mais, recuperá-lo exige um Transporter:",
+    beta: "O FMini-1 é uma versão experimental, baseada no Felucca. O autor não se responsabiliza se o seu FM-1 for danificado ou se comportar de forma estranha por causa deste firmware personalizado. Use por sua conta e risco.",
+    back: "Baixe o FM-1 V15 oficial na M-VAVE e escolha o FM-1.fwsc sem modificações. O navegador valida o arquivo localmente; ele não é enviado a nenhum servidor.",
+    stockTitle: "Voltar ao V15 oficial", stockFile: "FM-1.fwsc oficial", stockGo: "Fazer backup e voltar ao V15 oficial",
+    stockBackup: "Músicas, músicas salvas, bancos de sons, samples e ajustes atuais são salvos antes. Firmware antigo precisa de uma atualização do Felucca para fazer o backup completo.",
+    stockRecovery: "Retomar uma atualização interrompida: já salvei um backup completo neste computador",
+    stockValid: "V15 oficial verificado", stockConfirm: "O arquivo de backup completo foi salvo neste computador? Continuar vai voltar ao V15 oficial, que não abre as músicas do Felucca.",
+    stockNeedBackup: "Do modo de atualização não dá para exportar backup. Só marque retomar se você já salvou um backup completo.",
+    stockUnsupported: "Este firmware não suporta backup completo. Instale primeiro a versão atual.",
+    backup: "Salvando backup completo ", stockError: "Não foi possível validar o firmware oficial: ",
+    nomidi: "Este navegador não consegue. Abra a página no Chrome ou no Edge.", loadfail: "Não foi possível carregar: ",
+    start: "Iniciando", verify: "Verificando", loader: "Entrando no modo de atualização", write: "Gravando",
+    reboot: "Reiniciando", done: "Pronto! O FM-1 agora é um FMini-1", stopped: "Interrompido. Desconecte e reconecte o USB e aperte Instalar de novo.",
+    error: "Erro: ",
+    denied: "O acesso ao MIDI (SysEx) não foi permitido. Permita o MIDI nas configurações do site (barra de endereço) e aperte Instalar de novo.",
+    notfound: "FM-1 não encontrado. Confira o cabo USB (precisa ser de dados), feche outros apps que usam MIDI e aperte Instalar de novo.",
+    model: "O aparelho conectado não é um FM-1.",
+    lost: "A conexão USB caiu. Reconecte e aperte Instalar de novo.",
+    noloader: "O FM-1 em modo de atualização não foi encontrado. Reconecte o USB e aperte Instalar de novo (ele fica em modo de atualização até terminar).",
+    noreturn: "O FM-1 não voltou. Desligue e ligue de novo.",
+    mismatch: "Gravado, mas o FM-1 informa outra versão: ",
+    badpkg: "O arquivo a instalar está danificado. Recarregue a página.",
+    leave: "Gravando. Não feche a página.",
+    license: "GPL-3.0, sem garantia. Código-fonte:",
+    ready: "Pronto. Conecte o FM-1 e aperte Instalar.",
+    step1: "Conectar", step2: "Instalar", step3: "Tocar",
+    s1: "Ligue o FM-1 ao computador com um cabo USB de dados.", s2: "Aperte Instalar e mantenha o cabo conectado até aparecer Pronto.", s3: "O FM-1 reinicia como FMini-1, com a tela de abertura.",
+    ph_verify: "Verificar", ph_loader: "Modo de atualização", ph_write: "Gravar", ph_reboot: "Reiniciar", ph_done: "Pronto",
+    tagline: "Um sintetizador monofônico estilo Minimoog para o M-VAVE FM-1",
+    feat: "3 osciladores · filtro ladder · 100 presets · arpejador · MIDI",
+    risk: "Use por sua conta e risco", logT: "Detalhes", fw: "Firmware",
+  },
+  ja: {
+    intro: "FM-1 を USB で接続してください。（Chrome か Edge で使えます）",
+    warn: "書き込み中は USB を抜かないでください。",
+    install: "インストール", other: "English",
+    editor: "エディタ（インストール後、パソコンから音色やシーケンスを編集）",
+    direct: "USB ケーブルはパソコンに直接つないでください。Probe や Transporter などの機材は不要です。",
+    brick: "万一インストールに失敗して起動しなくなった場合は、復旧に Transporter が必要です:",
+    beta: "FMini-1 は Felucca をベースにした実験版です。このカスタムファームウェアを使ったことで FM-1 が壊れたり不具合が起きたりしても、作者は一切の責任を負いません。自己責任でお使いください。",
+    back: "M-VAVEから公式FM-1 V15を取得し、未変更のFM-1.fwscを選んでください。ファイルはこのブラウザ内で検証し、サーバーへ送りません。",
+    stockTitle: "公式V15に戻す", stockFile: "公式FM-1.fwsc", stockGo: "バックアップして公式V15へ戻す",
+    stockBackup: "現在の曲・保存曲・音色バンク・サンプル・設定を先に保存します。全体バックアップ非対応版は、Feluccaを更新してから行ってください。復元はFeluccaを再インストールしてエディタから行います。",
+    stockRecovery: "更新中断の再開：全体バックアップはすでにパソコンへ保存済み",
+    stockValid: "公式V15を確認しました", stockConfirm: "全体バックアップファイルをパソコンに保存できましたか？ 続けると公式V15へ戻します。Feluccaの曲は公式V15では開けません。",
+    stockNeedBackup: "書き込みモードからはバックアップできません。保存済みバックアップがある場合だけ、更新中断の再開にチェックしてください。",
+    stockUnsupported: "このFeluccaは全体バックアップに未対応です。先に最新版をインストールしてください。",
+    backup: "全体バックアップ保存中 ", stockError: "公式ファイルを確認できません: ",
+    nomidi: "このブラウザでは使えません。Chrome か Edge で開いてください。", loadfail: "読み込めませんでした: ",
+    start: "開始します", verify: "確認中", loader: "書き込みモードに切り替え中", write: "書き込み中",
+    reboot: "再起動中", done: "完了しました", stopped: "途中で止まりました。USB を挿し直してもう一度押してください。",
+    error: "エラー: ",
+    denied: "MIDI（SysEx）の使用が許可されませんでした。アドレスバーのサイト設定で MIDI を許可して、もう一度押してください。",
+    notfound: "FM-1 が見つかりません。USB ケーブル（データ通信用か）を確かめ、MIDI を使う他のアプリを閉じてから、もう一度押してください。",
+    model: "接続されている機器は FM-1 ではありません。",
+    lost: "USB の接続が切れました。挿し直してもう一度押してください。",
+    noloader: "書き込みモードの FM-1 が見つかりません。USB を挿し直してもう一度押してください（終わるまで書き込みモードのままです）。",
+    noreturn: "FM-1 が戻ってきません。電源を入れ直してください。",
+    mismatch: "書き込みは終わりましたが、FM-1 が別のバージョンを報告しています: ",
+    badpkg: "インストールするファイルが壊れています。ページを再読み込みしてください。",
+    leave: "書き込み中です。ページを閉じないでください。",
+    license: "GPL-3.0、無保証。ソース:",
+    ready: "準備完了。FM-1 を接続して「インストール」を押してください。",
+    step1: "接続", step2: "インストール", step3: "演奏",
+    s1: "USB データケーブルで FM-1 をパソコンに接続します。", s2: "「インストール」を押し、「完了」と出るまでケーブルを抜かないでください。", s3: "FM-1 が再起動し、FMini-1 のスプラッシュ画面が表示されます。",
+    ph_verify: "確認", ph_loader: "更新モード", ph_write: "書き込み", ph_reboot: "再起動", ph_done: "完了",
+    tagline: "M-VAVE FM-1 用 Minimoog スタイルのモノフォニックシンセ",
+    feat: "3 オシレーター · ラダーフィルター · 100 プリセット · アルペジエーター · MIDI",
+    risk: "自己責任でお使いください", logT: "詳細", fw: "ファームウェア",
+  },
+  en: {
+    intro: "Connect the FM-1 by USB. (Works in Chrome or Edge.)",
+    warn: "Do not unplug the USB cable while writing.",
+    install: "Install", other: "日本語",
+    editor: "Editor (after installing: edit sounds and sequences from the computer)",
+    direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
+    brick: "If an install fails and the FM-1 no longer starts, recovering it needs a Transporter:",
+    beta: "FMini-1 is an experimental release based on Felucca. The author accepts no responsibility if your FM-1 is damaged or misbehaves because of this custom firmware. Use it at your own risk.",
+    back: "Get official FM-1 V15 from M-VAVE and select the unmodified FM-1.fwsc. The browser validates it locally; it is not sent to a server.",
+    stockTitle: "Return to official V15", stockFile: "Official FM-1.fwsc", stockGo: "Back up and return to official V15",
+    stockBackup: "Current music, saved music, sound banks, samples and settings are saved first. Older firmware needs a Felucca update for complete backups. To restore an archive later, reinstall Felucca and use the editor.",
+    stockRecovery: "Resume an interrupted update: I already saved a complete backup to this computer",
+    stockValid: "Official V15 verified", stockConfirm: "Has the complete backup file been saved to this computer? Continue to return to official V15. Official V15 cannot open Felucca music.",
+    stockNeedBackup: "An update loader cannot export a backup. Only select resume if you already saved a complete backup.",
+    stockUnsupported: "This Felucca does not support complete backups. Install the current Felucca first.",
+    backup: "Saving complete backup ", stockError: "Cannot validate official firmware: ",
+    nomidi: "This browser cannot do it. Open the page in Chrome or Edge.", loadfail: "Could not load: ",
+    start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
+    reboot: "Restarting", done: "Done", stopped: "Stopped. Replug the USB cable and press Install again.",
+    error: "Error: ",
+    denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and press Install again.",
+    notfound: "FM-1 not found. Check the USB cable (a data cable), close other apps that use MIDI, and press Install again.",
+    model: "The connected device is not an FM-1.",
+    lost: "The USB connection was lost. Replug it and press Install again.",
+    noloader: "The FM-1 in update mode was not found. Replug the USB cable and press Install again (it stays in update mode until it is finished).",
+    noreturn: "The FM-1 did not come back. Power-cycle it.",
+    mismatch: "Written, but the FM-1 reports another version: ",
+    badpkg: "The file to install is damaged. Reload the page.",
+    leave: "Writing. Do not close the page.",
+    license: "GPL-3.0, no warranty. Source:",
+    ready: "Ready. Connect your FM-1 and press Install.",
+    step1: "Connect", step2: "Install", step3: "Play",
+    s1: "Plug the FM-1 into the computer with a USB data cable.", s2: "Press Install and keep the cable connected until it says Done.", s3: "The FM-1 restarts as FMini-1 with its splash screen.",
+    ph_verify: "Verify", ph_loader: "Update mode", ph_write: "Write", ph_reboot: "Restart", ph_done: "Done",
+    tagline: "A Minimoog-style monophonic synth for the M-VAVE FM-1",
+    feat: "3 oscillators · ladder filter · 100 presets · arpeggiator · MIDI",
+    risk: "Use at your own risk", logT: "Details", fw: "Firmware",
+  },
+};
+const nl = (navigator.language || "en").toLowerCase();
+let lang = nl.startsWith("pt") ? "pt" : nl.startsWith("ja") ? "ja" : "en";
+const LANGS = ["pt", "en", "ja"];
+const t = (k) => TEXT[lang][k];
+let lastKey = null, lastArg = "";
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach((e) => { e.textContent = t(e.dataset.t); });
+  $("lang").textContent = lang === "pt" ? "PT" : lang === "ja" ? "日本語" : "EN";
+  if (lastKey) $("status").textContent = t(lastKey) + lastArg;
+}
+$("lang").addEventListener("click", () => { lang = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length]; applyLang(); });
+applyLang();
+const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $("status").textContent = t(k) + arg; document.body.classList.toggle("bad", ["error","denied","notfound","model","lost","noloader","noreturn","mismatch","badpkg","stopped","loadfail","nomidi"].includes(k)); };
+const say = (txt) => { lastKey = null; $("status").textContent = txt; };
+const log = (t) => { $("log").textContent += t + "\n"; };
+const PHASES = ["verify", "loader", "write", "reboot", "done"];
+function setBar(pct, phase) {
+  pct = Math.max(0, Math.min(100, pct));
+  $("fill").style.width = pct + "%";
+  $("pct").textContent = Math.round(pct) + "%";
+  $("bar").setAttribute("aria-valuenow", String(Math.round(pct)));
+  const at = PHASES.indexOf(phase);
+  document.querySelectorAll("#phases li").forEach((li, i) => {
+    li.classList.toggle("done", at > i || phase === "done");
+    li.classList.toggle("now", at === i && phase !== "done");
+  });
+  document.body.classList.toggle("busy", phase && phase !== "done");
+  document.body.classList.toggle("finished", phase === "done");
+}
+let image = null;
+const meta = /*META*/;
+
+let writing = false, stock = null, stockFileEpoch = 0;
+const lockInstaller = (on) => { writing = on; $("go").disabled = on || !image; $("stock-go").disabled = on || !stock; $("stock-file").disabled = on; $("stock-recovery").disabled = on; };
+window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
+
+(async () => {
+  if (!navigator.requestMIDIAccess) { sayK("nomidi"); return; }
+  try {
+    const r = await fetch(meta.pkg);
+    if (!r.ok) throw new Error(`${meta.pkg}: HTTP ${r.status}`);
+    const pkg = new Uint8Array(await r.arrayBuffer());
+    if (productOf(pkg) !== meta.product) { sayK("badpkg"); return; }
+    image = logicalImage(pkg);
+    say(t("ready"));
+    $("go").disabled = false;
+    setBar(0, null);
+  } catch (e) { sayK("loadfail", e.message); }
+})();
+
+$("go").addEventListener("click", async () => {
+  if (writing) return;
+  lockInstaller(true);
+  let midi;
+  try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (e) { sayK("denied"); lockInstaller(false); return; }
+  try {
+    const up = new Updater(midi, log);
+    const total = 74 + 1167;
+    const step = (k, a) => {
+      log(`${k} ${a ?? ""}`);
+      if (k === "start") sayK("start");
+      if (k === "start") setBar(0, "verify");
+      if (k === "verify") { sayK("verify"); setBar((a / total) * 100, "verify"); }
+      if (k === "loader") { sayK("loader"); setBar(6, "loader"); }
+      if (k === "write") { sayK("write"); setBar(((74 + a) / total) * 100, "write"); }
+      if (k === "reboot") { sayK("reboot"); setBar(99, "reboot"); }
+      if (k === "done") { setBar(100, "done"); sayK("done"); }
+    };
+    const ota = await up.find((id) => /^ota-/i.test(id.model));
+    if (ota) {
+      ota.link.close();
+      sayK((await up.resume(image, step, meta.product)) ? "done" : "stopped");
+    } else {
+      await up.install(image, meta.product, step);
+    }
+  } catch (e) {
+    if (e && e.code && TEXT[lang][e.code]) sayK(e.code, e.detail || "");
+    else sayK("error", e && e.message);
+    log(String(e && e.stack || e));
+  }
+  lockInstaller(false);
+});
+
+$("stock-file").addEventListener("change", async () => {
+  const epoch = ++stockFileEpoch, file = $("stock-file").files[0]; stock = null; lockInstaller(false);
+  if (!file) return;
+  try {
+    if (file.size !== STOCK_V15_SIZE) throw new Error("FM-1 V15 / FM-1.fwsc");
+    const verified = await validateStockPackage(new Uint8Array(await file.arrayBuffer()));
+    if (epoch !== stockFileEpoch) return;
+    stock = verified; sayK("stockValid"); lockInstaller(false);
+  } catch (e) { if (epoch === stockFileEpoch) sayK("stockError", e.message); }
+});
+function saveArchive(archive) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(archive)], {type:"application/json"}));
+  const a = document.createElement("a"); a.href = url; a.download = `Felucca-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function archiveInfo(a) {
+  let pos = a.indexOf(0); if (pos < 0) throw new Error("Invalid INFO");
+  const version = String.fromCharCode(...a.slice(0,pos)); pos++;
+  const engines = a[pos]; pos += 5;
+  for (let i = 0; i < engines; i++) { const end = a.indexOf(0,pos); if (end < 0) throw new Error("Invalid INFO"); pos = end + 1; }
+  const ext = a.slice(pos + 1);
+  const supported = /^FELUCCA /i.test(version) && ext[0] === 16 && ext[1] === 0x55 && ext[2] === 1 &&
+    ext[4] === 0x4d && ext[5] === 1 && ext[8] === 0x42 && ext[9] === 1 && (ext[10] & 1);
+  return {version,supported};
+}
+$("stock-go").addEventListener("click", async () => {
+  if (!stock || writing) return;
+  const selected = stock; lockInstaller(true);
+  let link = null;
+  try {
+    let midi;
+    try { midi = await navigator.requestMIDIAccess({sysex:true}); } catch (e) { sayK("denied"); return; }
+    const up = new Updater(midi, log);
+    const step = (k, n) => { log(`${k} ${n ?? ""}`); if (["start","verify","loader","write","reboot","done"].includes(k)) sayK(k); if (k === "done") setBar(100, "done"); else if (k === "write") setBar(((74 + n) / (74 + 1167)) * 100, "write"); else if (PHASES.includes(k)) setBar(k === "reboot" ? 99 : k === "loader" ? 6 : 0, k); };
+    const loader = await up.find(id => id.model === "ota-FM-1");
+    if (loader) {
+      loader.link.close();
+      if (!$("stock-recovery").checked) { sayK("stockNeedBackup"); return; }
+      if (!confirm(t("stockConfirm"))) return;
+      sayK(await up.resume(selected.image, step, selected.product) ? "done" : "stopped");
+    } else {
+      const device = await up.find(id => id.model === "FM-1");
+      if (!device) { sayK("notfound"); return; }
+      const input = device.link.input, output = device.link.output; device.link.close();
+      link = new BackupConnection(input, output);
+      const info = archiveInfo(await link.request([1,[]]));
+      if (!info.supported) { sayK("stockUnsupported"); return; }
+      const archive = await captureBackup((r,o) => link.request(r,o), info.version,
+        (done,total) => sayK("backup", `${Math.round(done / Math.max(1,total) * 100)}%`));
+      saveArchive(archive); link.close(); link = null;
+      if (!confirm(t("stockConfirm"))) return;
+      await up.install(selected.image, selected.product, step);
+    }
+  } catch (e) {
+    if (e.code && TEXT[lang][e.code]) sayK(e.code,e.detail || ""); else sayK("error",e.message);
+    log(String(e.stack || e));
+  } finally { if (link) link.close(); lockInstaller(false); }
+});
+</script>
+</body>
+</html>
