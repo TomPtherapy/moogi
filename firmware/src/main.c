@@ -226,9 +226,13 @@ static void fm1_main(void)
     }
     autosave_boot(boot_clean);                /* (1.2) the last session's music, under the splash */
 #if FELUCCA_FMUG_ONLY
-    fa_init();                                /* FMug-1: track 1 = the instrument, whatever the autosave held */
+    fa_init();                                /* FMini-1: track 1 = the instrument, whatever the autosave held */
 #endif
+#if FELUCCA_FMUG_ONLY
+    for (ms = 0; ms < 3000u; ms += 10u) {     /* the splash: 3 s (since power-on's work above ran under it, the rest of it) */
+#else
     for (ms = 0; ms < 400u; ms += 10u) {      /* the splash; the pot followed (MIDI IN plays under it) */
+#endif
         fm1_delay_ms(10);
         master_poll();
     }

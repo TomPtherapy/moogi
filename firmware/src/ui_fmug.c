@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * FMug-1: the FMUG engine's panel (EDIT family, an FMUG track only, after EDIT 2). Seven pages, in the order of a
+ * FMini-1: the FMUG engine's panel (EDIT family, an FMUG track only, after EDIT 2). Seven pages, in the order of a
  * synth panel's sections:  CTRL  OSC  MIX  FILT  F.ENV  A.ENV  FX
  * Each page has four knobs (KNOB 1..4 edit them directly) and, on CTRL, OSC and MIX, extra controls (switches,
  * waveforms) that no knob reaches. SELECT moves a cursor over every control of the page (the four knobs, then the
@@ -96,7 +96,7 @@ static void fmg_glide_sync(void)
     }
 }
 
-/* FMug-1 (the app's own screen): speed-dependent steps. A slow turn is 2 values a detent (a 0..127 knob crosses its
+/* FMini-1 (the app's own screen): speed-dependent steps. A slow turn is 2 values a detent (a 0..127 knob crosses its
  * range in ~64 detents), a faster one 3, 5, 8, 12, 18 by the time per detent, always in the turn's direction;
  * a reversal or a pause starts again slow. Names and switches are one step a detent. */
 static uint32_t fmg_tl[16];

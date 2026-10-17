@@ -8,7 +8,7 @@
  * (core.h: the SLICE engine, the DIGITAL engine), FELUCCA_ICONS (icons.c, the parameter icons; on by default),
  * FELUCCA_OTA_RAMONLY (ota.c). */
 #ifndef FELUCCA_FMUG_ONLY
-#define FELUCCA_FMUG_ONLY 1     /* FMug-1: only the synth's own screen and controls (fmug_app.c); 0 = Felucca's whole UI */
+#define FELUCCA_FMUG_ONLY 1     /* FMini-1: only the synth's own screen and controls (fmug_app.c); 0 = Felucca's whole UI */
 #endif
 #ifndef FELUCCA_FLASH
 #define FELUCCA_FLASH 1          /* flash driver + storage.c: settings, projects, user presets */

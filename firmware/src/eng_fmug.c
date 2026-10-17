@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * FMUG (FMug-1): a monosynth in the style of the classic three-oscillator Moog instruments.
+ * FMUG (FMini-1): a monosynth in the style of the classic three-oscillator Moog instruments.
  *
  * Signal path (per voice): three oscillators (TRI, SHARK, SAW, SQR, wide and narrow PULSE, band-limited by polyBLEP,
  * ranges LO 32' 16' 8' 4' 2') and a noise source (white or pink) -> the mixer (a level each, the sum saturates softly:
@@ -11,7 +11,7 @@
  *
  * The sound is the track's patch (fmug_patch, FG_SIZE bytes, stored in projects and user presets in the slot of the
  * FM6 patch: the track plays one engine at a time, project.c, up_fm6.c); the eight EDIT values are the ones to play
- * with (E0 CUT, E1 EMPH, E2 CNTR the contour's amount, E3 F.ATK, E4 F.DEC, E5 F.SUS, E6 MOD, E7 SLOT F1..F8 / OWN).
+ * with (E0 CUT, E1 EMPH, E2 CNTR the contour's amount, E3 F.ATK, E4 F.DEC, E5 F.SUS, E6 MOD, E7 SLOT 1..100 / OWN).
  * The patch holds the rest (ranges, waves, tuning, mixer, switches, keyboard tracking, TUNE). Edited with the FMUG
  * pages (ui_fmug.c). State per voice: s[0..3] the ladder, s[4] its last output, s[7] the contour (stage << 24 |
  * level, Q23); the noise is the part's (fmug_nbuf: one source, made once a block). */
@@ -21,7 +21,7 @@
 #ifndef FMUG_KMAX
 #define FMUG_KMAX 21500
 #endif
-#define FMUG_NFACTORY 8u
+#define FMUG_NFACTORY 100u
 #define FMUG_OWN FMUG_NFACTORY
 #define FMUG_PACKED 128u          /* the slot of an FM6 patch in a project / a user preset (eng_fm6.c) */
 
@@ -73,24 +73,7 @@ static void fmug_sanitize(uint8_t *v)
 #define FGP(r1, r2, r3, w1, w2, w3, f2, f3, l1, l2, l3, ln, s1, s2, tn, mm, kb, gl) \
     {r1, r2, r3, w1, w2, w3, f2, f3, l1, l2, l3, ln, s1, s2, tn, mm, kb, gl}
 #define ALLO (FS_O1 | FS_O2 | FS_O3)
-static const uint8_t FMUG_FACTORY[FMUG_NFACTORY][FG_SIZE] = {
-    /* F1 BASS: two saws and a square an octave down, the classic */
-    FGP(2, 2, 1, 2, 2, 3, 66, 64, 100, 100, 90, 0, ALLO, 0, 64, 0, 64, 0),
-    /* F2 LEAD: square and saw, a little apart, osc 3 an octave up as a tri */
-    FGP(3, 3, 4, 3, 2, 0, 67, 64, 100, 90, 40, 0, ALLO, FT_GLIDE, 64, 0, 64, 20),
-    /* F3 FAT: three saws, 8' 8' 16', detuned */
-    FGP(3, 3, 2, 2, 2, 2, 62, 66, 90, 90, 90, 0, ALLO, 0, 64, 0, 64, 0),
-    /* F4 BRASS: saws 8' 8' 4' with a slow contour */
-    FGP(3, 3, 3, 2, 2, 1, 65, 63, 90, 90, 60, 0, ALLO, 0, 64, 0, 40, 0),
-    /* F5 PAD: saw, wide pulse, tri an octave up */
-    FGP(3, 3, 4, 2, 4, 0, 66, 64, 80, 80, 60, 0, ALLO | FS_MOSC, 0, 64, 0, 30, 0),
-    /* F6 PLUCK: narrow pulse and square, short */
-    FGP(3, 3, 3, 5, 3, 2, 70, 64, 100, 80, 0, 0, FS_O1 | FS_O2, 0, 64, 0, 90, 0),
-    /* F7 WOBBLE: saws, the filter moved by the LFO */
-    FGP(2, 2, 2, 2, 2, 3, 66, 64, 100, 100, 80, 0, ALLO | FS_MFLT, 0, 64, 0, 40, 0),
-    /* F8 NOISE: white noise through the ladder, an osc beneath */
-    FGP(2, 3, 3, 2, 3, 3, 64, 64, 60, 0, 0, 110, FS_O1 | FS_NZ, 0, 64, 127, 30, 0),
-};
+#include "eng_fmug_presets.h"          /* FMUG_FACTORY (the 100 patches) and FMUG_PRESETS: tools/gen_fmug_presets.py */
 
 /* --------------------------------------------------------------- the patch --- */
 /* track tr's patch = v (FG_SIZE bytes, sanitized). Main loop: the ISR takes it at its next block */
@@ -413,21 +396,6 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
 }
 
 /* --------------------------------------------------------------- the engine --- */
-static const char *const N_FMUG_PATCH[] = {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "OWN", 0};
-_Static_assert(NELEM(N_FMUG_PATCH) == FMUG_OWN + 2u, "a SLOT name per value");
-
-/* {CUT, EMPH, CNTR, F.ATK, F.DEC, F.SUS, MOD, SLOT}: the factory patch F1..F8 */
-static const preset_t FMUG_PRESETS[] = {
-    {"MINI BASS", {50, 55, 90, 0, 56, 20, 0, 0}, {0, 70, 110, 30}, 0, 1, FX(0, 0, 10, 10), PAT(2)},
-    {"MINI LEAD", {78, 40, 50, 0, 70, 70, 20, 1}, {0, 80, 110, 35}, 0, 1, FX(0, 10, 35, 30), PAT(4)},
-    {"FAT SAWS", {60, 40, 70, 0, 64, 40, 0, 2}, {0, 80, 110, 35}, 0, 1, FX(10, 20, 20, 25), PAT(4)},
-    {"BRASS", {50, 25, 60, 70, 80, 70, 0, 3}, {40, 90, 110, 40}, 0, 0, FX(0, 20, 20, 35), PAT(5)},
-    {"SOFT PAD", {60, 25, 40, 90, 100, 90, 15, 4}, {90, 100, 120, 90}, 0, 0, FX(0, 50, 30, 60), PAT(5)},
-    {"PLUCK", {55, 45, 85, 0, 50, 0, 0, 5}, {0, 60, 0, 40}, 0, 0, FX(0, 15, 35, 30), PAT(3)},
-    {"WOBBLE", {50, 70, 20, 0, 60, 60, 80, 6}, {0, 80, 110, 35}, 0, 1, FX(0, 0, 20, 20), PAT(2)},
-    {"NOISE FX", {40, 90, 100, 60, 100, 20, 0, 7}, {20, 100, 90, 90}, 0, 0, FX(0, 20, 35, 50), PAT(7)},
-};
-
 static const engine_t ENG_FMUG = {
     .name = "FMUG",
     .page_title = {"FILTER", "PATCH"},
@@ -439,7 +407,7 @@ static const engine_t ENG_FMUG = {
         {"F.DEC", F_TIME, 0, 127, 64, 0, 0},
         {"F.SUS", F_PCT, 0, 127, 40, 0, 0},
         {"MOD", F_PCT, 0, 127, 0, 0, 0},
-        {"SLOT", F_INT, 0, FMUG_OWN, 0, N_FMUG_PATCH, 0},
+        {"SLOT", F_INT, 0, FMUG_OWN, 0, 0, 0},
     },
     .presets = FMUG_PRESETS,
     .npresets = NELEM(FMUG_PRESETS),

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * FMug-1: the whole user interface of the FMUG-only firmware (FELUCCA_FMUG_ONLY=1). Felucca's menu, layers, sequencer
+ * FMini-1: the whole user interface of the FMUG-only firmware (FELUCCA_FMUG_ONLY=1). Felucca's menu, layers, sequencer
  * pages and the rest of its screens are not reachable: main.c calls fa_input / fa_leds / fa_draw instead of
  * ui_input / ui_leds / ui_draw, and fa_splash instead of draw_splash. The sound engine, the FX, MIDI, USB and the
  * storage are Felucca's.
@@ -294,6 +294,120 @@ static void fa_wave_boxes(uint32_t pg, uint32_t cur)
     }
 }
 
+/* ------------------------------------------------------- presets --- */
+/* the list PRESETS walks: the 8 factory patches, then the user presets of this instrument (SAVE) in slot order */
+static uint32_t fa_nuser(void)
+{
+    uint32_t k, n = 0;
+    for (k = 0; k < UP_SLOTS; k++)
+        n += (uint32_t)(up_used(k) && up_engine(k) == ENGI_FMUG);
+    return n;
+}
+static uint32_t fa_user_nth(uint32_t n)                   /* the slot of the n-th user preset */
+{
+    uint32_t k;
+    for (k = 0; k < UP_SLOTS; k++)
+        if (up_used(k) && up_engine(k) == ENGI_FMUG && !n--)
+            return k;
+    return 0;
+}
+static uint32_t fa_user_rank(uint32_t slot)
+{
+    uint32_t k, n = 0;
+    for (k = 0; k < slot && k < UP_SLOTS; k++)
+        n += (uint32_t)(up_used(k) && up_engine(k) == ENGI_FMUG);
+    return n;
+}
+static int fa_on_user(void)
+{
+    const track_t *t = TSEL;
+    return t->user && up_used((uint32_t)t->user - 1u) && up_engine((uint32_t)t->user - 1u) == ENGI_FMUG;
+}
+
+/* SAVE: a small dialog. PRESETS picks the slot U01..U32, SELECT moves along the name and ALGORITHM changes the letter,
+ * SAVE writes it, any page button cancels */
+static uint8_t fa_sv;                                     /* 1: the dialog is open */
+static uint8_t fa_sv_slot, fa_sv_pos;
+static char fa_sv_name[13];
+static uint32_t fa_msg_until;                             /* "SAVED U05" shown until fm1_ms passes this */
+static char fa_msg[16];
+static const char FA_CH[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";
+
+static void fa_sv_fill(void)                              /* the slot's own name (overwrite) or the playing patch's */
+{
+    uint32_t k = fa_sv_slot;
+    if (up_used(k) && up_engine(k) == ENGI_FMUG)
+        up_name(k, fa_sv_name);
+    else if (fa_on_user())
+        up_name((uint32_t)TSEL->user - 1u, fa_sv_name);
+    else
+        str_cpy(fa_sv_name, ENGINES[ENGI_FMUG]->presets[TSEL->p[P_E7] >= 0 && TSEL->p[P_E7] < (int32_t)FMUG_NFACTORY ? TSEL->p[P_E7] : 0].name, 13);
+}
+static void fa_sv_open(void)
+{
+    uint32_t k;
+    fa_sv = 1;
+    fa_sv_pos = 0;
+    if (fa_on_user())
+        fa_sv_slot = (uint8_t)(TSEL->user - 1u);
+    else {                                                /* the first free slot */
+        for (k = 0; k < UP_SLOTS && up_used(k); k++)
+            ;
+        fa_sv_slot = (uint8_t)(k < UP_SLOTS ? k : 0u);
+    }
+    fa_sv_fill();
+}
+static void fa_say(const char *a, uint32_t k)
+{
+    char l[4];
+    up_slot_label(l, k);
+    str_cpy(fa_msg, a, 9);
+    str_cpy(fa_msg + str_len(fa_msg), l, 4);
+    fa_msg_until = fm1_ms + 1500u;
+}
+static void fa_sv_do(void)
+{
+    uint32_t k = fa_sv_slot, n = str_len(fa_sv_name);
+    int rc;
+    while (n && fa_sv_name[n - 1u] == ' ')                /* no trailing blanks */
+        fa_sv_name[--n] = 0;
+    rc = up_store(k, fa_sv_name);
+    fa_sv = 0;
+    if (rc == 0 || rc == 3) {
+        TSEL->user = (uint8_t)(k + 1u);
+        fa_say(rc == 3 ? "SAVED(RAM) " : "SAVED ", k);
+    } else
+        str_cpy(fa_msg, "SAVE ERROR", 16), fa_msg_until = fm1_ms + 1500u;
+    ui.force = 1;
+}
+static int fa_msg_on(void) { return fa_msg_until && (int32_t)(fm1_ms - fa_msg_until) < 0; }
+
+static void fa_dialog(void)
+{
+    uint32_t k = fa_sv_slot, i;
+    char l[4], hdr[20];
+    int used = up_used(k) && up_engine(k) == ENGI_FMUG;
+    const uint16_t bgd = FA_RGB(0x1B, 0x19, 0x17);
+    cv_rect(16, 62, 208, 112, FA_OR);
+    cv_rect(18, 64, 204, 108, bgd);
+    up_slot_label(l, k);
+    fa_ctext(120, 72, &AF_S, "SAVE PRESET", FA_CR);
+    str_cpy(hdr, l, 4);
+    fa_ltext(28, 92, &AF_M, hdr, FA_OR);
+    fa_ltext(28 + text_w(&AF_M, hdr) + 8, 95, &AF_X, used ? "OVERWRITE" : "EMPTY", used ? FA_RED : FA_MU);
+    for (i = 0; i < 12u; i++) {                           /* the name, letter by letter, the cursor underlined */
+        char c[2] = {fa_sv_name[i] ? fa_sv_name[i] : ' ', 0};
+        int32_t x = 28 + (int32_t)i * 14;
+        cv_rect(x, 124, 13, 1, i == fa_sv_pos ? FA_OR : FA_LINE);
+        if (i == fa_sv_pos)
+            cv_rect(x, 125, 13, 1, FA_OR);
+        if (c[0] != ' ')
+            fa_ctext(x + 6, 108, &AF_M, c, i == fa_sv_pos ? FA_OR : FA_CR);
+    }
+    fa_ctext(120, 140, &AF_X, "PRESETS SLOT   SELECT/ALGO NAME", FA_MU);
+    fa_ctext(120, 154, &AF_X, "SAVE = WRITE   ANY PAGE = CANCEL", FA_MU);
+}
+
 static void fa_scene(void)
 {
     uint32_t pg = fa_page, i, cur = fmg_curi(pg), ex = fmg_count(pg) > 4u ? fmg_count(pg) - 4u : 0u;
@@ -316,7 +430,7 @@ static void fa_scene(void)
         cv_rect(232, (int32_t)i + 3, 8, 1, FA_RGB(0x42, 0x20, 0x0D));
     }
     cv_rect(8, 0, 224, 22, FA_RGB(0x0E, 0x0D, 0x0C));        /* the header: the name and the seven tabs */
-    cv_text_on(12, 3, &AF_S, "FMug-1", FA_OR, FA_RGB(0x0E, 0x0D, 0x0C));
+    cv_text_on(12, 3, &AF_S, "FMini-1", FA_OR, FA_RGB(0x0E, 0x0D, 0x0C));
     {
         static const uint8_t TW[FA_NPAGE] = {24, 22, 20, 22, 30, 30, 18};
         int32_t tx = 60;
@@ -346,23 +460,39 @@ static void fa_scene(void)
             fa_switch(pg, i, 36 + (int32_t)i * 56, cur == 4u + i);
     }
     {   /* the foot: the patch's number and name, the page "n/7" */
-        const preset_t *ps = &ENGINES[ENGI_FMUG]->presets[t->preset % ENGINES[ENGI_FMUG]->npresets];
         int32_t sl = t->p[P_E7], w;
-        b[0] = (char)('0' + (sl >= 0 && sl < 8 ? (sl + 1) / 10 : 0));
-        b[1] = (char)('0' + (sl >= 0 && sl < 8 ? (sl + 1) % 10 : 0));
-        b[2] = 0;
-        if (sl < 0 || sl >= 8) {
-            b[0] = '-';
-            b[1] = '-';
+        char nm[16];
+        if (fa_on_user()) {
+            up_slot_label(b, (uint32_t)t->user - 1u);
+            up_name((uint32_t)t->user - 1u, nm);
+        } else if (sl >= 0 && sl < (int32_t)FMUG_NFACTORY) {
+            fmt_int(b, sl + 1);                       /* 1..100 */
+            if (sl + 1 < 10) {
+                b[1] = b[0];
+                b[0] = '0';
+                b[2] = 0;
+            }
+            str_cpy(nm, ENGINES[ENGI_FMUG]->presets[sl].name, 16);
+        } else {
+            str_cpy(b, "--", 3);
+            str_cpy(nm, "OWN", 4);
         }
         w = text_w(&AF_N, b);
         fa_ltext(14, 214, &AF_N, b, FA_OR);
-        fa_ltext(14 + w + 6, 214, &AF_N, sl >= 0 && sl < 8 ? ps->name : "OWN", FA_CR);
+        fa_ltext(14 + w + 6, 214, &AF_N, nm, FA_CR);
         b[0] = (char)('1' + pg);
         b[1] = '/';
         b[2] = '7';
         b[3] = 0;
-        fa_rtext(226, 226, &AF_X, b, FA_RGB(0x7A, 0x71, 0x64));
+        fa_rtext(226, 232, &AF_X, b, FA_RGB(0x7A, 0x71, 0x64));
+    }
+    if (fa_sv)
+        fa_dialog();
+    else if (fa_msg_on()) {
+        int32_t mw = text_w(&AF_M, fa_msg) + 20;
+        cv_rect(120 - mw / 2, 96, mw, 26, FA_OR);
+        cv_rect(120 - mw / 2 + 2, 98, mw - 4, 22, FA_RGB(0x1B, 0x19, 0x17));
+        fa_ctext(120, 102, &AF_M, fa_msg, FA_OR);
     }
 }
 
@@ -377,6 +507,10 @@ static uint32_t fa_signature(void)
         h = (h ^ fmug_patch[0][i]) * 16777619u;
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
+    h = (h ^ fa_sv) * 16777619u;
+    h = (h ^ fa_sv_slot ^ (uint32_t)fa_sv_pos << 8 ^ (uint32_t)t->user << 16 ^ (uint32_t)fa_msg_on() << 24) * 16777619u;
+    for (i = 0; i < 12u; i++)
+        h = (h ^ (uint8_t)fa_sv_name[i]) * 16777619u;
     return (h ^ t->preset) * 16777619u;
 }
 
@@ -398,18 +532,17 @@ static void fa_draw(void)
     }
 }
 
-static void fa_splash(void)
+static void fa_splash(void)                              /* power-on: the name, large, and "by Ruppert" under it (3 s: main.c) */
 {
-    lcd_fill(0, 0, 240, 240, FA_RGB(0x14, 0x12, 0x11));
-    cv_begin(240, 60, FA_RGB(0x14, 0x12, 0x11));
+    const uint16_t bg = FA_RGB(0x14, 0x12, 0x11);
+    lcd_fill(0, 0, 240, 240, bg);
+    cv_begin(240, 80, bg);
     cv_oy = 0;
-    cv_text_on(120 - text_w(&AF_L, "FMUG-1") / 2, 4, &AF_L, "FMUG-1", FA_OR, FA_RGB(0x14, 0x12, 0x11));
-    cv_blit(0, 90);
-    cv_begin(240, 40, FA_RGB(0x14, 0x12, 0x11));
-    cv_text_on(120 - text_w(&AF_S, "A synth for the FM-1") / 2, 2, &AF_S, "A synth for the FM-1", FA_CR, FA_RGB(0x14, 0x12, 0x11));
-    cv_text_on(120 - text_w(&AF_X, "based on Felucca (GPL-3.0)") / 2, 22, &AF_X, "based on Felucca (GPL-3.0)", FA_MU,
-               FA_RGB(0x14, 0x12, 0x11));
-    cv_blit(0, 160);
+    cv_text_on(120 - text_w(&AF_H, "FMini-1") / 2, 0, &AF_H, "FMini-1", FA_OR, bg);
+    cv_blit(0, 60);
+    cv_begin(240, 24, bg);
+    cv_text_on(120 - text_w(&AF_M, "by Ruppert") / 2, 2, &AF_M, "by Ruppert", FA_CR, bg);
+    cv_blit(0, 150);
 }
 
 /* ---------------------------------------------------------- control --- */
@@ -431,14 +564,26 @@ static void fa_select(int32_t s)
     }
 }
 
-/* PRESETS: the factory patch before / after (F8 -> F1 round), with its whole sound (sends, envelopes) */
+/* PRESETS: the previous / next patch of the list (factory F1..F8, then the saved ones), round; in the SAVE dialog the slot */
 static void fa_preset(int32_t s)
 {
     track_t *t = TSEL;
-    int32_t cur = t->p[P_E7] >= 0 && t->p[P_E7] < (int32_t)FMUG_NFACTORY ? t->p[P_E7] : s > 0 ? -1 : (int32_t)FMUG_NFACTORY;
-    int32_t n = (cur + (s > 0 ? 1 : -1) + (int32_t)FMUG_NFACTORY) % (int32_t)FMUG_NFACTORY;
-    apply_preset_to(t, (uint32_t)n);
-    t->p[P_E7] = (int16_t)n;
+    uint32_t nu = fa_nuser(), n = FMUG_NFACTORY + nu, cur, nx;
+    if (fa_sv) {
+        fa_sv_slot = (uint8_t)((fa_sv_slot + UP_SLOTS + (s > 0 ? 1u : UP_SLOTS - 1u)) % UP_SLOTS);
+        fa_sv_fill();
+        return;
+    }
+    cur = fa_on_user() ? FMUG_NFACTORY + fa_user_rank((uint32_t)t->user - 1u)
+                       : (t->p[P_E7] >= 0 && t->p[P_E7] < (int32_t)FMUG_NFACTORY ? (uint32_t)t->p[P_E7] : 0u);
+    nx = (cur + (s > 0 ? 1u : n - 1u)) % n;
+    if (nx < FMUG_NFACTORY) {
+        t->user = 0;
+        apply_preset_to(t, nx);
+        t->p[P_E7] = (int16_t)nx;
+    } else {
+        up_load(fa_user_nth(nx - FMUG_NFACTORY));
+    }
     fmug_poll();
 }
 
@@ -447,8 +592,16 @@ static void fa_buttons(uint32_t pressed)
 {
     static const uint8_t PG_BTN[6] = {B_LFO, B_EDIT, B_SCL, B_GLO, B_FX, B_ENV};
     uint32_t i;
+    if ((pressed >> panel.btn[B_SAVE]) & 1u) {            /* SAVE: open the dialog; again: write */
+        if (fa_sv)
+            fa_sv_do();
+        else
+            fa_sv_open();
+        return;
+    }
     for (i = 0; i < 6u; i++)
         if ((pressed >> panel.btn[PG_BTN[i]]) & 1u) {
+            fa_sv = 0;                                    /* a page button cancels the dialog */
             if (PG_BTN[i] == B_ENV) {
                 fa_env_last = (uint8_t)(fa_page == 4u ? 5u : 4u);
                 fa_goto(fa_env_last);
@@ -461,6 +614,17 @@ static void fa_buttons(uint32_t pressed)
         song.octave = song.octave > -3 ? song.octave - 1 : song.octave;
     if ((pressed >> panel.btn[B_OCTUP]) & 1u)
         song.octave = song.octave < 3 ? song.octave + 1 : song.octave;
+}
+
+/* the instrument is monophonic, like the one it follows: one voice, legato (no retrigger while a key is held), the
+ * lowest key wins; every patch and every saved preset plays this way whatever its record says */
+static void fa_mono(void)
+{
+    uint32_t i;
+    for (i = 0; i < NTRK; i++) {
+        trk[i].p[P_VOICE] = V_LEGATO;
+        trk[i].p[P_PRIO] = 1;
+    }
 }
 
 static void fa_input(void)
@@ -478,10 +642,33 @@ static void fa_input(void)
         fmug_poll();
     }
     song.sel = 0;
+    fa_mono();
     fmg_force_page = (int8_t)fa_page;
     fa_buttons(pressed);
     if ((s = panel_enc(EN_PRESET)) != 0)
         fa_preset(s);
+    if (fa_sv) {                                          /* the SAVE dialog: name editing; the knobs wait */
+        if ((s = panel_enc(EN_SELECT)) != 0)
+            fa_sv_pos = (uint8_t)((fa_sv_pos + 12u + (s > 0 ? 1u : 11u)) % 12u);
+        if ((s = panel_enc(EN_ALGO)) != 0) {
+            char *c = &fa_sv_name[fa_sv_pos];
+            uint32_t i, n = (uint32_t)sizeof FA_CH - 1u, at = 0;
+            for (i = 0; i < fa_sv_pos; i++)               /* a short name: pad with blanks up to the cursor */
+                if (!fa_sv_name[i])
+                    fa_sv_name[i] = ' ';
+            if (!*c)
+                *c = ' ';
+            for (i = 0; i < n; i++)
+                if (FA_CH[i] == *c)
+                    at = i;
+            *c = FA_CH[(at + n + (s > 0 ? 1u : n - 1u)) % n];
+            if (!fa_sv_name[fa_sv_pos + 1u] && fa_sv_pos < 11u)
+                fa_sv_name[fa_sv_pos + 1u] = 0;
+        }
+        for (k = 0; k < 4u; k++)
+            (void)panel_enc(EN_K1 + k);
+        return;
+    }
     if ((s = panel_enc(EN_SELECT)) != 0)
         fa_select(s);
     fmg_force_page = (int8_t)fa_page;
@@ -531,15 +718,18 @@ static void fa_init(void)
     uint32_t i;
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
-        set_engine_of(t, ENGI_FMUG);
-        apply_preset_to(t, 0);
-        t->eng_req = ENGI_FMUG;
-        t->engine = t->eng_req;
+        if (t->eng_req != ENGI_FMUG || i) {              /* track 1 keeps its autosaved sound; the rest start fresh and muted */
+            set_engine_of(t, ENGI_FMUG);
+            apply_preset_to(t, 0);
+            t->eng_req = ENGI_FMUG;
+            t->engine = t->eng_req;
+            fmug_load_slot(i, 0);
+            fmug_adopt(i);
+        }
         t->p[P_MUTE] = i ? 1 : 0;
-        fmug_load_slot(i, 0);
-        fmug_adopt(i);
     }
     song.sel = 0;
+    fa_mono();
     fa_page = 0;
     ui.force = 1;
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-# FMug-1: one self-contained installer page (the Felucca installer, index_pkg.html, with the firmware package embedded).
+# FMini-1: one self-contained installer page (the Felucca installer, index_pkg.html, with the firmware package embedded).
 #   web/make_fmug_installer.py build/felucca.fwsc OUT.html [VERSION]
 # Serve it over https or http://localhost (Web MIDI with SysEx needs a secure context), in Chrome / Edge.
 import base64
@@ -21,13 +21,13 @@ def main(pkg, out, version="1.0"):
     html = (HERE / "index_pkg.html").read_text(encoding="utf-8")
     lib = "\n".join(strip_module((HERE / f).read_text(encoding="utf-8")) for f in ("fm1pkg.js", "fm1ota.js", "fm1backup.js"))
     url = "data:application/octet-stream;base64," + base64.b64encode(raw).decode()
-    meta = json.dumps({"version": "FMug-1 " + version, "product": product, "pkg": url})
+    meta = json.dumps({"version": "FMini-1 " + version, "product": product, "pkg": url})
     for mark in ("/*LIB*/", "/*META*/"):
         if html.count(mark) != 1:
             raise SystemExit(f"index_pkg.html must contain {mark} once")
     html = html.replace("/*LIB*/", lib).replace("/*META*/", meta)
-    html = html.replace("<title>Felucca</title>", "<title>FMug-1 installer</title>", 1)
-    html = html.replace("<h1>Felucca</h1>", "<h1>FMug-1</h1>\n  <p class=\"small\">A classic 3-oscillator, ladder-filter analog synth firmware for the M-VAVE FM-1, "
+    html = html.replace("<title>Felucca</title>", "<title>FMini-1 installer</title>", 1)
+    html = html.replace("<h1>Felucca</h1>", "<h1>FMini-1</h1>\n  <p class=\"small\">A classic 3-oscillator, ladder-filter analog synth firmware for the M-VAVE FM-1, "
                         "based on Felucca (GPL-3.0).</p>", 1)
     html = html.replace("`Felucca ${meta.version}`", "`${meta.version}`")
     html = html.replace('<p><a href="../editor/" style="color:inherit" data-t="editor"></a></p>', "")
