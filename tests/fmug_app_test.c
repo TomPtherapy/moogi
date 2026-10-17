@@ -175,6 +175,45 @@ int main(int argc, char **argv)
         fa_ar = 1; ui.force = 1; fa_draw(); dump(dir, 16);
         fa_ar = 0;
     }
+    {   /* preset number always valid, the pop-up, pitch bend ranges, mod wheel */
+        char num[8], nm[16];
+        uint32_t k;
+        fa_init();
+        fa_gl = 0; fa_ar = 0; fa_sv = 0;
+        apply_preset_to(TSEL, 42);
+        TSEL->p[P_E7] = 42;
+        fmug_poll();
+        fa_track_preset();
+        fa_preset_label(num, nm);
+        if (strcmp(num, "42") || !fa_pp_on()) { printf("label %s pop %d\n", num, fa_pp_on()); return 1; }
+        ui.force = 1; fa_draw(); dump(dir, 17);
+        fm1_ms += 1600;
+        if (fa_pp_on()) { printf("pop-up stays\n"); return 1; }
+        fmg_write(FG_TUNE, 70);                          /* edited: SLOT OWN, the number stays */
+        fa_track_preset();
+        fa_preset_label(num, nm);
+        if (strcmp(num, "42") || fa_pp_on() || nm[0] == 0) { printf("edited label %s\n", num); return 1; }
+        for (k = 0; k < FMUG_NFACTORY; k++) {            /* every number 00..99 */
+            TSEL->p[P_E7] = (int16_t)k;
+            fa_track_preset();
+            fa_preset_label(num, nm);
+            if (num[0] < '0' || num[0] > '9' || num[1] < '0' || num[1] > '9' || num[2]) { printf("label %u\n", k); return 1; }
+        }
+        for (k = 0; k < 4; k++) {                        /* GLO > PITCH BEND */
+            static const int UP[4] = {2, 12, 2, 2}, DN[4] = {2, 12, 12, 24};
+            fm_bend_mode = (uint8_t)k;
+            midi_event(0xE0u, 0, 127, 127);
+            if (midi_bend_target[0] != UP[k] * 256) { printf("bend up mode %u: %d\n", k, midi_bend_target[0]); return 1; }
+            midi_event(0xE0u, 0, 0, 0);
+            if (midi_bend_target[0] != -DN[k] * 256) { printf("bend down mode %u: %d\n", k, midi_bend_target[0]); return 1; }
+            midi_event(0xE0u, 0, 0, 64);
+            if (midi_bend_target[0] != 0) { printf("bend centre\n"); return 1; }
+        }
+        midi_event(0xB0u, 0, 1, 127);                    /* the mod wheel (CC1) reaches the track */
+        if (trk[0].mw != 127) { printf("mod wheel not stored (%d)\n", trk[0].mw); return 1; }
+        midi_event(0xB0u, 0, 1, 0);
+        if (trk[0].mw != 0) { printf("mod wheel back\n"); return 1; }
+    }
     printf("fmug_app_test: ok\n");
     return 0;
 }

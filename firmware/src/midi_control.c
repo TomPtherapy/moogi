@@ -40,6 +40,15 @@ static void midi_expression(track_t *t, const midi_channel_t *c)
     int32_t range = ((int32_t)c->semis * 100 + c->cents) * 256 / 100;
     if (drum_track(t))
         return;
+#if FELUCCA_FMUG_ONLY
+    {   /* FMini-1: GLO > PITCH BEND (+-2, +-12, +2 -12, +2 -24 semitones); RPN 0 does not change it */
+        static const uint8_t UP[4] = {2, 12, 2, 2}, DN[4] = {2, 12, 12, 24};
+        int32_t r = (int32_t)(c->bend < 0 ? DN : UP)[fm_bend_mode & 3u] * 256;
+        midi_bend_target[trk_index(t)] = (int32_t)c->bend * r / (c->bend < 0 ? 8192 : 8191);
+        (void)range;
+        return;
+    }
+#endif
     midi_bend_target[trk_index(t)] = (int32_t)c->bend * range / (c->bend < 0 ? 8192 : 8191);
 }
 

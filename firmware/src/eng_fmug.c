@@ -319,7 +319,10 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     if (g[FG_SW2] & FT_SQR)
         lfo = lfo >= 0 ? 32767 : -32767;
     mod = mulq15(lfo, 32767 - (int32_t)g[FG_MMIX] * 258) + mulq15(fmug_mn[tr] << 1, (int32_t)g[FG_MMIX] * 258);
-    mod = mulq15(mod, (int32_t)p[P_E6] * 258);                  /* Q15 of the full depth */
+    {   /* the depth: the patch's MOD, and the mod wheel (CC1, t->mw) takes it up to the full depth */
+        int32_t depth = p[P_E6] + ((127 - p[P_E6]) * (int32_t)t->mw + 63) / 127;
+        mod = mulq15(mod, depth * 258);                                 /* Q15 of the full depth */
+    }
 
     /* oscillator pitches */
     p16 = m->pitch16 + (sw & FS_MOSC ? (mod * 16) >> 14 : 0);    /* full depth: +-2 semitones */

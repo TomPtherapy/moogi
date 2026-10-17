@@ -130,8 +130,8 @@ static void fa_knob_draw(int32_t cx, int32_t cy)
 }
 
 /* ------------------------------------------------------------- text --- */
-static int32_t fa_cap_y(const aafont_t *f) { return f == &AF_N ? AF_N_CAP_Y : f == &AF_X ? AF_X_CAP_Y : f == &AF_S ? AF_S_CAP_Y : AF_M_CAP_Y; }
-static int32_t fa_cap_h(const aafont_t *f) { return f == &AF_N ? AF_N_CAP_H : f == &AF_X ? AF_X_CAP_H : f == &AF_S ? AF_S_CAP_H : AF_M_CAP_H; }
+static int32_t fa_cap_y(const aafont_t *f) { return f == &AF_L ? AF_L_CAP_Y : f == &AF_N ? AF_N_CAP_Y : f == &AF_X ? AF_X_CAP_Y : f == &AF_S ? AF_S_CAP_Y : AF_M_CAP_Y; }
+static int32_t fa_cap_h(const aafont_t *f) { return f == &AF_L ? AF_L_CAP_H : f == &AF_N ? AF_N_CAP_H : f == &AF_X ? AF_X_CAP_H : f == &AF_S ? AF_S_CAP_H : AF_M_CAP_H; }
 /* text with its capitals starting at row ytop, centred on cx */
 static void fa_ctext(int32_t cx, int32_t ytop, const aafont_t *f, const char *s, uint16_t fg)
 {
@@ -365,6 +365,7 @@ static void fa_say(const char *a, uint32_t k)
     str_cpy(fa_msg + str_len(fa_msg), l, 4);
     fa_msg_until = fm1_ms + 1500u;
 }
+static uint8_t fa_last_user;
 static void fa_sv_do(void)
 {
     uint32_t k = fa_sv_slot, n = str_len(fa_sv_name);
@@ -375,6 +376,7 @@ static void fa_sv_do(void)
     fa_sv = 0;
     if (rc == 0 || rc == 3) {
         TSEL->user = (uint8_t)(k + 1u);
+        fa_last_user = (uint8_t)(k + 1u);
         fa_say(rc == 3 ? "SAVED(RAM) " : "SAVED ", k);
     } else
         str_cpy(fa_msg, "SAVE ERROR", 16), fa_msg_until = fm1_ms + 1500u;
@@ -446,8 +448,8 @@ static void fa_line(int32_t y, const char *lb, const char *val, int hot)
 }
 static void fa_ar_dialog(void)
 {
-    uint32_t i;
     const track_t *t = TSEL;
+    uint32_t i;
     fa_frame("ARPEGGIATOR");
     for (i = 0; i < FA_AR_N; i++) {
         char val[16];
@@ -467,7 +469,7 @@ static void fa_ar_dialog(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.0.0"
+#define FMINI_VERSION "v1.1.0"
 #define FA_NPG 43u                                        /* the controls of the seven screens (FMG_PAGE: 8+7+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -476,6 +478,7 @@ static uint8_t fa_cc_i;                                   /* the control highlig
 static uint8_t fa_cc[FA_NCC];                             /* its CC, 0 = none */
 static uint8_t fa_cfg_dirty;
 static const char *const FA_SRC[4] = {"USB", "MIDI", "BLUETOOTH", "ALL"};
+static const char *const FA_BEND[4] = {"+/-2", "+/-12", "+2/-12", "+2/-24"};
 static const char *const FA_PG_TAG[8] = {"CTRL", "OSC", "MIX", "FILT", "F.ENV", "A.ENV", "FX", "ARP"};
 /* the CC each control answers to out of the box: the usual ones where there is one (5 glide time, 7 volume, 71 emphasis,
  * 73 attack, 74 cutoff, 75 decay, 91 / 93 / 94 sends), the free ones in order for the rest */
@@ -499,6 +502,7 @@ static void fa_cfg_load(void)
         uint32_t src = *fa_cfg_byte(2), ch = *fa_cfg_byte(3);
         fm_midi_src = (uint8_t)(src > 3u ? 3u : src);
         fm_midi_ch = (uint8_t)(ch > 16u ? 0u : ch);
+        fm_bend_mode = (uint8_t)(*fa_cfg_byte(4u + FA_NCC) & 3u);
         for (i = 0; i < FA_NCC; i++) {
             uint32_t c = *fa_cfg_byte(4u + i);
             fa_cc[i] = (uint8_t)(fa_cc_valid(c) ? c : FA_CC0[i]);
@@ -506,6 +510,7 @@ static void fa_cfg_load(void)
     } else {
         fm_midi_src = 3;
         fm_midi_ch = 0;
+        fm_bend_mode = 0;
         memcpy(fa_cc, FA_CC0, sizeof fa_cc);
     }
 }
@@ -521,6 +526,7 @@ static void fa_cfg_save(void)
     *fa_cfg_byte(3) = fm_midi_ch;
     for (i = 0; i < FA_NCC; i++)
         *fa_cfg_byte(4u + i) = fa_cc[i];
+    *fa_cfg_byte(4u + FA_NCC) = fm_bend_mode;
     settings_save();                                      /* (deferred while anything plays) */
 }
 static void fa_gl_close(void)
@@ -643,10 +649,11 @@ static void fa_gl_dialog(void)
         else
             str_cpy(b, "ALL", 4);
         fa_line(84, "MIDI CHANNEL", b, fa_gl_row == 1u);
-        fa_line(106, "MIDI CC", ">", fa_gl_row == 2u);
-        fa_line(128, "ABOUT", ">", fa_gl_row == 3u);
+        fa_line(106, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 2u);
+        fa_line(128, "MIDI CC", ">", fa_gl_row == 3u);
+        fa_line(150, "ABOUT", ">", fa_gl_row == 4u);
         if (fm_midi_src >= 2u)
-            fa_ctext(120, 160, &AF_S, "BLUETOOTH: NOT AVAILABLE YET", FA_RED);
+            fa_ctext(120, 174, &AF_S, "BLUETOOTH: NOT AVAILABLE YET", FA_RED);
         fa_ctext(120, 196, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
     } else {                                              /* MIDI CC: a window of six lines on the list */
         uint32_t top = fa_cc_i < 3u ? 0u : fa_cc_i - 3u, k;
@@ -678,10 +685,64 @@ static void fa_gl_dialog(void)
     }
 }
 
+/* the patch shown: a factory one by its number 00..99 and name, or a saved one (U01..) ; the last factory patch loaded
+ * stays shown while its sound is edited (SLOT OWN), so there is always a number */
+static uint8_t fa_base;                                   /* the factory patch last loaded (0..99) */
+static int16_t fa_last_sl = -2;                           /* SLOT as last seen: -1 = not a factory patch (edited / saved one) */
+static uint8_t fa_primed;                                 /* the first frame has been seen: no pop-up at power-on */
+static uint32_t fa_pp_until;                              /* the preset pop-up shows until fm1_ms passes this */
+static void fa_preset_label(char *num, char *name)
+{
+    if (fa_on_user()) {
+        up_slot_label(num, (uint32_t)TSEL->user - 1u);
+        up_name((uint32_t)TSEL->user - 1u, name);
+    } else {
+        uint32_t k = fa_base % FMUG_NFACTORY;
+        num[0] = (char)('0' + k / 10u);
+        num[1] = (char)('0' + k % 10u);
+        num[2] = 0;
+        str_cpy(name, ENGINES[ENGI_FMUG]->presets[k].name, 16);
+    }
+}
+static int fa_pp_on(void) { return fa_pp_until && (int32_t)(fm1_ms - fa_pp_until) < 0; }
+/* the pop-up of a preset change: number and name large, 1.5 s */
+static void fa_pp_draw(void)
+{
+    char num[8], nm[16];
+    const aafont_t *f = &AF_L;
+    fa_preset_label(num, nm);
+    if (text_w(&AF_L, nm) > 204)
+        f = &AF_M;
+    cv_rect(12, 70, 216, 100, FA_OR);
+    cv_rect(14, 72, 212, 96, FA_RGB(0x1B, 0x19, 0x17));
+    fa_ctext(120, 84, &AF_L, num, FA_OR);
+    fa_ctext(120, 126, f, nm, FA_CR);
+}
+/* every frame: a new preset (PRESETS, a Program Change, a saved one loaded) is shown in the pop-up */
+static void fa_track_preset(void)
+{
+    const track_t *t = TSEL;
+    int32_t sl = t->p[P_E7];
+    uint32_t u = fa_on_user() ? t->user : 0u;
+    if (sl >= 0 && sl < (int32_t)FMUG_NFACTORY) {
+        if (sl != fa_last_sl) {
+            fa_base = (uint8_t)sl;
+            fa_last_sl = (int16_t)sl;
+            if (fa_primed)
+                fa_pp_until = fm1_ms + 1500u;
+        }
+    } else
+        fa_last_sl = -1;
+    if (u != fa_last_user) {
+        fa_last_user = (uint8_t)u;
+        if (u && fa_primed)
+            fa_pp_until = fm1_ms + 1500u;
+    }
+}
+
 static void fa_scene(void)
 {
     uint32_t pg = fa_page, i, cur = fmg_curi(pg), ex = fmg_count(pg) > 4u ? fmg_count(pg) - 4u : 0u;
-    const track_t *t = TSEL;
     char b[24];
     int32_t x;
     cv_rect(8, 0, 224, 240, fa_bg(0));                       /* the panel: the gradient in 20 bands */
@@ -729,24 +790,10 @@ static void fa_scene(void)
         for (i = 0; i < ex; i++)
             fa_switch(pg, i, 36 + (int32_t)i * 56, cur == 4u + i);
     }
-    {   /* the foot: the patch's number and name, the page "n/7" */
-        int32_t sl = t->p[P_E7], w;
+    {   /* the foot: the patch's number (00..99, or U01.. of a saved one) and name, the page "n/7" */
+        int32_t w;
         char nm[16];
-        if (fa_on_user()) {
-            up_slot_label(b, (uint32_t)t->user - 1u);
-            up_name((uint32_t)t->user - 1u, nm);
-        } else if (sl >= 0 && sl < (int32_t)FMUG_NFACTORY) {
-            fmt_int(b, sl + 1);                       /* 1..100 */
-            if (sl + 1 < 10) {
-                b[1] = b[0];
-                b[0] = '0';
-                b[2] = 0;
-            }
-            str_cpy(nm, ENGINES[ENGI_FMUG]->presets[sl].name, 16);
-        } else {
-            str_cpy(b, "--", 3);
-            str_cpy(nm, "OWN", 4);
-        }
+        fa_preset_label(b, nm);
         w = text_w(&AF_N, b);
         fa_ltext(14, 214, &AF_N, b, FA_OR);
         fa_ltext(14 + w + 6, 214, &AF_N, nm, FA_CR);
@@ -768,6 +815,8 @@ static void fa_scene(void)
         cv_rect(120 - mw / 2 + 2, 98, mw - 4, 22, FA_RGB(0x1B, 0x19, 0x17));
         fa_ctext(120, 102, &AF_M, fa_msg, FA_OR);
     }
+    if (fa_pp_on())
+        fa_pp_draw();
 }
 
 static uint32_t fa_signature(void)
@@ -781,6 +830,7 @@ static uint32_t fa_signature(void)
         h = (h ^ fmug_patch[0][i]) * 16777619u;
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
+    h = (h ^ fa_base ^ (uint32_t)fa_pp_on() << 8) * 16777619u;
     h = (h ^ fa_gl ^ (uint32_t)fa_gl_row << 3 ^ (uint32_t)fa_cc_i << 6 ^ (uint32_t)fm_midi_src << 12 ^ (uint32_t)fm_midi_ch << 14) * 16777619u;
     for (i = 0; i < FA_NCC; i++)
         h = (h ^ fa_cc[i]) * 16777619u;
@@ -963,6 +1013,7 @@ static void fa_input(void)
     fa_buttons(pressed);
     if ((s = panel_enc(EN_PRESET)) != 0 && !fa_gl)
         fa_preset(s);
+    fa_track_preset();
     fa_cc_poll();                                         /* the CCs the MIDI inputs brought */
     if (fa_gl) {                                          /* the GLO pop-up (the page's knobs wait) */
         for (k = 0; k < 4u; k++)
@@ -970,7 +1021,7 @@ static void fa_input(void)
         (void)panel_enc(EN_PRESET);
         if (fa_gl == 1u) {
             if ((s = panel_enc(EN_SELECT)) != 0)
-                fa_gl_row = (uint8_t)((fa_gl_row + 4u + (s > 0 ? 1u : 3u)) % 4u);
+                fa_gl_row = (uint8_t)((fa_gl_row + 5u + (s > 0 ? 1u : 4u)) % 5u);
             if ((s = panel_enc(EN_ALGO)) != 0) {
                 if (fa_gl_row == 0u) {
                     fm_midi_src = (uint8_t)clamp((int32_t)fm_midi_src + (s > 0 ? 1 : -1), 0, 3);
@@ -980,8 +1031,14 @@ static void fa_input(void)
                     fm_midi_ch = (uint8_t)clamp((int32_t)fm_midi_ch + (s > 0 ? 1 : -1), 0, 16);
                     panic_req |= 1u;
                     fa_cfg_dirty = 1;
+                } else if (fa_gl_row == 2u) {
+                    uint32_t ch;
+                    fm_bend_mode = (uint8_t)clamp((int32_t)fm_bend_mode + (s > 0 ? 1 : -1), 0, 3);
+                    for (ch = 0; ch < 16u; ch++)           /* the bend held now follows the new range */
+                        midi_expression_channel(ch);
+                    fa_cfg_dirty = 1;
                 } else
-                    fa_gl = fa_gl_row == 2u ? 2u : 3u;
+                    fa_gl = fa_gl_row == 3u ? 2u : 3u;
             }
         } else if (fa_gl == 2u) {
             if ((s = panel_enc(EN_SELECT)) != 0)
@@ -1100,8 +1157,14 @@ static void fa_init(void)
     }
     song.sel = 0;
     fa_cfg_load();
+    fa_primed = 0;
+    fa_last_sl = -2;
+    fa_last_user = 0;
+    fa_pp_until = 0;
     fa_mono();
     fa_page = 0;
+    fa_track_preset();                                      /* the patch loaded at power-on: shown, no pop-up */
+    fa_primed = 1;
     ui.force = 1;
 }
 #endif /* FELUCCA_FMUG_ONLY */

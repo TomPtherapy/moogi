@@ -8,6 +8,7 @@ R = {"LO": 0, "32": 1, "16": 2, "8": 3, "4": 4, "2": 5}
 W = {"TRI": 0, "SHK": 1, "SAW": 2, "SQR": 3, "PW": 4, "PN": 5}
 FS = {"O1": 1, "O2": 2, "O3": 4, "NZ": 8, "PINK": 16, "MOSC": 32, "MFLT": 64}
 P = []
+NOMOD = {"KICK", "TOM", "SNARE", "HI HAT", "CLAP", "NOISE FX", "WIND", "JET", "ZAP", "LASER", "THUNDER", "SIREN", "ALARM"}
 
 
 def p(name, o1, o2, o3, lv, cut, emph, cntr, fe, amp, mod=0, flags="", gl=0, kbd=64, fx=(0, 0, 0, 0), tune=64, mm=0, pat=2):
@@ -16,6 +17,8 @@ def p(name, o1, o2, o3, lv, cut, emph, cntr, fe, amp, mod=0, flags="", gl=0, kbd
     assert len(name) <= 12, name
     od = [(o + (64,))[:3] if len(o) == 2 else o for o in (o1, o2, o3)]
     sw1 = sum(FS[f] for f in flags.split() if f in FS)
+    if name not in NOMOD:                  # the mod wheel (CC1) reaches the pitch (vibrato) of every melodic patch
+        sw1 |= FS["MOSC"]
     for i, l in enumerate(lv[:3]):
         if l:
             sw1 |= (1, 2, 4)[i]
