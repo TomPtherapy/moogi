@@ -772,7 +772,8 @@ enum { S_HOME, S_HOME_IDLE, S_MESSAGE, S_MESSAGE_KEY, S_MESSAGE_NOFILE, S_PRESET
        S_DETAIL, S_DETAIL_PLAYING, S_DETAIL_REST, S_DETAIL_DRUM, S_ROLL_MARKS, S_DRUM_MARKS, S_HELP_DETAIL,
        S_DETAIL_COND, S_DETAIL_FILL, S_AUTO_COND, S_GLO_FILL, S_SEQ_EUCLID, S_SEQ_EUCLID_DRUM, S_SEQ_EUCLID_64,
        S_MENU_SELECT, S_PROJECT_ERASE, S_CONFIRM_ERASE_PROJ, S_TOOLS_CLEAN, S_CONFIRM_CLEAN,
-       S_MENU_MIDI_TRACK, S_MENU_MIDI_TCH_UNUSED, S_MENU_MIDI_AUTO, S_HOME_TRACKS_MIDI, S_MIXER_MIDI, S_EDIT_PHASE_FOLD, S_COUNT };
+       S_MENU_MIDI_TRACK, S_MENU_MIDI_TCH_UNUSED, S_MENU_MIDI_AUTO, S_HOME_TRACKS_MIDI, S_MIXER_MIDI, S_EDIT_PHASE_FOLD,
+       S_FMG_CTRL, S_FMG_OSC, S_FMG_MIX, S_FMG_FILT, S_FMG_FENV, S_FMG_AENV, S_FMG_FX, S_FMG_MIX_SEL, S_COUNT };
 static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "message_key", "message_nofile", "presets", "presets_nofav", "user",
     "phrases", "project", "tools", "song_empty", "song", "step", "auto_steps", "auto_add_chance", "automation", "drum",
     "drum_hand", "drum_cym", "mixer", "mixer_from_home", "mixer_pan", "env", "env_dest", "lfo", "mod", "fx", "slicer", "dly", "scl", "chord", "chord_wide", "chord_off", "chord_kit", "arp",
@@ -803,7 +804,8 @@ static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "mes
     "detail_cond", "detail_fill", "auto_cond", "layer_glo_fill", "layer_seq_euclid", "layer_seq_euclid_drum",
     "layer_seq_euclid_64",
     "menu_select", "project_erase", "confirm_erase_project", "tools_clean", "confirm_clean",
-    "menu_midi_track", "menu_midi_channels_unused", "menu_midi_auto_select", "home_tracks_midi", "mixer_midi", "edit_phase_fold"};
+    "menu_midi_track", "menu_midi_channels_unused", "menu_midi_auto_select", "home_tracks_midi", "mixer_midi", "edit_phase_fold",
+    "fmug_ctrl", "fmug_osc", "fmug_mix", "fmug_filt", "fmug_fenv", "fmug_aenv", "fmug_fx", "fmug_mix_sel"};
 
 /* the STEP page's piano roll (ui_graph.c graph_roll) on track 1, stopped unless said: an empty pattern; ACID in
  * A minor; POLY chords (Am7 F C G, tied); a line with ties, slides and accents in C major; LEN 32 on its second
@@ -1224,6 +1226,15 @@ static void setup(int s)
     }
     case S_EDIT_GRAIN: eng(8); go_title("EDIT 2"); break;
     case S_EDIT_PHYS: eng(9); go_title("EDIT 1"); break;
+    /* FMUG's panel pages (ui_fmug.c); the cursor on a rocker / a wave box / a knob */
+    case S_FMG_CTRL: eng(ENGI_FMUG); fmg_cur[0] = 6; go_title("CTRL"); break;
+    case S_FMG_OSC: eng(ENGI_FMUG); fmg_cur[1] = 5; go_title("OSC"); break;
+    case S_FMG_MIX: eng(ENGI_FMUG); fmg_cur[2] = 0; go_title("MIX"); ui.hot_col = 0; ui.hot_t = 30; break;
+    case S_FMG_FILT: eng(ENGI_FMUG); fmg_cur[3] = 1; go_title("FILT"); ui.hot_col = 1; ui.hot_t = 30; break;
+    case S_FMG_FENV: eng(ENGI_FMUG); go_title("F.ENV"); break;
+    case S_FMG_AENV: eng(ENGI_FMUG); go_title("A.ENV"); break;
+    case S_FMG_FX: eng(ENGI_FMUG); go_title("FMUG FX"); break;
+    case S_FMG_MIX_SEL: eng(ENGI_FMUG); fmug_patch[song.sel][FG_SW1] = FS_O2 | FS_NZ | FS_PINK; fmug_pgen[song.sel]++; fmg_cur[2] = 8; go_title("MIX"); break;
     case S_EDIT_PHASE_FOLD: eng(2); TSEL->p[P_E7] = 80; go_title("EDIT 2"); ui.hot_col = 3; ui.hot_t = 30; break;   /* 1.5.5 FOLD (#104) */
     case S_ALG1: case S_ALG2: case S_ALG3: case S_ALG4: case S_ALG5: case S_ALG6: case S_ALG7: case S_ALG8:
         eng(1); TSEL->p[P_E0] = (int16_t)(s - S_ALG1);      /* the 8 DIGITAL charts; FB on the odd ones, IDX high .. 0 */

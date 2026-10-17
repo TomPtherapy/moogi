@@ -507,6 +507,13 @@ static void span_fop(const card_span_t *sp, int32_t v, char *val)       /* FM6's
     uint32_t ic;
     (void)fop_card_at((uint32_t)sp->ctx, v, &l, val, &u, &r, &ic);
 }
+static void span_fmg(const card_span_t *sp, int32_t v, char *val)        /* FMUG's panel pages: card ctx's control = v */
+{
+    const char *l, *u;
+    int32_t r;
+    uint32_t ic;
+    fmg_card_at(fmg_pg(), (uint32_t)sp->ctx, v, &l, val, &u, &r, &ic);
+}
 static void card_span_by(void (*fn)(const card_span_t *, int32_t, char *), const void *p, int32_t lo, int32_t hi, int32_t ctx)
 {
     card_span.fn = fn;
@@ -1157,6 +1164,22 @@ static void draw_columns(void)
         return;
     }
 #endif
+    if (fmg_page(cur_page()->graph)) {                   /* FMUG: the page's four knobs (ui_fmug.c) */
+        for (c = 0; c < 4u; c++) {
+            const char *lb, *u;
+            int32_t r, lo, hi;
+            uint32_t ic;
+            if (!fmg_ok()) {
+                draw_column(c, "", "", "", T_THEME, -1, ICON_NONE);
+                continue;
+            }
+            fmg_card(c, &lb, val, &u, &r, &ic);
+            fmg_range(fmg_pg(), c, &lo, &hi);
+            card_span_by(span_fmg, 0, lo, hi, (int32_t)c);
+            draw_column(c, lb, val, u, VAL(c), r, ic);
+        }
+        return;
+    }
     if (fop_page(cur_page()->graph)) {                   /* FM6: OP, then three of its bytes (ui_fm6op.c) */
         for (c = 0; c < 4u; c++) {
             const char *lb, *u;

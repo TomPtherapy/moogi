@@ -5044,10 +5044,10 @@ static int test_fm4_retired(void)
         seen |= 1u << TSEL->eng_req;
     }
     bad += check("PRESETS KNOB 2: the engines in order, DIGITAL skipped, back to the first",
-                 seen == all && TSEL->eng_req == 0u && eng_step(0, 1) == ENGI_FM6 && eng_step(ENGI_FM6, 1) == 2u &&
-                 eng_step(ENGI_FM6, -1) == 0u && eng_step(0, -1) == ENGI_DRUM);
+                 seen == all && TSEL->eng_req == 0u && eng_step(0, 1) == ENGI_FM6 && eng_step(ENGI_FM6, 1) == ENGI_FMUG &&
+                 eng_step(ENGI_FMUG, 1) == 2u && eng_step(ENGI_FMUG, -1) == ENGI_FM6 && eng_step(ENGI_FM6, -1) == 0u && eng_step(0, -1) == ENGI_DRUM);
     {   /* the display order (engines.c ENGINE_ORDER): every engine one can pick once; the PRESETS list follows it */
-        static const char *const ORDER[] = {"ANALOG", "FM6", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN",
+        static const char *const ORDER[] = {"ANALOG", "FM6", "FMUG", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN",
                                             "PHYS", "NOISE", "SLICE", "DRUM"};
         uint32_t last = 0xFFu, r = 0, n = 0;
         ok = NENG_SHOWN == NELEM(ORDER);
@@ -9068,6 +9068,104 @@ static void fop_pick(uint32_t opn)                   /* KNOB 1: OP opn (1..6) */
     turn(EN_K1, (int32_t)opn - 1);
 }
 static int slot_own(void) { return TSEL->p[P_E7] == FM6_OWN && fm6_slot[song.sel] == FM6_OWN; }
+/* FMUG's panel (ui_fmug.c): the seven pages, KNOB 1..4 edit the page's controls directly, SELECT moves the cursor over
+ * the knobs and the extras, ALGORITHM changes the control under it; a patch byte is the track's own patch (SLOT OWN),
+ * one undo per gesture; GLIDE's switch drives the part's GLIDE time */
+static int test_fmug_panel(void)
+{
+    static const char *const PG[7] = {"CTRL", "OSC", "MIX", "FILT", "F.ENV", "A.ENV", "FMUG FX"};
+    int bad = 0, ok = 1;
+    uint32_t tr, i, pi, b0;
+    uint8_t before[FG_SIZE];
+    ui_power_on();
+    song.sel = 0;
+    tr = 0;
+    set_engine_of(TSEL, ENGI_FMUG);
+    frames(10);
+    for (pi = 0; pi < 7u; pi++) {                    /* every page opens on an FMUG track, none on another engine */
+        go_title(PG[pi]);
+        ok &= str_eq(cur_page()->title, PG[pi]) && fmg_page(cur_page()->graph) && fmg_pg() == pi;
+    }
+    bad += check("FMUG panel: CTRL OSC MIX FILT F.ENV A.ENV FX are pages of an FMUG track", ok);
+    ok = 1;
+    set_engine_of(TSEL, 0);
+    for (i = 0; i < NPAGES; i++)
+        if (fmg_page(PAGES[i].graph) && page_visible(i))
+            ok = 0;
+    set_engine_of(TSEL, ENGI_FMUG);
+    bad += check("FMUG panel: its pages are hidden on every other engine", ok);
+
+    go_title("CTRL");
+    frame();
+    memcpy(before, fmug_patch[tr], FG_SIZE);
+    b0 = fmug_patch[tr][FG_TUNE];
+    turn(EN_K1, 5);                                  /* TUNE */
+    ok = fmug_patch[tr][FG_TUNE] != b0 && TSEL->p[P_E7] == FMUG_OWN && fmug_slot[tr] == FMUG_OWN;
+    for (i = 0; i < FG_SIZE; i++)
+        ok &= i == FG_TUNE || fmug_patch[tr][i] == before[i];
+    bad += check("FMUG panel: CTRL KNOB 1 writes TUNE only, the patch is the track's own (SLOT OWN)", ok);
+    hold(B_SAVE);
+    ok = !memcmp(before, fmug_patch[tr], FG_SIZE);
+    hold(B_SAVE);
+    ok &= fmug_patch[tr][FG_TUNE] != b0;
+    bad += check("FMUG panel: SAVE held undoes the gesture, again redoes it", ok);
+
+    /* SELECT moves the cursor: knobs 0..3, then CTRL's four switches, round */
+    fmg_cur[0] = 0;
+    turn(EN_SELECT, 1);
+    ok = fmg_cur[0] == 1u;
+    turn(EN_SELECT, -1);
+    turn(EN_SELECT, -1);
+    ok &= fmg_cur[0] == 7u;                          /* round the other way: the last switch */
+    turn(EN_SELECT, 1);
+    ok &= fmg_cur[0] == 0u;
+    bad += check("FMUG panel: SELECT goes round the page's controls (4 knobs + 4 switches on CTRL)", ok);
+
+    /* ALGORITHM on a switch: MOD OSC (cursor 4) on, off */
+    fmg_cur[0] = 4;
+    turn(EN_ALGO, 1);
+    ok = (fmug_patch[tr][FG_SW1] & FS_MOSC) != 0u;
+    turn(EN_ALGO, -1);
+    ok &= (fmug_patch[tr][FG_SW1] & FS_MOSC) == 0u;
+    bad += check("FMUG panel: ALGORITHM turns the switch under the cursor on and off (no track change)", ok && song.sel == 0u);
+
+    /* the GLIDE switch (cursor 6) drives P_GLIDE with the kept time (FG_GLID) */
+    fmg_cur[0] = 6;
+    turn(EN_ALGO, -1);
+    ok = TSEL->p[P_GLIDE] == 0;
+    turn(EN_K2, 10);                                 /* GLIDE knob: the time is kept, P_GLIDE stays 0 while off */
+    ok &= TSEL->p[P_GLIDE] == 0 && fmug_patch[tr][FG_GLID] > 0u;
+    turn(EN_ALGO, 1);
+    ok &= TSEL->p[P_GLIDE] == (int16_t)fmug_patch[tr][FG_GLID];
+    turn(EN_K2, 3);
+    ok &= TSEL->p[P_GLIDE] == (int16_t)fmug_patch[tr][FG_GLID];
+    bad += check("FMUG panel: the GLIDE switch and knob drive the part's GLIDE time", ok);
+
+    /* the ranges and waves are names 0..5 and stop at the ends; the four common-parameter pages move the track's params */
+    go_title("OSC");
+    frame();
+    turn(EN_K1, 20);
+    ok = fmug_patch[tr][FG_R1] == 5u;
+    turn(EN_K1, -20);
+    ok &= fmug_patch[tr][FG_R1] == 0u;
+    fmg_cur[1] = 5;                                  /* WAVE2 */
+    turn(EN_ALGO, 20);
+    ok &= fmug_patch[tr][FG_W2] == 5u;
+    bad += check("FMUG panel: RANGE 1 and WAVE 2 run 0..5 and stop at the ends", ok);
+    go_title("FILT");
+    frame();
+    b0 = (uint32_t)TSEL->p[P_E0];
+    turn(EN_K1, -6);
+    ok = (uint32_t)TSEL->p[P_E0] != b0;
+    go_title("FMUG FX");
+    frame();
+    b0 = (uint32_t)TSEL->p[P_REV];
+    turn(EN_K1, 6);
+    ok &= (uint32_t)TSEL->p[P_REV] != b0;
+    bad += check("FMUG panel: FILT KNOB 1 is CUTOFF (E0), FX KNOB 1 the REVERB send", ok);
+    return bad;
+}
+
 static int test_fm6_ops(void)
 {
     static const char *const CYC_F[] = {"EDIT 1", "EDIT 2", "OPERATOR", "OP ENV", "OPERATOR 2", "VOICE", "VOICE 2", "VOICE 3", "EDIT 1"};
@@ -9914,6 +10012,7 @@ int main(void)
     bad += test_momentary();
     bad += test_fm6_charts();
     bad += test_fm6_ops();
+    bad += test_fmug_panel();
     bad += test_home_tracks();
     bad += test_fx_map_columns();
     bad += test_help();

@@ -873,7 +873,12 @@ static void project_capture(project_t *p)
         p->t[i].engine = trk[i].eng_req;
         p->t[i].preset = trk[i].preset;
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
-        fm6_pack(fm6_patch[i], p->fm6[i]);
+        if (trk[i].eng_req == ENGI_FMUG) {               /* FMUG: its patch in the slot of the FM6 one (the track plays one */
+            memset(p->fm6[i], 0, FM6_PACKED);           /* engine at a time); FM6's own is the init voice then */
+            memcpy(p->fm6[i], fmug_patch[i], FG_SIZE);
+        } else {
+            fm6_pack(fm6_patch[i], p->fm6[i]);
+        }
     }
     p->motion = motion;
     memcpy(p->mch, song.mch, sizeof p->mch);
@@ -1093,7 +1098,13 @@ static int project_restore_runtime(const project_t *input)
         proj_steps(t->step);
         {   /* the project's own FM6 patch, never reloaded from SLOT: F n if it is that factory patch, else OWN */
             uint8_t v[FP_SIZE + 1u];
-            fm6_unpack(p->fm6[k], v);
+            if (e == ENGI_FMUG) {                       /* an FMUG track: the slot holds its patch, FM6's is the init voice */
+                fmug_set_patch(k, p->fm6[k]);
+                fmug_adopt(k);
+                fm6_unpack(FM6_INIT, v);
+            } else {
+                fm6_unpack(p->fm6[k], v);
+            }
             fm6_set_patch(k, v);
             fm6_adopt(k);
         }
@@ -1323,6 +1334,7 @@ static uint32_t autosave_sig(void)
         h = as_mix(h, &t->preset, 1);
         h = as_mix(h, t->step, sizeof t->step);
         h = as_mix(h, fm6_patch[i], sizeof fm6_patch[i]);
+        h = as_mix(h, fmug_patch[i], FG_SIZE);
     }
     for (i = 0; i < G_COUNT; i++)
         if (i != G_SLOT && i != G_NAME && i != G_LOAD && i != G_SAVE)

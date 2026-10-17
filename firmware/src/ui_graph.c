@@ -12,6 +12,7 @@
 #define GOY 11                                       /* graphs drawn on a 100 px scale sit at y 11..111 */
 /* the height ADSR and LFO are drawn on: 100 px, or (MENU > LARGE's strip: draw_graph) the strip's ~ 56 */
 static int32_t graph_ht = 100;
+#include "ui_fmug.c"                                  /* EDIT > CTRL OSC MIX FILT F.ENV A.ENV FX: FMUG's panel */
 #include "ui_fm6op.c"                                /* EDIT > OPERATOR, OP ENV, OPERATOR 2: FM6's operators (their charts below) */
 
 /* Matches voice.c: attack is linear, decay and release are exponential
@@ -1238,6 +1239,10 @@ static uint32_t graph_signature(void)
     if ((pg->scope == SC_ENGINE || fop_page(pg->graph)) && t->eng_req % NENGINES == ENGI_FM6)   /* the patch (PAT's algorithm,
                                                      * levels, FB; the operator pages: the operator, the stage) */
         h ^= (fm6_pgen[(t - trk) % NTRK] + 1u) * 2246822519u + (fop_op + 1u) * 40503u + (fop_stg + 1u) * 7919u;
+    if (fmg_page(pg->graph) && t->eng_req % NENGINES == ENGI_FMUG) {   /* the patch, the cursor, the hot knob */
+        h ^= (fmug_pgen[(t - trk) % NTRK] + 1u) * 2246822519u + (uint32_t)(fmg_cur[fmg_pg()] + 1u) * 40503u;
+        h ^= (ui.hot_t ? ui.hot_col + 1u : 0u) * 65537u;
+    }
     if (pg->scope == SC_ENGINE && ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE) h ^= sample_wave.pos * 13u + sample_wave.key;
     if (pg->graph == GR_ROLL) {
         uint32_t ph = song.playing ? t->seq_idx : 0xFFFFu;
@@ -2341,6 +2346,9 @@ static void draw_graph(void)
             break;
         case GR_FMENV:
             if (fop_ok()) graph_fm6env(t, c);
+            break;
+        case GR_FMG0: case GR_FMG1: case GR_FMG2: case GR_FMG3: case GR_FMG4: case GR_FMG5: case GR_FMG6:
+            if (fmg_ok()) graph_fmug(t, c);
             break;
         default:
             if (pg->scope == SC_ENGINE && ENGINES[t->eng_req % NENGINES] == &ENG_WHEEL) graph_wheel(t, c);

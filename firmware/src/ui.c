@@ -431,6 +431,8 @@ static int page_visible(uint32_t i)
         return ENGINES[TSEL->eng_req % NENGINES] == &ENG_ANALOG;
     if (PAGES[i].graph >= GR_FMOP && PAGES[i].graph <= GR_FMENV)
         return TSEL->eng_req % NENGINES == ENGI_FM6;
+    if (PAGES[i].graph >= GR_FMG0 && PAGES[i].graph <= GR_FMG6)      /* FMUG's panel (ui_fmug.c) */
+        return TSEL->eng_req % NENGINES == ENGI_FMUG;
 #if FELUCCA_SLICE
     if (PAGES[i].graph == GR_SLICES)
         return ENGINES[TSEL->eng_req % NENGINES] == &ENG_SLICE;
@@ -867,6 +869,7 @@ static struct {
     uint8_t what;                /* UNDO_SOUND | UNDO_PAT: what the loads since the copy changed (undo_swap) */
     uint8_t eng, preset, user, patn;
     uint8_t fm6_slot;            /* the track's FM6 patch and its SLOT (eng_fm6.c): an edited or a project's */
+    uint8_t fmug[FG_SIZE], fmug_slot;   /* the same for FMUG (eng_fmug.c) */
     uint8_t fm6[FP_SIZE + 1u];   /* patch is the track's own, not a factory one */
     int16_t p[P_COUNT];
     step_t step[NSTEP];
@@ -995,6 +998,8 @@ static void load_begin(track_t *t, uint32_t what)
     memcpy(undo.step, t->step, sizeof undo.step);
     memcpy(undo.fm6, fm6_patch[i], FP_SIZE);
     undo.fm6_slot = fm6_slot[i];
+    memcpy(undo.fmug, fmug_patch[i], FG_SIZE);
+    undo.fmug_slot = fmug_slot[i];
     undo.pat = pat_sig[i];
     undo.from = pat_from[i];
     undo.from_h = pat_from_h[i];
@@ -1053,6 +1058,8 @@ static void edit_undo_take(track_t *t, uint32_t tag, uint32_t what)
     memcpy(undo.step, t->step, sizeof undo.step);
     memcpy(undo.fm6, fm6_patch[i], FP_SIZE);
     undo.fm6_slot = fm6_slot[i];
+    memcpy(undo.fmug, fmug_patch[i], FG_SIZE);
+    undo.fmug_slot = fmug_slot[i];
     undo.pat = pat_sig[i];
     undo.from = pat_from[i];
     undo.from_h = pat_from_h[i];
@@ -1146,6 +1153,15 @@ static void undo_swap(void)
         fm6_own_ok &= (uint8_t)~(1u << tr);
         memcpy(undo.fm6, v, FP_SIZE);
         undo.fm6_slot = sl;
+        {                                         /* FMUG: the same */
+            uint8_t w[FG_SIZE], fs = fmug_slot[tr];
+            memcpy(w, fmug_patch[tr], FG_SIZE);
+            fmug_set_patch(tr, undo.fmug);
+            fmug_slot[tr] = undo.fmug_slot;
+            fmug_own_ok &= (uint8_t)~(1u << tr);
+            memcpy(undo.fmug, w, FG_SIZE);
+            undo.fmug_slot = fs;
+        }
     }
     undo.keep = 0;                                /* the next load copies the track as it is now */
     if (t == TSEL)
@@ -1377,6 +1393,7 @@ static void apply_preset_to(track_t *t, uint32_t pi)
             t->p[P_DIST + i] = (int16_t)(pr->fx[i] ? pr->fx[i] - 1 : FX_DEF[i]);
     }
     fm6_track_loaded(t);                              /* FM6: the preset's patch (its SLOT) */
+    fmug_track_loaded(t);                             /* FMUG: the same */
     load_end(t);
 }
 
@@ -1446,6 +1463,10 @@ static void clean_engine_of(track_t *t)
         fm6_unpack(FM6_INIT, v);
         fm6_set_patch(trk_index(t), v);
         fm6_adopt(trk_index(t));
+    }
+    if (ei == ENGI_FMUG) {                            /* the first factory patch as the track's own (SLOT: F1) */
+        fmug_load_slot(trk_index(t), 0u);
+        fmug_adopt(trk_index(t));
     }
     load_end(t);
 }

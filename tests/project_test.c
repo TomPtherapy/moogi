@@ -474,6 +474,23 @@ int main(void)
             ok &= !memcmp(c.fm6[k], FM6_FACTORY[k * 2u], FM6_PACKED) && c.t[k].engine == ENGI_FM6 &&
                   !memcmp(st.raw + PROJ_FM6_OFF + k * FM6_PACKED, FM6_FACTORY[k * 2u], FM6_PACKED);
         bad += check("FUN10: the four FM6 patches round trip (bytes at PROJ_FM6_OFF)", ok && !memcmp(c.name, "FM SONG", 7));
+        {   /* FMUG's patch travels in the same area (FG_SIZE bytes, the rest zero) with its engine number */
+            project_t f;
+            memcpy(&f, &a, sizeof f);
+            for (k = 0; k < NTRK; k++) {
+                memset(f.fm6[k], 0, sizeof f.fm6[k]);
+                memcpy(f.fm6[k], FMUG_FACTORY[k * 2u], FG_SIZE);
+                f.t[k].engine = ENGI_FMUG;
+                f.t[k].p[P_E7] = (int16_t)(k * 2u);
+            }
+            f.sum = proj_sum(&f);
+            ok = proj_pack(&st, &f) && proj_import(&c, &st, sizeof st);
+            for (k = 0; k < NTRK; k++)
+                ok &= !memcmp(c.fm6[k], f.fm6[k], sizeof f.fm6[k]) && c.t[k].engine == ENGI_FMUG &&
+                      c.t[k].p[P_E7] == (int16_t)(k * 2u);
+            bad += check("FMUG: the four patches round trip through the project format (engine, SLOT, bytes)", ok);
+            proj_pack(&st, &a);
+        }
         st.raw[PROJ_FM6_OFF + 5] ^= 1u;
         bad += check("FUN10: a patch byte changed: the hash refuses it", !proj_import(&c, &st, sizeof st));
         st.raw[PROJ_FM6_OFF + 5] ^= 1u;
