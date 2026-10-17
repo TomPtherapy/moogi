@@ -24,7 +24,7 @@ def main(pkg, out, version="1.4.2"):
     url = "data:application/octet-stream;base64," + base64.b64encode(raw).decode()
     meta = json.dumps({"version": version, "product": product, "pkg": url})
     hero = "data:image/jpeg;base64," + base64.b64encode((HERE.parent / "assets" / "fmini-installer-hero.jpg").read_bytes()).decode()
-    imgs = {p.stem: "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode() for p in sorted((HERE.parent / "assets" / "site").glob("*.png"))}
+    imgs = {p.stem: ("data:image/" + ("webp" if p.suffix == ".webp" else "png") + ";base64,") + base64.b64encode(p.read_bytes()).decode() for p in sorted((HERE.parent / "assets" / "site").glob("*.*"))}
     names = re.findall(r'"([A-Z0-9 .\'/+&-]{2,12})"', (HERE.parent / "firmware" / "src" / "eng_fmug_presets.h").read_text())[:10]
     html = html.replace("/*IMGS*/{}", json.dumps(imgs)).replace("/*PRESETS*/[]", json.dumps(names))
     for mark in ("/*LIB*/", "/*META*/", "/*HERO*/"):
