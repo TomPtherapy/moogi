@@ -1,0 +1,794 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     FMini-1 site + installer. The installer logic is the Felucca installer's (Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments) -->
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="FMini-1: a Minimoog-style monophonic synth firmware for the M-VAVE FM-1. 3 oscillators, ladder filter, 100 presets, arpeggiator, sequencer, MIDI.">
+<title>FMini-1 — Minimoog-style firmware for the M-VAVE FM-1</title>
+<style>
+  :root {
+    --bg: #0b0a09; --panel: #121110; --panel2: #191715; --line: #2e2a25; --rule: #8a8175;
+    --fg: #f1eadb; --cream: #ece4d0; --dim: #a1978a; --or: #e0752b; --or2: #ff8a3d; --red: #d6382b; --teal: #2a9d98; --ok: #7bd88f;
+    --wood1: #4a2810; --wood2: #8a5430; --wood3: #5c3319;
+    --sans: "Helvetica Neue", Helvetica, "Nimbus Sans", Arial, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); scroll-behavior: smooth; scroll-padding-top: 76px; }
+  body { margin: 0; color: var(--fg); font: 16px/1.6 var(--sans); min-height: 100vh;
+         background: var(--bg); }
+  a { color: var(--or2); }
+  img { max-width: 100%; }
+
+  /* the walnut: side rails, the header's grain */
+  .wood { background:
+            repeating-linear-gradient(90deg, rgba(40,18,6,.0) 0 3px, rgba(40,18,6,.28) 3px 4px, rgba(40,18,6,0) 4px 9px, rgba(255,200,150,.05) 9px 10px),
+            repeating-linear-gradient(0deg, rgba(0,0,0,.10) 0 1px, rgba(0,0,0,0) 1px 5px),
+            linear-gradient(90deg, var(--wood1), var(--wood2) 45%, var(--wood3)); }
+
+  header.nav { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 22px; padding: 0 20px; height: 60px;
+               border-bottom: 2px solid #1b0d04; box-shadow: 0 6px 24px rgba(0,0,0,.55); }
+  .brand { font-weight: 900; font-style: italic; letter-spacing: -.04em; font-size: 24px; color: #fff; text-decoration: none; text-shadow: 0 1px 0 rgba(0,0,0,.6); }
+  .brand i { color: #fff; background: var(--or); padding: 0 5px 0 4px; margin-right: 1px; border-radius: 3px; }
+  header.nav nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+  header.nav nav a { color: #f6e9d6; text-decoration: none; font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+                     padding: 8px 10px; border-radius: 6px; text-shadow: 0 1px 0 rgba(0,0,0,.6); }
+  header.nav nav a:hover { background: rgba(0,0,0,.28); }
+  .lang { font: 800 11px/1 var(--sans); letter-spacing: .1em; color: #f6e9d6; background: rgba(0,0,0,.35); border: 1px solid rgba(0,0,0,.5);
+          border-radius: 6px; padding: 8px 10px; cursor: pointer; }
+  .lang:hover { background: rgba(0,0,0,.5); }
+  @media (max-width: 760px) { header.nav nav a:not(.keep) { display: none; } header.nav { gap: 10px; } }
+
+  .rails { max-width: 1160px; margin: 0 auto; display: grid; grid-template-columns: 22px 1fr 22px; }
+  .rails > .side { min-height: 100%; box-shadow: inset 0 0 18px rgba(0,0,0,.55); }
+  .rails > .side:first-child { border-right: 2px solid #1b0d04; }
+  .rails > .side:last-child { border-left: 2px solid #1b0d04; }
+  .face { background: linear-gradient(180deg, #181614, #0f0e0d 40%, #0c0b0a); min-width: 0; }
+  @media (max-width: 560px) { .rails { grid-template-columns: 8px 1fr 8px; } }
+
+  /* the engraved bar of a panel section: CONTROLLERS, OSCILLATOR BANK... */
+  .sec { padding: 56px 28px 6px; }
+  .bar { display: flex; align-items: center; gap: 16px; margin: 0 0 8px; }
+  .bar::before, .bar::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+  .bar h2 { margin: 0; font: 400 clamp(22px, 4.4vw, 34px)/1.1 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--cream); white-space: nowrap; }
+  .lead { text-align: center; color: var(--dim); max-width: 720px; margin: 6px auto 34px; font-size: 15.5px; }
+  @media (max-width: 560px) { .sec { padding: 40px 16px 4px; } .bar h2 { white-space: normal; text-align: center; letter-spacing: .12em; } }
+
+  .screw { position: absolute; width: 11px; height: 11px; border-radius: 50%;
+           background: radial-gradient(circle at 35% 30%, #d9d6cf, #6f6c66 60%, #2a2927); box-shadow: 0 1px 2px rgba(0,0,0,.8); }
+  .screw::after { content: ""; position: absolute; left: 1px; right: 1px; top: 4.5px; height: 1.6px; background: rgba(0,0,0,.6); transform: rotate(35deg); }
+
+  /* hero */
+  .hero { position: relative; padding: 46px 28px 18px; text-align: center; border-bottom: 1px solid var(--line);
+          background: radial-gradient(900px 380px at 50% 0, #2a1708 0%, rgba(42,23,8,0) 70%); }
+  .logo { margin: 0; font-weight: 900; font-style: italic; letter-spacing: -.045em; line-height: .95;
+          font-size: clamp(60px, 14vw, 120px); font-family: "Montserrat", "Helvetica Neue", Arial, sans-serif; }
+  .logo .f { color: var(--or); }
+  .by { display: flex; align-items: center; gap: 16px; justify-content: center; margin: 10px auto 0; max-width: 430px;
+        font-weight: 700; font-size: clamp(18px, 4.6vw, 26px); }
+  .by::before, .by::after { content: ""; height: 1px; flex: 1; background: linear-gradient(90deg, transparent, #7a7166); }
+  .by::after { background: linear-gradient(270deg, transparent, #7a7166); }
+  .tag { margin: 18px auto 0; font-size: clamp(17px, 3.2vw, 22px); color: var(--cream); max-width: 760px; }
+  .sub { margin: 10px auto 0; color: var(--dim); max-width: 700px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 20px 0 0; padding: 0; list-style: none; }
+  .chips li { font: 700 11.5px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--cream); border: 1px solid #4a433a;
+              background: #14120f; border-radius: 4px; padding: 8px 10px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 26px 0 0; }
+  .btn { display: inline-block; text-decoration: none; font: 800 14px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; border-radius: 9px; padding: 16px 24px; cursor: pointer; border: 0; }
+  .btn.pri { color: #1b1208; background: linear-gradient(180deg, var(--or2), var(--or)); box-shadow: 0 8px 22px rgba(224,117,43,.3), inset 0 1px 0 rgba(255,255,255,.35); }
+  .btn.sec2 { color: var(--cream); background: #1c1a17; border: 1px solid #4a433a; }
+  .btn:hover { filter: brightness(1.1); }
+  .synth { position: relative; margin: 34px auto 0; max-width: 940px; }
+  .synth img { display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: 0 24px 60px rgba(0,0,0,.7); }
+  .ver { position: absolute; right: 12px; top: 12px; z-index: 1; font: 800 12px/1 var(--sans); letter-spacing: .08em; color: #1b1208; background: var(--or); border-radius: 4px; padding: 6px 9px; }
+
+  /* feature blocks: a knob, a title and a line, like the labels of the panel */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+  .feat { position: relative; background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line); border-radius: 10px; padding: 22px 18px 18px; }
+  .feat svg.k { width: 54px; height: 54px; display: block; margin: 0 0 10px; }
+  .feat h3 { margin: 0 0 6px; font: 700 14px/1.25 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--cream); }
+  .feat p { margin: 0; color: var(--dim); font-size: 14.5px; line-height: 1.55; }
+  .feat .tick { position: absolute; right: 12px; top: 12px; width: 9px; height: 9px; border-radius: 50%; background: #2a2520; box-shadow: inset 0 1px 2px rgba(0,0,0,.8); }
+  .feat .tick.on { background: var(--or); box-shadow: 0 0 10px rgba(224,117,43,.8); }
+
+  /* the screen viewer: tabs as on the device */
+  .viewer { display: grid; grid-template-columns: minmax(260px, 420px) 1fr; gap: 34px; align-items: center; }
+  @media (max-width: 800px) { .viewer { grid-template-columns: 1fr; } }
+  .dev { position: relative; padding: 14px; border-radius: 16px; box-shadow: 0 18px 44px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.12); }
+  .dev .glass { background: #060505; border-radius: 6px; padding: 0; overflow: hidden; box-shadow: inset 0 0 0 3px #000, 0 0 0 1px rgba(0,0,0,.6); aspect-ratio: 1; }
+  .dev .glass img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .dev .screw { z-index: 1; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 16px; }
+  .tabs button { font: 800 12px/1 var(--sans); letter-spacing: .08em; color: #cfc6b6; background: #1a1815; border: 1px solid #3a342d; border-radius: 4px; padding: 9px 11px; cursor: pointer; }
+  .tabs button:hover { color: #fff; }
+  .tabs button[aria-selected=true] { color: #1b1208; background: var(--or); border-color: var(--or); }
+  .viewer h3 { margin: 0 0 8px; font: 400 clamp(20px, 3.4vw, 26px)/1.2 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--cream); }
+  .viewer p { margin: 0 0 12px; color: var(--dim); }
+  .viewer ul { margin: 0; padding-left: 18px; color: var(--dim); font-size: 14.5px; }
+  .viewer li { margin: 4px 0; }
+
+  .pops { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 44px; }
+  @media (max-width: 900px) { .pops { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .pops { grid-template-columns: 1fr; } }
+  .pop figure { margin: 0; }
+  .pop .dev { padding: 9px; border-radius: 12px; }
+  .pop h4 { margin: 14px 0 4px; font: 700 13px/1.2 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--cream); }
+  .pop p { margin: 0; color: var(--dim); font-size: 14px; line-height: 1.5; }
+
+  /* presets */
+  .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
+  @media (max-width: 900px) { .presets { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 560px) { .presets { grid-template-columns: repeat(2, 1fr); } }
+  .presets li { background: #0a0908; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; font: 700 15px/1.2 "Menlo", "Consolas", monospace; color: var(--cream); }
+  .presets li b { color: var(--or); margin-right: 8px; }
+  .groups { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 0; padding: 0; list-style: none; }
+  .groups li { border: 1px solid #4a433a; border-radius: 999px; padding: 8px 14px; font-size: 13px; color: var(--dim); }
+  .groups li b { color: var(--cream); }
+
+  /* buttons of the FM-1 */
+  .keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 800px) { .keys { grid-template-columns: repeat(2, 1fr); } }
+  .keys div { background: #0a0908; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .keys b { display: inline-block; font: 800 11.5px/1 var(--sans); letter-spacing: .12em; color: #1b1208; background: var(--cream); border-radius: 3px; padding: 5px 7px; margin-bottom: 8px; }
+  .keys span { display: block; color: var(--dim); font-size: 13.5px; line-height: 1.45; }
+
+  /* install */
+  .card { position: relative; background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line); border-radius: 14px;
+          padding: 24px; box-shadow: 0 18px 50px rgba(0,0,0,.55); max-width: 760px; margin: 0 auto; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; list-style: none; margin: 0 0 20px; padding: 0; }
+  .steps li { background: #0e0c0a; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .steps b { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .steps b i { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--or); color: #1b1208; font: 800 12px/1 var(--sans); font-style: normal; }
+  .steps span.d { display: block; color: var(--dim); font-size: 12.5px; line-height: 1.4; margin-top: 6px; }
+  @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
+
+  .power { display: flex; align-items: center; gap: 16px; }
+  .led { flex: none; width: 16px; height: 16px; border-radius: 50%; background: #3a1410; box-shadow: inset 0 1px 2px rgba(0,0,0,.8), 0 0 0 3px #0b0a09, 0 0 0 4px #3a342d; }
+  body.busy .led { background: var(--or); box-shadow: 0 0 14px 2px rgba(224,117,43,.9), 0 0 0 3px #0b0a09, 0 0 0 4px #3a342d; animation: blink .8s steps(2) infinite; }
+  body.finished .led { background: var(--ok); box-shadow: 0 0 14px 2px rgba(123,216,143,.8), 0 0 0 3px #0b0a09, 0 0 0 4px #3a342d; animation: none; }
+  @keyframes blink { 50% { opacity: .45; } }
+  #go { flex: 1; font: 800 17px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: #1b1208; border: 0; border-radius: 10px; padding: 19px 20px;
+        cursor: pointer; background: linear-gradient(180deg, var(--or2), var(--or)); box-shadow: 0 8px 24px rgba(224,117,43,.28), inset 0 1px 0 rgba(255,255,255,.35); transition: transform .08s, filter .15s; }
+  #go:hover:not(:disabled) { filter: brightness(1.07); }
+  #go:active:not(:disabled) { transform: translateY(1px); }
+  #go:disabled { cursor: default; background: #2a2520; color: #6b625a; box-shadow: none; }
+  body.busy #go { background: #2a2520; color: var(--or2); }
+
+  .prog { margin-top: 20px; }
+  .meter { position: relative; height: 16px; border-radius: 4px; background: #070605; border: 1px solid var(--line); overflow: hidden;
+           background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.07) 0 1px, transparent 1px 18px); }
+  .fill { height: 100%; width: 0; background: linear-gradient(90deg, #c4561a, var(--or2)); transition: width .25s ease; box-shadow: 0 0 14px rgba(224,117,43,.55); position: relative; }
+  body.busy .fill::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(255,255,255,.22) 0 10px, rgba(255,255,255,0) 10px 22px);
+                           background-size: 44px 100%; animation: slide 1s linear infinite; }
+  @keyframes slide { to { background-position: 44px 0; } }
+  body.finished .fill { background: linear-gradient(90deg, #3aa55a, var(--ok)); box-shadow: 0 0 14px rgba(123,216,143,.5); }
+  .row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; gap: 12px; }
+  #pct { font: 800 22px/1 var(--sans); font-variant-numeric: tabular-nums; }
+  #status { color: var(--fg); font-size: 14.5px; text-align: right; min-height: 1.5em; }
+  body.bad #status { color: #ff7a6a; }
+  body.finished #status { color: var(--ok); font-weight: 700; }
+  #phases { display: flex; list-style: none; padding: 0; margin: 14px 0 0; gap: 6px; }
+  #phases li { flex: 1; text-align: center; font-size: 11.5px; letter-spacing: .04em; color: #6b625a; padding-top: 10px; position: relative; }
+  #phases li::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: 3px; background: #26211b; }
+  #phases li.now { color: var(--or2); font-weight: 700; }
+  #phases li.now::before { background: var(--or); }
+  #phases li.done { color: var(--dim); }
+  #phases li.done::before { background: #6e4a2a; }
+  body.finished #phases li.done::before { background: var(--ok); }
+
+  .note { color: var(--dim); font-size: 13.5px; margin: 16px 0 0; }
+  .note.warn { color: #ffb37a; }
+  details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  summary { cursor: pointer; color: var(--dim); font-size: 13.5px; }
+  summary:hover { color: var(--fg); }
+  details p { color: var(--dim); font-size: 13px; margin: 10px 0; }
+  details button { font: 700 14px/1 var(--sans); color: var(--fg); background: #26211b; border: 1px solid var(--line); border-radius: 8px; padding: 11px 16px; cursor: pointer; }
+  details button:disabled { opacity: .35; cursor: default; }
+  input[type=file] { color: var(--dim); font-size: 13px; max-width: 100%; }
+  pre { color: #7d746a; font-size: 11.5px; white-space: pre-wrap; margin: 10px 0 0; max-height: 220px; overflow: auto; }
+  footer { color: #7d746a; font-size: 12px; line-height: 1.7; margin-top: 64px; padding: 26px 28px 34px; text-align: center; border-top: 1px solid var(--line); }
+  footer a { color: #9a9084; }
+  footer .mk { font: 900 italic 22px/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: -.04em; color: var(--cream); margin-bottom: 10px; display: block; }
+  footer .mk i { color: var(--or); font-style: italic; }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .led, .fill::after { animation: none !important; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="skirt" cx=".4" cy=".3" r=".8"><stop offset="0" stop-color="#3d3935"/><stop offset="1" stop-color="#0c0b0a"/></radialGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f4f2"/><stop offset=".3" stop-color="#8d8d8b"/><stop offset=".55" stop-color="#e2e2df"/><stop offset=".8" stop-color="#6e6e6c"/><stop offset="1" stop-color="#cfcfcc"/></linearGradient>
+    <symbol id="knob" viewBox="-30 -30 60 60">
+      <circle cy="2" r="24" fill="#000" opacity=".5"/>
+      <path id="knob-s" fill="url(#skirt)" stroke="#000" stroke-width=".8" d=""/>
+      <circle r="18.5" fill="#0d0c0b" stroke="#2b2825" stroke-width=".6"/>
+      <circle r="13.4" fill="#000"/>
+      <circle r="12.6" fill="url(#metal)"/>
+      <circle r="12.6" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width=".4"/>
+      <circle cy="-16" r="1.8" fill="#f6f1e3"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="nav wood">
+  <a class="brand" href="#top" aria-label="FMini-1"><i>F</i>Mini-1</a>
+  <nav>
+    <a href="#features" data-t="nav_f"></a>
+    <a href="#screens" data-t="nav_s"></a>
+    <a href="#presets" data-t="nav_p"></a>
+    <a href="#midi" data-t="nav_m"></a>
+    <a href="#install" class="keep" data-t="nav_i"></a>
+  </nav>
+  <button class="lang" id="lang" aria-label="Language"></button>
+</header>
+
+<div class="rails" id="top">
+  <div class="side wood" aria-hidden="true"></div>
+  <div class="face">
+
+  <section class="hero">
+    <h1 class="logo"><span class="f">F</span>Mini-1</h1>
+    <div class="by">by Ruppert</div>
+    <p class="tag" data-t="tagline"></p>
+    <p class="sub" data-t="sub"></p>
+    <ul class="chips"><li>3 OSC</li><li data-t="chip_f"></li><li data-t="chip_p"></li><li>ARP</li><li>SEQ</li><li>MIDI</li></ul>
+    <div class="cta">
+      <a class="btn pri" href="#install" data-t="cta_install"></a>
+      <a class="btn sec2" href="#screens" data-t="cta_screens"></a>
+    </div>
+    <div class="synth"><span class="ver" id="ver">v1.1.0</span><img alt="FMini-1" src="/*HERO*/"></div>
+  </section>
+
+  <section class="sec" id="features">
+    <div class="bar"><h2 data-t="h_sound"></h2></div>
+    <p class="lead" data-t="l_sound"></p>
+    <div class="grid">
+      <article class="feat"><span class="tick on"></span><svg class="k"><use href="#knob" style="transform-origin:center;transform:rotate(-50deg)"/></svg><h3 data-t="f1t"></h3><p data-t="f1d"></p></article>
+      <article class="feat"><span class="tick on"></span><svg class="k"><use href="#knob" style="transform-origin:center;transform:rotate(35deg)"/></svg><h3 data-t="f2t"></h3><p data-t="f2d"></p></article>
+      <article class="feat"><span class="tick on"></span><svg class="k"><use href="#knob" style="transform-origin:center;transform:rotate(-95deg)"/></svg><h3 data-t="f3t"></h3><p data-t="f3d"></p></article>
+      <article class="feat"><span class="tick on"></span><svg class="k"><use href="#knob" style="transform-origin:center;transform:rotate(80deg)"/></svg><h3 data-t="f4t"></h3><p data-t="f4d"></p></article>
+      <article class="feat"><span class="tick on"></span><svg class="k"><use href="#knob" style="transform-origin:center;transform:rotate(0deg)"/></svg><h3 data-t="f5t"></h3><p data-t="f5d"></p></article>
+      <article class="feat"><span class="tick on"></span><svg class="k"><use href="#knob" style="transform-origin:center;transform:rotate(120deg)"/></svg><h3 data-t="f6t"></h3><p data-t="f6d"></p></article>
+    </div>
+  </section>
+
+  <section class="sec" id="screens">
+    <div class="bar"><h2 data-t="h_screens"></h2></div>
+    <p class="lead" data-t="l_screens"></p>
+    <div class="viewer">
+      <div class="dev wood"><i class="screw" style="left:4px;top:4px"></i><i class="screw" style="right:4px;top:4px"></i><i class="screw" style="left:4px;bottom:4px"></i><i class="screw" style="right:4px;bottom:4px"></i>
+        <div class="glass"><img id="v-img" alt=""></div></div>
+      <div>
+        <div class="tabs" role="tablist" id="v-tabs"></div>
+        <h3 id="v-t"></h3>
+        <p id="v-d"></p>
+        <ul id="v-l"></ul>
+      </div>
+    </div>
+
+    <div class="pops" id="pops"></div>
+  </section>
+
+  <section class="sec" id="presets">
+    <div class="bar"><h2 data-t="h_presets"></h2></div>
+    <p class="lead" data-t="l_presets"></p>
+    <ul class="presets" id="pl"></ul>
+    <ul class="groups">
+      <li><b data-t="g_bass"></b> 25</li><li><b data-t="g_lead"></b> 25</li><li><b data-t="g_wind"></b> 20</li><li><b data-t="g_keys"></b> 15</li><li><b data-t="g_fx"></b> 15</li><li><b data-t="g_user"></b> U01–U32</li>
+    </ul>
+  </section>
+
+  <section class="sec" id="midi">
+    <div class="bar"><h2 data-t="h_midi"></h2></div>
+    <p class="lead" data-t="l_midi"></p>
+    <div class="grid">
+      <article class="feat"><svg class="k"><use href="#knob" style="transform-origin:center;transform:rotate(-20deg)"/></svg><h3 data-t="m1t"></h3><p data-t="m1d"></p></article>
+      <article class="feat"><svg class="k"><use href="#knob" style="transform-origin:center;transform:rotate(60deg)"/></svg><h3 data-t="m2t"></h3><p data-t="m2d"></p></article>
+      <article class="feat"><svg class="k"><use href="#knob" style="transform-origin:center;transform:rotate(-120deg)"/></svg><h3 data-t="m3t"></h3><p data-t="m3d"></p></article>
+    </div>
+    <h3 class="bar" style="margin:46px 0 18px"><span style="font:400 17px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--cream);white-space:nowrap" data-t="h_keys"></span></h3>
+    <div class="keys" id="keys"></div>
+  </section>
+
+  <section class="sec" id="install">
+    <div class="bar"><h2 data-t="h_install"></h2></div>
+    <p class="lead" data-t="l_install"></p>
+    <div class="card">
+      <i class="screw" style="left:6px;top:6px"></i><i class="screw" style="right:6px;top:6px"></i><i class="screw" style="left:6px;bottom:6px"></i><i class="screw" style="right:6px;bottom:6px"></i>
+      <ol class="steps">
+        <li><b><i>1</i><span data-t="step1"></span></b><span class="d" data-t="s1"></span></li>
+        <li><b><i>2</i><span data-t="step2"></span></b><span class="d" data-t="s2"></span></li>
+        <li><b><i>3</i><span data-t="step3"></span></b><span class="d" data-t="s3"></span></li>
+      </ol>
+
+      <div class="power"><span class="led" aria-hidden="true"></span><button id="go" disabled data-t="install"></button></div>
+
+      <div class="prog">
+        <div class="meter" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="fill"></div></div>
+        <div class="row"><span id="pct">0%</span><span id="status" aria-live="polite"></span></div>
+        <ul id="phases">
+          <li data-t="ph_verify"></li><li data-t="ph_loader"></li><li data-t="ph_write"></li><li data-t="ph_reboot"></li><li data-t="ph_done"></li>
+        </ul>
+      </div>
+
+      <p class="note" data-t="intro"></p>
+      <p class="note warn" data-t="warn"></p>
+      <p class="note" data-t="direct"></p>
+      <p class="note" data-t="beta"></p>
+      <p class="note"><span data-t="brick"></span>
+        <a href="https://github.com/kurogedelic/FM-1-transporter" target="_blank" rel="noopener">FM-1-transporter</a></p>
+
+      <details>
+        <summary data-t="stockTitle"></summary>
+        <p data-t="back"></p>
+        <p><a href="https://www.m-vave.com/download" target="_blank" rel="noopener">M-VAVE Downloads</a></p>
+        <p><label><span data-t="stockFile"></span><br><input id="stock-file" type="file" accept=".fwsc"></label></p>
+        <p><button id="stock-go" disabled data-t="stockGo"></button></p>
+        <p data-t="stockBackup"></p>
+        <p><label><input id="stock-recovery" type="checkbox"> <span data-t="stockRecovery"></span></label></p>
+      </details>
+      <details>
+        <summary data-t="logT"></summary>
+        <pre id="log"></pre>
+      </details>
+    </div>
+  </section>
+
+  <footer>
+    <span class="mk"><i>F</i>Mini-1 <small style="font-weight:600;font-size:13px;letter-spacing:0">by Ruppert</small></span>
+    FMini-1 by Ruppert, a custom firmware based on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>, with its CrispyZebra waveforms, drum voices, Sample Pack and Fukiai icons (MIT).<br>
+    Font: Inter Tight (The Inter Project Authors, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and VCSL (CC0 1.0).<br>
+    FM6 engine: msfa from Dexed (Google Inc., Pascal Gauthier, Apache-2.0). The package also holds three JieLi AC79 SDK files, uboot.boot, cfg_tool.bin and eq_cfg_hw.bin (JieLi Technology, Apache-2.0). Licences: <a href="https://github.com/hugelton/Felucca/blob/main/LICENSING.md">LICENSING</a>, <a href="https://github.com/hugelton/Felucca/blob/main/LICENSE">GPL-3.0</a>, <a href="https://github.com/hugelton/Felucca/tree/main/LICENSES/">all</a>.<br>
+    M-VAVE and FM-1 are trademarks of their respective owners.<br>
+    <span data-t="license"></span> <a href="https://github.com/hugelton/Felucca" target="_blank" rel="noopener">github.com/hugelton/Felucca</a>
+  </footer>
+
+  </div>
+  <div class="side wood" aria-hidden="true"></div>
+</div>
+<script type="module">
+/*LIB*/
+const $ = (id) => document.getElementById(id);
+const TEXT = {
+  pt: {
+    intro: "Conecte o FM-1 por USB. (Funciona no Chrome ou no Edge.)",
+    warn: "Não desconecte o cabo USB durante a gravação.",
+    install: "Instalar", other: "English",
+    editor: "Editor",
+    direct: "Ligue o cabo USB direto no computador. Não precisa de Probe nem de Transporter.",
+    brick: "Se a instalação falhar e o FM-1 não ligar mais, recuperá-lo exige um Transporter:",
+    beta: "O FMini-1 é uma versão experimental, baseada no Felucca. O autor não se responsabiliza se o seu FM-1 for danificado ou se comportar de forma estranha por causa deste firmware personalizado. Use por sua conta e risco.",
+    back: "Baixe o FM-1 V15 oficial na M-VAVE e escolha o FM-1.fwsc sem modificações. O navegador valida o arquivo localmente; ele não é enviado a nenhum servidor.",
+    stockTitle: "Voltar ao V15 oficial", stockFile: "FM-1.fwsc oficial", stockGo: "Fazer backup e voltar ao V15 oficial",
+    stockBackup: "Músicas, músicas salvas, bancos de sons, samples e ajustes atuais são salvos antes. Firmware antigo precisa de uma atualização do Felucca para fazer o backup completo.",
+    stockRecovery: "Retomar uma atualização interrompida: já salvei um backup completo neste computador",
+    stockValid: "V15 oficial verificado", stockConfirm: "O arquivo de backup completo foi salvo neste computador? Continuar vai voltar ao V15 oficial, que não abre as músicas do Felucca.",
+    stockNeedBackup: "Do modo de atualização não dá para exportar backup. Só marque retomar se você já salvou um backup completo.",
+    stockUnsupported: "Este firmware não suporta backup completo. Instale primeiro a versão atual.",
+    backup: "Salvando backup completo ", stockError: "Não foi possível validar o firmware oficial: ",
+    nomidi: "Este navegador não consegue. Abra a página no Chrome ou no Edge.", loadfail: "Não foi possível carregar: ",
+    start: "Iniciando", verify: "Verificando", loader: "Entrando no modo de atualização", write: "Gravando",
+    reboot: "Reiniciando", done: "Pronto! O FM-1 agora é um FMini-1", stopped: "Interrompido. Desconecte e reconecte o USB e aperte Instalar de novo.",
+    error: "Erro: ",
+    denied: "O acesso ao MIDI (SysEx) não foi permitido. Permita o MIDI nas configurações do site (barra de endereço) e aperte Instalar de novo.",
+    notfound: "FM-1 não encontrado. Confira o cabo USB (precisa ser de dados), feche outros apps que usam MIDI e aperte Instalar de novo.",
+    model: "O aparelho conectado não é um FM-1.",
+    lost: "A conexão USB caiu. Reconecte e aperte Instalar de novo.",
+    noloader: "O FM-1 em modo de atualização não foi encontrado. Reconecte o USB e aperte Instalar de novo (ele fica em modo de atualização até terminar).",
+    noreturn: "O FM-1 não voltou. Desligue e ligue de novo.",
+    mismatch: "Gravado, mas o FM-1 informa outra versão: ",
+    badpkg: "O arquivo a instalar está danificado. Recarregue a página.",
+    leave: "Gravando. Não feche a página.",
+    license: "GPL-3.0, sem garantia. Código-fonte:",
+    ready: "Pronto. Conecte o FM-1 e aperte Instalar.",
+    step1: "Conectar", step2: "Instalar", step3: "Tocar",
+    s1: "Ligue o FM-1 ao computador com um cabo USB de dados.", s2: "Aperte Instalar e mantenha o cabo conectado até aparecer Pronto.", s3: "O FM-1 reinicia como FMini-1, com a tela de abertura.",
+    ph_verify: "Verificar", ph_loader: "Modo de atualização", ph_write: "Gravar", ph_reboot: "Reiniciar", ph_done: "Pronto",
+    tagline: "Um sintetizador monofônico estilo Minimoog para o M-VAVE FM-1",
+    feat: "3 osciladores · filtro ladder · 100 presets · arpejador · MIDI",
+    risk: "Use por sua conta e risco", logT: "Detalhes", fw: "Firmware",
+  },
+  ja: {
+    intro: "FM-1 を USB で接続してください。（Chrome か Edge で使えます）",
+    warn: "書き込み中は USB を抜かないでください。",
+    install: "インストール", other: "English",
+    editor: "エディタ（インストール後、パソコンから音色やシーケンスを編集）",
+    direct: "USB ケーブルはパソコンに直接つないでください。Probe や Transporter などの機材は不要です。",
+    brick: "万一インストールに失敗して起動しなくなった場合は、復旧に Transporter が必要です:",
+    beta: "FMini-1 は Felucca をベースにした実験版です。このカスタムファームウェアを使ったことで FM-1 が壊れたり不具合が起きたりしても、作者は一切の責任を負いません。自己責任でお使いください。",
+    back: "M-VAVEから公式FM-1 V15を取得し、未変更のFM-1.fwscを選んでください。ファイルはこのブラウザ内で検証し、サーバーへ送りません。",
+    stockTitle: "公式V15に戻す", stockFile: "公式FM-1.fwsc", stockGo: "バックアップして公式V15へ戻す",
+    stockBackup: "現在の曲・保存曲・音色バンク・サンプル・設定を先に保存します。全体バックアップ非対応版は、Feluccaを更新してから行ってください。復元はFeluccaを再インストールしてエディタから行います。",
+    stockRecovery: "更新中断の再開：全体バックアップはすでにパソコンへ保存済み",
+    stockValid: "公式V15を確認しました", stockConfirm: "全体バックアップファイルをパソコンに保存できましたか？ 続けると公式V15へ戻します。Feluccaの曲は公式V15では開けません。",
+    stockNeedBackup: "書き込みモードからはバックアップできません。保存済みバックアップがある場合だけ、更新中断の再開にチェックしてください。",
+    stockUnsupported: "このFeluccaは全体バックアップに未対応です。先に最新版をインストールしてください。",
+    backup: "全体バックアップ保存中 ", stockError: "公式ファイルを確認できません: ",
+    nomidi: "このブラウザでは使えません。Chrome か Edge で開いてください。", loadfail: "読み込めませんでした: ",
+    start: "開始します", verify: "確認中", loader: "書き込みモードに切り替え中", write: "書き込み中",
+    reboot: "再起動中", done: "完了しました", stopped: "途中で止まりました。USB を挿し直してもう一度押してください。",
+    error: "エラー: ",
+    denied: "MIDI（SysEx）の使用が許可されませんでした。アドレスバーのサイト設定で MIDI を許可して、もう一度押してください。",
+    notfound: "FM-1 が見つかりません。USB ケーブル（データ通信用か）を確かめ、MIDI を使う他のアプリを閉じてから、もう一度押してください。",
+    model: "接続されている機器は FM-1 ではありません。",
+    lost: "USB の接続が切れました。挿し直してもう一度押してください。",
+    noloader: "書き込みモードの FM-1 が見つかりません。USB を挿し直してもう一度押してください（終わるまで書き込みモードのままです）。",
+    noreturn: "FM-1 が戻ってきません。電源を入れ直してください。",
+    mismatch: "書き込みは終わりましたが、FM-1 が別のバージョンを報告しています: ",
+    badpkg: "インストールするファイルが壊れています。ページを再読み込みしてください。",
+    leave: "書き込み中です。ページを閉じないでください。",
+    license: "GPL-3.0、無保証。ソース:",
+    ready: "準備完了。FM-1 を接続して「インストール」を押してください。",
+    step1: "接続", step2: "インストール", step3: "演奏",
+    s1: "USB データケーブルで FM-1 をパソコンに接続します。", s2: "「インストール」を押し、「完了」と出るまでケーブルを抜かないでください。", s3: "FM-1 が再起動し、FMini-1 のスプラッシュ画面が表示されます。",
+    ph_verify: "確認", ph_loader: "更新モード", ph_write: "書き込み", ph_reboot: "再起動", ph_done: "完了",
+    tagline: "M-VAVE FM-1 用 Minimoog スタイルのモノフォニックシンセ",
+    feat: "3 オシレーター · ラダーフィルター · 100 プリセット · アルペジエーター · MIDI",
+    risk: "自己責任でお使いください", logT: "詳細", fw: "ファームウェア",
+  },
+  en: {
+    intro: "Connect the FM-1 by USB. (Works in Chrome or Edge.)",
+    warn: "Do not unplug the USB cable while writing.",
+    install: "Install", other: "日本語",
+    editor: "Editor (after installing: edit sounds and sequences from the computer)",
+    direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
+    brick: "If an install fails and the FM-1 no longer starts, recovering it needs a Transporter:",
+    beta: "FMini-1 is an experimental release based on Felucca. The author accepts no responsibility if your FM-1 is damaged or misbehaves because of this custom firmware. Use it at your own risk.",
+    back: "Get official FM-1 V15 from M-VAVE and select the unmodified FM-1.fwsc. The browser validates it locally; it is not sent to a server.",
+    stockTitle: "Return to official V15", stockFile: "Official FM-1.fwsc", stockGo: "Back up and return to official V15",
+    stockBackup: "Current music, saved music, sound banks, samples and settings are saved first. Older firmware needs a Felucca update for complete backups. To restore an archive later, reinstall Felucca and use the editor.",
+    stockRecovery: "Resume an interrupted update: I already saved a complete backup to this computer",
+    stockValid: "Official V15 verified", stockConfirm: "Has the complete backup file been saved to this computer? Continue to return to official V15. Official V15 cannot open Felucca music.",
+    stockNeedBackup: "An update loader cannot export a backup. Only select resume if you already saved a complete backup.",
+    stockUnsupported: "This Felucca does not support complete backups. Install the current Felucca first.",
+    backup: "Saving complete backup ", stockError: "Cannot validate official firmware: ",
+    nomidi: "This browser cannot do it. Open the page in Chrome or Edge.", loadfail: "Could not load: ",
+    start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
+    reboot: "Restarting", done: "Done", stopped: "Stopped. Replug the USB cable and press Install again.",
+    error: "Error: ",
+    denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and press Install again.",
+    notfound: "FM-1 not found. Check the USB cable (a data cable), close other apps that use MIDI, and press Install again.",
+    model: "The connected device is not an FM-1.",
+    lost: "The USB connection was lost. Replug it and press Install again.",
+    noloader: "The FM-1 in update mode was not found. Replug the USB cable and press Install again (it stays in update mode until it is finished).",
+    noreturn: "The FM-1 did not come back. Power-cycle it.",
+    mismatch: "Written, but the FM-1 reports another version: ",
+    badpkg: "The file to install is damaged. Reload the page.",
+    leave: "Writing. Do not close the page.",
+    license: "GPL-3.0, no warranty. Source:",
+    ready: "Ready. Connect your FM-1 and press Install.",
+    step1: "Connect", step2: "Install", step3: "Play",
+    s1: "Plug the FM-1 into the computer with a USB data cable.", s2: "Press Install and keep the cable connected until it says Done.", s3: "The FM-1 restarts as FMini-1 with its splash screen.",
+    ph_verify: "Verify", ph_loader: "Update mode", ph_write: "Write", ph_reboot: "Restart", ph_done: "Done",
+    tagline: "A Minimoog-style monophonic synth for the M-VAVE FM-1",
+    feat: "3 oscillators · ladder filter · 100 presets · arpeggiator · MIDI",
+    risk: "Use at your own risk", logT: "Details", fw: "Firmware",
+  },
+};
+/* ---- the site: texts (PT / EN / JA) and the parts it draws itself ---- */
+const SITE = {
+  pt: {
+    nav_f: "Som", nav_s: "Telas", nav_p: "Presets", nav_m: "MIDI", nav_i: "Instalar",
+    sub: "Um firmware aberto que transforma o M-VAVE FM-1 em um sintetizador monofônico modelado no circuito do Minimoog: três osciladores, filtro ladder, contornos, efeitos e tudo ao alcance dos botões do FM-1.",
+    chip_f: "Filtro ladder", chip_p: "100 presets",
+    cta_install: "Instalar agora", cta_screens: "Ver as telas",
+    h_sound: "O som", l_sound: "Cada bloco do painel do Minimoog tem seu lugar na tela de 240 × 240 do FM-1, com quatro knobs físicos para tocar de verdade.",
+    f1t: "Banco de osciladores", f1d: "Três osciladores com faixas de LO a 2', forma de onda individual, ajuste fino (detune) e uma leve deriva de afinação, como a dos VCOs analógicos.",
+    f2t: "Filtro ladder", f2d: "Passa-baixas de 4 polos, 24 dB/oitava, com saturação em cada estágio. A ênfase chega à auto-oscilação perto de 9, e o teclado controla a frequência de corte.",
+    f3t: "Contornos", f3d: "Dois contornos (filtro e volume) com ataque, decaimento e sustentação. O ataque é exponencial, como o do circuito original. Glide, LFO e modulação completam a seção.",
+    f4t: "100 presets", f4d: "Todos monofônicos, em grupos de baixos, leads, metais e cordas, teclas e efeitos. Os 10 primeiros são uma vitrine de estilos bem diferentes. Salve os seus em 32 posições de usuário.",
+    f5t: "Arpejador e sequenciador", f5d: "Um toque no ARP liga e desliga; segurar ativa o HOLD. O sequenciador grava até 16 notas (REC) e toca (PLAY). Os LEDs das teclas acendem junto com as notas.",
+    f6t: "Efeitos por preset", f6d: "Reverb, delay, chorus e drive, cada preset com a sua própria combinação, para que baixos, leads e pads tenham ambientes bem diferentes.",
+    h_screens: "As telas", l_screens: "O painel foi desenhado para a tela do FM-1, com knobs estriados, chaves vermelhas e azuis e gráficos de filtro e contornos. Escolha uma página:",
+    views: [
+      { t: "CTRL · Controladores", d: "A página inicial. Afinação geral, glide, quantidade de modulação e velocidade do LFO.", l: ["Quatro knobs: TUNE, GLIDE, MOD MIX e LFO RATE", "Chaves MOD OSC, MOD FLT, GLIDE e LFO SQR"] },
+      { t: "OSC · Banco de osciladores", d: "Os três osciladores: faixa de oitava, forma de onda e detune.", l: ["Faixas LO, 32', 16', 8', 4' e 2'", "Seis formas de onda, desenhadas nas caixas da tela"] },
+      { t: "MIX · Mixer", d: "O nível de cada oscilador e do ruído, com as chaves azuis para ligar e desligar cada fonte.", l: ["OSC 1, OSC 2, OSC 3 e NOISE", "Cada fonte tem o seu nível e a sua chave"] },
+      { t: "FILT · Filtro", d: "Corte, ênfase, quantidade de contorno e controle pelo teclado, com o gráfico da resposta do filtro ladder.", l: ["CUTOFF, EMPHASIS, CONTOUR e KBD CTRL", "O gráfico mostra a curva passa-baixas de 24 dB/oitava"] },
+      { t: "F.ENV · Contorno do filtro", d: "Ataque, decaimento, sustentação e quantidade do contorno que abre e fecha o filtro.", l: ["Gráfico do envelope que acompanha os knobs", "Ataque exponencial para o \"pluc\" clássico"] },
+      { t: "A.ENV · Contorno de volume", d: "O envelope do volume: ataque, decaimento, sustentação e nível de saída.", l: ["ATTACK, DECAY, SUSTAIN e LEVEL", "Da percussão curta ao pad lento"] },
+      { t: "FX · Efeitos", d: "Reverb, delay, chorus e drive, com uma chave para cada efeito.", l: ["Cada preset guarda o seu mix de efeitos", "A chave INSERT liga o drive"] },
+    ],
+    pops: [
+      { i: "arp", t: "Arpejador", d: "Modo, velocidade, oitavas, gate, HOLD e tempo. Toque no botão ARP para ligar; segure para o HOLD. O quadro fecha sozinho em 4 s." },
+      { i: "seq", t: "Sequenciador", d: "16 posições para notas. REC arma a gravação, PLAY toca e para, e o tempo se ajusta com o encoder." },
+      { i: "save", t: "Salvar preset", d: "Escolha a posição U01–U32, escreva o nome com os encoders e aperte SAVE. Suas versões ficam junto dos 100 presets de fábrica." },
+      { i: "glo", t: "Global", d: "Entrada MIDI (USB, MIDI ou todas), canal, faixa do pitch bend e a lista de controles MIDI." },
+      { i: "cc", t: "Lista de MIDI CC", d: "49 controles do painel, cada um com o seu número de CC. Gire o encoder para trocar ou envie um CC do seu teclado para aprender." },
+      { i: "preset", t: "Troca de preset", d: "Ao trocar de preset aparece o número e o nome em letras grandes, por 1,5 s, e some." },
+    ],
+    h_presets: "Presets", l_presets: "Cem timbres monofônicos, de baixos a efeitos. Os dez primeiros mostram do que o sintetizador é capaz:",
+    g_bass: "Baixos", g_lead: "Leads", g_wind: "Metais, palhetas e pads", g_keys: "Teclas e plucks", g_fx: "Efeitos", g_user: "Seus presets",
+    h_midi: "MIDI e controles", l_midi: "Toque pelo teclado do FM-1 ou por um controlador externo, por USB ou pela entrada MIDI.",
+    m1t: "Notas e canais", m1d: "Entrada USB, entrada MIDI (TRS) ou as duas ao mesmo tempo, com filtro de canal (1–16 ou todos).",
+    m2t: "Pitch bend e modulação", m2d: "Pitch bend de ±2, ±12, +2/−12 ou +2/−24 semitons, escolhido na tela Global, e roda de modulação (CC 1) que controla a modulação.",
+    m3t: "49 controles por CC", m3d: "Cada knob, chave e forma de onda tem o seu CC, que você pode trocar, e o FMini-1 aprende o CC que você enviar.",
+    h_keys: "Os botões do FM-1",
+    keys: [
+      ["LFO", "Abre a página CTRL."], ["EDIT", "Abre a página OSC."], ["SCL", "Alterna entre MIX e FILT."], ["ENV", "Alterna entre F.ENV e A.ENV."],
+      ["FX", "Abre a página de efeitos."], ["GLO", "Configurações globais (MIDI, bend, ABOUT)."], ["ARP", "Toque liga e desliga. Segurar ativa o HOLD."], ["SEQ", "Abre o sequenciador de 16 notas."],
+      ["REC", "Arma a gravação do sequenciador."], ["PLAY", "Toca e para o sequenciador."], ["SAVE", "Salva um preset de usuário."], ["HOME", "Volta para CTRL e fecha os quadros."],
+      ["OCT − / +", "Muda a oitava do teclado."], ["K1–K4", "Os quatro knobs editam os controles da página."], ["SELECT / ALGO", "Movem o cursor e mudam o valor."], ["PRESETS", "O encoder de presets troca os 100 timbres."],
+    ],
+    h_install: "Instalar", l_install: "O instalador roda aqui mesmo, no navegador, e grava o firmware no FM-1 pelo cabo USB. Dá para voltar ao firmware original a qualquer momento.",
+  },
+  en: {
+    nav_f: "Sound", nav_s: "Screens", nav_p: "Presets", nav_m: "MIDI", nav_i: "Install",
+    sub: "An open firmware that turns the M-VAVE FM-1 into a monophonic synth modelled after the Minimoog circuit: three oscillators, a ladder filter, contours and effects, all within reach of the FM-1's buttons.",
+    chip_f: "Ladder filter", chip_p: "100 presets",
+    cta_install: "Install now", cta_screens: "See the screens",
+    h_sound: "The sound", l_sound: "Each block of the Minimoog panel has its place on the FM-1's 240 × 240 screen, with four real knobs to play it for real.",
+    f1t: "Oscillator bank", f1d: "Three oscillators with ranges from LO to 2', a waveform each, fine detune and a touch of pitch drift, like analog VCOs.",
+    f2t: "Ladder filter", f2d: "A four-pole low-pass, 24 dB/octave, with saturation in every stage. Emphasis reaches self-oscillation near 9, and the keyboard tracks the cutoff.",
+    f3t: "Contours", f3d: "Two contours (filter and loudness) with attack, decay and sustain. The attack is exponential, like the original circuit. Glide, LFO and modulation complete the section.",
+    f4t: "100 presets", f4d: "All monophonic, in groups of basses, leads, brass and strings, keys and effects. The first 10 are a showcase of very different styles. Save your own in 32 user slots.",
+    f5t: "Arpeggiator and sequencer", f5d: "One tap on ARP turns it on and off; holding it sets HOLD. The sequencer records up to 16 notes (REC) and plays them (PLAY). The key LEDs light with the notes.",
+    f6t: "Effects per preset", f6d: "Reverb, delay, chorus and drive, each preset with its own combination, so basses, leads and pads live in very different spaces.",
+    h_screens: "The screens", l_screens: "The panel is drawn for the FM-1's screen, with fluted knobs, red and blue rocker switches and graphs of the filter and contours. Pick a page:",
+    views: [
+      { t: "CTRL · Controllers", d: "The home page. Master tune, glide, modulation amount and LFO speed.", l: ["Four knobs: TUNE, GLIDE, MOD MIX and LFO RATE", "Switches MOD OSC, MOD FLT, GLIDE and LFO SQR"] },
+      { t: "OSC · Oscillator bank", d: "The three oscillators: octave range, waveform and detune.", l: ["Ranges LO, 32', 16', 8', 4' and 2'", "Six waveforms, drawn in the boxes on the screen"] },
+      { t: "MIX · Mixer", d: "The level of each oscillator and of the noise, with the blue switches that turn each source on and off.", l: ["OSC 1, OSC 2, OSC 3 and NOISE", "Each source has its own level and switch"] },
+      { t: "FILT · Filter", d: "Cutoff, emphasis, contour amount and keyboard control, with a graph of the ladder filter's response.", l: ["CUTOFF, EMPHASIS, CONTOUR and KBD CTRL", "The graph shows the 24 dB/octave low-pass curve"] },
+      { t: "F.ENV · Filter contour", d: "Attack, decay, sustain and amount of the contour that opens and closes the filter.", l: ["An envelope graph that follows the knobs", "Exponential attack for the classic pluck"] },
+      { t: "A.ENV · Loudness contour", d: "The volume envelope: attack, decay, sustain and output level.", l: ["ATTACK, DECAY, SUSTAIN and LEVEL", "From short percussion to slow pads"] },
+      { t: "FX · Effects", d: "Reverb, delay, chorus and drive, with a switch for each effect.", l: ["Each preset stores its own effects mix", "The INSERT switch turns the drive on"] },
+    ],
+    pops: [
+      { i: "arp", t: "Arpeggiator", d: "Mode, rate, octaves, gate, HOLD and tempo. Tap the ARP button to turn it on; hold it for HOLD. The box closes by itself after 4 s." },
+      { i: "seq", t: "Sequencer", d: "16 slots for notes. REC arms recording, PLAY starts and stops, and the tempo is set with an encoder." },
+      { i: "save", t: "Save preset", d: "Pick the slot U01–U32, type the name with the encoders and press SAVE. Your versions sit next to the 100 factory presets." },
+      { i: "glo", t: "Global", d: "MIDI input (USB, MIDI or all), channel, pitch bend range and the list of MIDI controls." },
+      { i: "cc", t: "MIDI CC list", d: "49 panel controls, each with its CC number. Turn the encoder to change it, or send a CC from your keyboard to learn it." },
+      { i: "preset", t: "Preset change", d: "When the preset changes, its number and name appear in big letters for 1.5 s, then vanish." },
+    ],
+    h_presets: "Presets", l_presets: "One hundred monophonic sounds, from basses to effects. The first ten show what the synth can do:",
+    g_bass: "Basses", g_lead: "Leads", g_wind: "Brass, reeds and pads", g_keys: "Keys and plucks", g_fx: "Effects", g_user: "Your presets",
+    h_midi: "MIDI and controls", l_midi: "Play from the FM-1's keys or from an external controller, over USB or the MIDI input.",
+    m1t: "Notes and channels", m1d: "USB input, MIDI (TRS) input or both together, with a channel filter (1–16 or all).",
+    m2t: "Pitch bend and modulation", m2d: "Pitch bend of ±2, ±12, +2/−12 or +2/−24 semitones, chosen on the Global screen, and a mod wheel (CC 1) that controls the modulation.",
+    m3t: "49 CC controls", m3d: "Every knob, switch and waveform has its own CC, which you can change, and FMini-1 learns the CC you send.",
+    h_keys: "The FM-1's buttons",
+    keys: [
+      ["LFO", "Opens the CTRL page."], ["EDIT", "Opens the OSC page."], ["SCL", "Toggles between MIX and FILT."], ["ENV", "Toggles between F.ENV and A.ENV."],
+      ["FX", "Opens the effects page."], ["GLO", "Global settings (MIDI, bend, ABOUT)."], ["ARP", "Tap turns it on and off. Hold sets HOLD."], ["SEQ", "Opens the 16-note sequencer."],
+      ["REC", "Arms sequencer recording."], ["PLAY", "Starts and stops the sequencer."], ["SAVE", "Saves a user preset."], ["HOME", "Back to CTRL, closes the boxes."],
+      ["OCT − / +", "Shifts the keyboard octave."], ["K1–K4", "The four knobs edit the page's controls."], ["SELECT / ALGO", "Move the cursor and change the value."], ["PRESETS", "The preset encoder steps through the 100 sounds."],
+    ],
+    h_install: "Install", l_install: "The installer runs right here, in the browser, and writes the firmware to the FM-1 over the USB cable. You can go back to the original firmware at any time.",
+  },
+  ja: {
+    nav_f: "サウンド", nav_s: "画面", nav_p: "プリセット", nav_m: "MIDI", nav_i: "インストール",
+    sub: "M-VAVE FM-1 を、Minimoog の回路をモデルにしたモノフォニック・シンセに変えるオープンなファームウェア。3 基のオシレーター、ラダーフィルター、コンター、エフェクトを FM-1 のボタンで操作できます。",
+    chip_f: "ラダーフィルター", chip_p: "100 プリセット",
+    cta_install: "今すぐインストール", cta_screens: "画面を見る",
+    h_sound: "サウンド", l_sound: "Minimoog のパネルの各ブロックを FM-1 の 240 × 240 画面に再現。4 つの実際のノブで演奏できます。",
+    f1t: "オシレーターバンク", f1d: "LO から 2' までのレンジ、個別の波形、ファインチューン、アナログ VCO のようなわずかなピッチのゆらぎを備えた 3 基のオシレーター。",
+    f2t: "ラダーフィルター", f2d: "4 ポール、24 dB/oct のローパス。各段にサチュレーションがあり、エンファシスは 9 付近で自己発振。鍵盤でカットオフを追従させられます。",
+    f3t: "コンター", f3d: "アタック、ディケイ、サステインを持つ 2 つのコンター（フィルターと音量）。アタックは元の回路と同じ指数カーブ。グライド、LFO、モジュレーションも装備。",
+    f4t: "100 プリセット", f4d: "すべてモノフォニック。ベース、リード、ブラス・ストリングス、鍵盤系、エフェクトに分類。最初の 10 音は多彩なスタイルのショーケース。32 のユーザー枠に保存できます。",
+    f5t: "アルペジエーターとシーケンサー", f5d: "ARP を 1 回押すとオン/オフ、長押しで HOLD。シーケンサーは最大 16 音を録音（REC）して再生（PLAY）。鍵盤の LED が音に合わせて点灯します。",
+    f6t: "プリセットごとのエフェクト", f6d: "リバーブ、ディレイ、コーラス、ドライブ。プリセットごとに異なる組み合わせで、ベース、リード、パッドがそれぞれ違う空間で鳴ります。",
+    h_screens: "画面", l_screens: "FM-1 の画面に合わせてデザインしたパネル。ローレット付きのノブ、赤と青のロッカースイッチ、フィルターとコンターのグラフを備えます。ページを選んでください。",
+    views: [
+      { t: "CTRL · コントローラー", d: "ホームページ。チューン、グライド、モジュレーション量、LFO の速さ。", l: ["4 つのノブ：TUNE、GLIDE、MOD MIX、LFO RATE", "スイッチ：MOD OSC、MOD FLT、GLIDE、LFO SQR"] },
+      { t: "OSC · オシレーターバンク", d: "3 基のオシレーターのオクターブレンジ、波形、デチューン。", l: ["レンジ：LO、32'、16'、8'、4'、2'", "画面のボックスに描かれた 6 種類の波形"] },
+      { t: "MIX · ミキサー", d: "各オシレーターとノイズのレベル。青いスイッチで各音源をオン/オフ。", l: ["OSC 1、OSC 2、OSC 3、NOISE", "各音源に個別のレベルとスイッチ"] },
+      { t: "FILT · フィルター", d: "カットオフ、エンファシス、コンター量、キーボードコントロールと、ラダーフィルターの特性グラフ。", l: ["CUTOFF、EMPHASIS、CONTOUR、KBD CTRL", "24 dB/oct のローパスカーブをグラフ表示"] },
+      { t: "F.ENV · フィルターコンター", d: "フィルターを開閉するコンターのアタック、ディケイ、サステイン、量。", l: ["ノブに合わせて動くエンベロープグラフ", "クラシックなプラック音に向く指数アタック"] },
+      { t: "A.ENV · ラウドネスコンター", d: "音量エンベロープ：アタック、ディケイ、サステイン、出力レベル。", l: ["ATTACK、DECAY、SUSTAIN、LEVEL", "短いパーカッションからゆっくりしたパッドまで"] },
+      { t: "FX · エフェクト", d: "リバーブ、ディレイ、コーラス、ドライブ。エフェクトごとにスイッチがあります。", l: ["プリセットごとにエフェクト設定を保存", "INSERT スイッチでドライブをオン"] },
+    ],
+    pops: [
+      { i: "arp", t: "アルペジエーター", d: "モード、レート、オクターブ、ゲート、HOLD、テンポ。ARP ボタンを押してオン、長押しで HOLD。4 秒後に自動で閉じます。" },
+      { i: "seq", t: "シーケンサー", d: "音符用の 16 スロット。REC で録音待機、PLAY で再生/停止、テンポはエンコーダーで調整。" },
+      { i: "save", t: "プリセット保存", d: "U01〜U32 の枠を選び、エンコーダーで名前を入力して SAVE。作った音色は 100 のファクトリー音色と並びます。" },
+      { i: "glo", t: "グローバル", d: "MIDI 入力（USB、MIDI、すべて）、チャンネル、ピッチベンド幅、MIDI コントロール一覧。" },
+      { i: "cc", t: "MIDI CC 一覧", d: "パネルの 49 のコントロールそれぞれに CC 番号。エンコーダーで変更、またはキーボードから CC を送って学習できます。" },
+      { i: "preset", t: "プリセット切替", d: "プリセットを変えると番号と名前が大きな文字で 1.5 秒表示され、消えます。" },
+    ],
+    h_presets: "プリセット", l_presets: "ベースからエフェクトまで、100 のモノフォニック音色。最初の 10 音がこのシンセの実力を示します。",
+    g_bass: "ベース", g_lead: "リード", g_wind: "ブラス・リード楽器・パッド", g_keys: "鍵盤・プラック", g_fx: "エフェクト", g_user: "ユーザー音色",
+    h_midi: "MIDI とコントロール", l_midi: "FM-1 の鍵盤でも外部コントローラーでも、USB または MIDI 入力で演奏できます。",
+    m1t: "ノートとチャンネル", m1d: "USB 入力、MIDI（TRS）入力、または両方を同時に。チャンネルフィルター（1〜16 またはすべて）付き。",
+    m2t: "ピッチベンドとモジュレーション", m2d: "ピッチベンドは ±2、±12、+2/−12、+2/−24 半音からグローバル画面で選択。モジュレーションホイール（CC 1）に対応。",
+    m3t: "49 の CC コントロール", m3d: "すべてのノブ、スイッチ、波形に変更可能な CC があり、送った CC を FMini-1 が学習します。",
+    h_keys: "FM-1 のボタン",
+    keys: [
+      ["LFO", "CTRL ページを開く。"], ["EDIT", "OSC ページを開く。"], ["SCL", "MIX と FILT を切り替え。"], ["ENV", "F.ENV と A.ENV を切り替え。"],
+      ["FX", "エフェクトページを開く。"], ["GLO", "グローバル設定（MIDI、ベンド、ABOUT）。"], ["ARP", "押すとオン/オフ、長押しで HOLD。"], ["SEQ", "16 音のシーケンサーを開く。"],
+      ["REC", "シーケンサーの録音待機。"], ["PLAY", "シーケンサーの再生/停止。"], ["SAVE", "ユーザープリセットを保存。"], ["HOME", "CTRL に戻り、ボックスを閉じる。"],
+      ["OCT − / +", "鍵盤のオクターブを移動。"], ["K1–K4", "4 つのノブでページのコントロールを編集。"], ["SELECT / ALGO", "カーソル移動と値の変更。"], ["PRESETS", "プリセットエンコーダーで 100 音色を切り替え。"],
+    ],
+    h_install: "インストール", l_install: "インストーラーはこのページ内、ブラウザー上で動き、USB ケーブル経由で FM-1 にファームウェアを書き込みます。いつでも元のファームウェアに戻せます。",
+  },
+};
+for (const l in SITE) Object.assign(TEXT[l], SITE[l]);
+
+const IMG = /*IMGS*/{};
+const VIEW_IMG = ["ctrl", "osc", "mix", "filt", "fenv", "aenv", "fx"], VIEW_TAB = ["CTRL", "OSC", "MIX", "FILT", "F.ENV", "A.ENV", "FX"];
+const PRESET_NAMES = /*PRESETS*/[];
+let viewIdx = 0;
+function drawKnobSkirt() {
+  let d = "";
+  for (let i = 0; i < 96; i++) { const a = i / 96 * Math.PI * 2, r = 23.6 + 1.2 * Math.cos(12 * a); d += (i ? "L" : "M") + (r * Math.sin(a)).toFixed(2) + " " + (-r * Math.cos(a)).toFixed(2); }
+  $("knob-s").setAttribute("d", d + "z");
+}
+function renderView() {
+  const v = TEXT[lang].views[viewIdx];
+  $("v-img").src = IMG[VIEW_IMG[viewIdx]]; $("v-img").alt = v.t;
+  $("v-t").textContent = v.t; $("v-d").textContent = v.d;
+  $("v-l").innerHTML = ""; v.l.forEach((s) => { const li = document.createElement("li"); li.textContent = s; $("v-l").appendChild(li); });
+  [...$("v-tabs").children].forEach((b, i) => b.setAttribute("aria-selected", String(i === viewIdx)));
+}
+function renderSite() {
+  if (!$("v-tabs").children.length) {
+    VIEW_TAB.forEach((n, i) => { const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "tab"); b.textContent = n;
+      b.addEventListener("click", () => { viewIdx = i; renderView(); }); $("v-tabs").appendChild(b); });
+    drawKnobSkirt();
+    PRESET_NAMES.forEach((n, i) => { const li = document.createElement("li"); li.innerHTML = "<b>" + String(i).padStart(2, "0") + "</b>"; li.appendChild(document.createTextNode(n)); $("pl").appendChild(li); });
+  }
+  renderView();
+  $("pops").innerHTML = "";
+  TEXT[lang].pops.forEach((p) => {
+    const f = document.createElement("div"); f.className = "pop";
+    f.innerHTML = '<figure><div class="dev wood"><div class="glass"><img alt=""></div></div><h4></h4><p></p></figure>';
+    f.querySelector("img").src = IMG[p.i]; f.querySelector("img").alt = p.t; f.querySelector("h4").textContent = p.t; f.querySelector("p").textContent = p.d;
+    $("pops").appendChild(f);
+  });
+  $("keys").innerHTML = "";
+  TEXT[lang].keys.forEach(([k, d]) => { const e = document.createElement("div"); e.innerHTML = "<b></b><span></span>"; e.querySelector("b").textContent = k; e.querySelector("span").textContent = d; $("keys").appendChild(e); });
+}
+
+const nl = (navigator.language || "en").toLowerCase();
+let lang = nl.startsWith("pt") ? "pt" : nl.startsWith("ja") ? "ja" : "en";
+const LANGS = ["pt", "en", "ja"];
+const t = (k) => TEXT[lang][k];
+let lastKey = null, lastArg = "";
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach((e) => { e.textContent = t(e.dataset.t); });
+  $("lang").textContent = lang === "pt" ? "PT" : lang === "ja" ? "日本語" : "EN";
+  if (lastKey) $("status").textContent = t(lastKey) + lastArg;
+  renderSite();
+}
+$("lang").addEventListener("click", () => { lang = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length]; applyLang(); });
+applyLang();
+const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $("status").textContent = t(k) + arg; document.body.classList.toggle("bad", ["error","denied","notfound","model","lost","noloader","noreturn","mismatch","badpkg","stopped","loadfail","nomidi"].includes(k)); };
+const say = (txt) => { lastKey = null; $("status").textContent = txt; };
+const log = (t) => { $("log").textContent += t + "\n"; };
+const PHASES = ["verify", "loader", "write", "reboot", "done"];
+function setBar(pct, phase) {
+  pct = Math.max(0, Math.min(100, pct));
+  $("fill").style.width = pct + "%";
+  $("pct").textContent = Math.round(pct) + "%";
+  $("bar").setAttribute("aria-valuenow", String(Math.round(pct)));
+  const at = PHASES.indexOf(phase);
+  document.querySelectorAll("#phases li").forEach((li, i) => {
+    li.classList.toggle("done", at > i || phase === "done");
+    li.classList.toggle("now", at === i && phase !== "done");
+  });
+  document.body.classList.toggle("busy", phase && phase !== "done");
+  document.body.classList.toggle("finished", phase === "done");
+}
+let image = null;
+const meta = /*META*/;
+
+let writing = false, stock = null, stockFileEpoch = 0;
+const lockInstaller = (on) => { writing = on; $("go").disabled = on || !image; $("stock-go").disabled = on || !stock; $("stock-file").disabled = on; $("stock-recovery").disabled = on; };
+window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
+
+(async () => {
+  if (!navigator.requestMIDIAccess) { sayK("nomidi"); return; }
+  try {
+    const r = await fetch(meta.pkg);
+    if (!r.ok) throw new Error(`${meta.pkg}: HTTP ${r.status}`);
+    const pkg = new Uint8Array(await r.arrayBuffer());
+    if (productOf(pkg) !== meta.product) { sayK("badpkg"); return; }
+    image = logicalImage(pkg);
+    say(t("ready"));
+    $("go").disabled = false;
+    setBar(0, null);
+  } catch (e) { sayK("loadfail", e.message); }
+})();
+
+$("go").addEventListener("click", async () => {
+  if (writing) return;
+  lockInstaller(true);
+  let midi;
+  try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (e) { sayK("denied"); lockInstaller(false); return; }
+  try {
+    const up = new Updater(midi, log);
+    const total = 74 + 1167;
+    const step = (k, a) => {
+      log(`${k} ${a ?? ""}`);
+      if (k === "start") sayK("start");
+      if (k === "start") setBar(0, "verify");
+      if (k === "verify") { sayK("verify"); setBar((a / total) * 100, "verify"); }
+      if (k === "loader") { sayK("loader"); setBar(6, "loader"); }
+      if (k === "write") { sayK("write"); setBar(((74 + a) / total) * 100, "write"); }
+      if (k === "reboot") { sayK("reboot"); setBar(99, "reboot"); }
+      if (k === "done") { setBar(100, "done"); sayK("done"); }
+    };
+    const ota = await up.find((id) => /^ota-/i.test(id.model));
+    if (ota) {
+      ota.link.close();
+      sayK((await up.resume(image, step, meta.product)) ? "done" : "stopped");
+    } else {
+      await up.install(image, meta.product, step);
+    }
+  } catch (e) {
+    if (e && e.code && TEXT[lang][e.code]) sayK(e.code, e.detail || "");
+    else sayK("error", e && e.message);
+    log(String(e && e.stack || e));
+  }
+  lockInstaller(false);
+});
+
+$("stock-file").addEventListener("change", async () => {
+  const epoch = ++stockFileEpoch, file = $("stock-file").files[0]; stock = null; lockInstaller(false);
+  if (!file) return;
+  try {
+    if (file.size !== STOCK_V15_SIZE) throw new Error("FM-1 V15 / FM-1.fwsc");
+    const verified = await validateStockPackage(new Uint8Array(await file.arrayBuffer()));
+    if (epoch !== stockFileEpoch) return;
+    stock = verified; sayK("stockValid"); lockInstaller(false);
+  } catch (e) { if (epoch === stockFileEpoch) sayK("stockError", e.message); }
+});
+function saveArchive(archive) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(archive)], {type:"application/json"}));
+  const a = document.createElement("a"); a.href = url; a.download = `Felucca-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function archiveInfo(a) {
+  let pos = a.indexOf(0); if (pos < 0) throw new Error("Invalid INFO");
+  const version = String.fromCharCode(...a.slice(0,pos)); pos++;
+  const engines = a[pos]; pos += 5;
+  for (let i = 0; i < engines; i++) { const end = a.indexOf(0,pos); if (end < 0) throw new Error("Invalid INFO"); pos = end + 1; }
+  const ext = a.slice(pos + 1);
+  const supported = /^FELUCCA /i.test(version) && ext[0] === 16 && ext[1] === 0x55 && ext[2] === 1 &&
+    ext[4] === 0x4d && ext[5] === 1 && ext[8] === 0x42 && ext[9] === 1 && (ext[10] & 1);
+  return {version,supported};
+}
+$("stock-go").addEventListener("click", async () => {
+  if (!stock || writing) return;
+  const selected = stock; lockInstaller(true);
+  let link = null;
+  try {
+    let midi;
+    try { midi = await navigator.requestMIDIAccess({sysex:true}); } catch (e) { sayK("denied"); return; }
+    const up = new Updater(midi, log);
+    const step = (k, n) => { log(`${k} ${n ?? ""}`); if (["start","verify","loader","write","reboot","done"].includes(k)) sayK(k); if (k === "done") setBar(100, "done"); else if (k === "write") setBar(((74 + n) / (74 + 1167)) * 100, "write"); else if (PHASES.includes(k)) setBar(k === "reboot" ? 99 : k === "loader" ? 6 : 0, k); };
+    const loader = await up.find(id => id.model === "ota-FM-1");
+    if (loader) {
+      loader.link.close();
+      if (!$("stock-recovery").checked) { sayK("stockNeedBackup"); return; }
+      if (!confirm(t("stockConfirm"))) return;
+      sayK(await up.resume(selected.image, step, selected.product) ? "done" : "stopped");
+    } else {
+      const device = await up.find(id => id.model === "FM-1");
+      if (!device) { sayK("notfound"); return; }
+      const input = device.link.input, output = device.link.output; device.link.close();
+      link = new BackupConnection(input, output);
+      const info = archiveInfo(await link.request([1,[]]));
+      if (!info.supported) { sayK("stockUnsupported"); return; }
+      const archive = await captureBackup((r,o) => link.request(r,o), info.version,
+        (done,total) => sayK("backup", `${Math.round(done / Math.max(1,total) * 100)}%`));
+      saveArchive(archive); link.close(); link = null;
+      if (!confirm(t("stockConfirm"))) return;
+      await up.install(selected.image, selected.product, step);
+    }
+  } catch (e) {
+    if (e.code && TEXT[lang][e.code]) sayK(e.code,e.detail || ""); else sayK("error",e.message);
+    log(String(e.stack || e));
+  } finally { if (link) link.close(); lockInstaller(false); }
+});
+</script>
+</body>
+</html>
