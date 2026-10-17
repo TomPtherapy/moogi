@@ -187,19 +187,14 @@ int main(int argc, char **argv)
         if (!fm_midi_ok(1, 5) || fm_midi_ok(2, 5) || fm_midi_ok(3, 5)) { printf("src USB\n"); return 1; }
         fm_midi_src = 1;
         if (fm_midi_ok(1, 5) || !fm_midi_ok(2, 5)) { printf("src MIDI\n"); return 1; }
-        fm_midi_src = 2;
-        if (fm_midi_ok(1, 0) || fm_midi_ok(2, 0) || !fm_midi_ok(3, 0)) { printf("src BT\n"); return 1; }
         fm_midi_src = 3;
         if (!fm_midi_ok(1, 0) || !fm_midi_ok(2, 0) || !fm_midi_ok(3, 0)) { printf("src ALL\n"); return 1; }
-        fm_bt = 0;                                       /* BLUETOOTH OFF: the Bluetooth source is never heard, even with ALL */
-        if (!fm_midi_ok(1, 0) || !fm_midi_ok(2, 0) || fm_midi_ok(3, 0)) { printf("bt off\n"); return 1; }
-        fm_bt = 1;
         fm_midi_ch = 3;
         if (!fm_midi_ok(1, 2) || fm_midi_ok(1, 3) || fm_midi_ok(1, 0)) { printf("channel 3\n"); return 1; }
         fm_midi_ch = 0;
         /* the pop-ups */
         fa_page = 1;
-        fa_gl = 1; fa_gl_row = 0; fm_midi_src = 2; fm_bt = 1; ui.force = 1; fa_draw(); dump(dir, 13);
+        fa_gl = 1; fa_gl_row = 0; fm_midi_src = 3; ui.force = 1; fa_draw(); dump(dir, 13);
         fa_gl = 2; fa_cc_i = 20; ui.force = 1; fa_draw(); dump(dir, 14);
         fa_gl = 3; ui.force = 1; fa_draw(); dump(dir, 15);
         fa_gl = 0; fm_midi_src = 3;
@@ -301,8 +296,15 @@ int main(int argc, char **argv)
         trk_note_on(&trk[0], kb_map(&trk[0], 5), 100);
         if (!((fa_sound_keys() >> 5) & 1u)) { printf("key led\n"); return 1; }
         trk_all_off(&trk[0]);
+        fa_gl = 1; fa_gl_row = 0; fm_midi_src = 3;
+        fturn(EN_ALGO, 1);
+        if (fm_midi_src != 3) { printf("src max\n"); return 1; }
+        fturn(EN_ALGO, -1); fturn(EN_ALGO, -1); fturn(EN_ALGO, -1);
+        if (fm_midi_src != 0) { printf("src min\n"); return 1; }
+        fturn(EN_SELECT, -1);
+        if (fa_gl_row != 4) { printf("rows wrap\n"); return 1; }
         /* GLO: PITCH BEND draws at once, ABOUT closes with either encoder */
-        fa_gl = 1; fa_gl_row = 3; fm_bend_mode = 0;
+        fa_gl = 1; fa_gl_row = 2; fm_bend_mode = 0;
         sig = fa_signature();
         fturn(EN_ALGO, 1);
         if (fm_bend_mode != 1 || fa_signature() == sig) { printf("bend redraw\n"); return 1; }

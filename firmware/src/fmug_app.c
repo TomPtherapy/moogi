@@ -556,20 +556,20 @@ static uint32_t fa_sound_keys(void)
 }
 
 /* ----------------------------------------------------------- GLO --- */
-/* GLO opens the global settings pop-up: MIDI IN (USB / MIDI / BLUETOOTH / ALL), CHANNEL (ALL / 1..16), MIDI CC (every
+/* GLO opens the global settings pop-up: MIDI IN (USB / MIDI / ALL), CHANNEL (ALL / 1..16), MIDI CC (every
  * knob, switch and wave box of every screen and the ARP's lines, each with its own CC, 0 = none; a CC sent from the
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.0"
+#define FMINI_VERSION "v1.4.1"
 #define FA_NPG 43u                                        /* the controls of the seven screens (FMG_PAGE: 8+7+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
-static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 MIDI CC, 3 ABOUT */
+static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 PITCH BEND, 3 MIDI CC, 4 ABOUT */
 static uint8_t fa_cc_i;                                   /* the control highlighted in MIDI CC */
 static uint8_t fa_cc[FA_NCC];                             /* its CC, 0 = none */
 static uint8_t fa_cfg_dirty;
-static const char *const FA_SRC[4] = {"USB", "MIDI", "BLUETOOTH", "ALL"};
+static const char *const FA_SRC[3] = {"USB", "MIDI", "ALL"};       /* fm_midi_src 0, 1, 3 (2 was Bluetooth: gone) */
 static const char *const FA_BEND[4] = {"+/-2", "+/-12", "+2/-12", "+2/-24"};
 static const char *const FA_PG_TAG[8] = {"CTRL", "OSC", "MIX", "FILT", "F.ENV", "A.ENV", "FX", "ARP"};
 /* the CC each control answers to out of the box: the usual ones where there is one (5 glide time, 7 volume, 71 emphasis,
@@ -592,10 +592,10 @@ static void fa_cfg_load(void)
     uint32_t i;
     if (*fa_cfg_byte(0) == 0xA7u && *fa_cfg_byte(1) == 0x4Du) {
         uint32_t src = *fa_cfg_byte(2), ch = *fa_cfg_byte(3);
-        fm_midi_src = (uint8_t)(src > 3u ? 3u : src);
+        fm_midi_src = (uint8_t)(src == 0u || src == 1u ? src : 3u);   /* (2 was Bluetooth) */
         fm_midi_ch = (uint8_t)(ch > 16u ? 0u : ch);
         fm_bend_mode = (uint8_t)(*fa_cfg_byte(4u + FA_NCC) & 3u);
-        fm_bt = (uint8_t)(*fa_cfg_byte(5u + FA_NCC) == 2u);   /* 2 = ON; OFF unless chosen (there is no radio driver yet) */
+        fm_bt = 0;
         for (i = 0; i < FA_NCC; i++) {
             uint32_t c = *fa_cfg_byte(4u + i);
             fa_cc[i] = (uint8_t)(fa_cc_valid(c) ? c : FA_CC0[i]);
@@ -621,7 +621,6 @@ static void fa_cfg_save(void)
     for (i = 0; i < FA_NCC; i++)
         *fa_cfg_byte(4u + i) = fa_cc[i];
     *fa_cfg_byte(4u + FA_NCC) = fm_bend_mode;
-    *fa_cfg_byte(5u + FA_NCC) = fm_bt ? 2u : 1u;
     settings_save();                                      /* (deferred while anything plays) */
 }
 static void fa_gl_close(void)
@@ -745,18 +744,15 @@ static void fa_gl_dialog(void)
     char b[24];
     if (fa_gl == 1u) {
         fa_frame("GLOBAL");
-        fa_line(56, "BLUETOOTH", fm_bt ? "ON" : "OFF", fa_gl_row == 0u);
-        fa_line(77, "MIDI IN", FA_SRC[fm_midi_src & 3u], fa_gl_row == 1u);
+        fa_line(62, "MIDI IN", FA_SRC[fm_midi_src == 3u ? 2u : fm_midi_src & 1u], fa_gl_row == 0u);
         if (fm_midi_ch)
             fmt_int(b, fm_midi_ch);
         else
             str_cpy(b, "ALL", 4);
-        fa_line(98, "MIDI CHANNEL", b, fa_gl_row == 2u);
-        fa_line(119, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 3u);
-        fa_line(140, "MIDI CC", ">", fa_gl_row == 4u);
-        fa_line(161, "ABOUT", ">", fa_gl_row == 5u);
-        if (fm_bt)
-            fa_ctext(120, 182, &AF_S, "NO BLUETOOTH DRIVER IN THIS FIRMWARE", FA_RED);
+        fa_line(84, "MIDI CHANNEL", b, fa_gl_row == 1u);
+        fa_line(106, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 2u);
+        fa_line(128, "MIDI CC", ">", fa_gl_row == 3u);
+        fa_line(150, "ABOUT", ">", fa_gl_row == 4u);
         fa_ctext(120, 198, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
     } else {                                              /* MIDI CC: a window of six lines on the list */
         uint32_t top = fa_cc_i < 3u ? 0u : fa_cc_i - 3u, k;
@@ -1180,28 +1176,26 @@ static void fa_input(void)
         (void)panel_enc(EN_PRESET);
         if (fa_gl == 1u) {
             if ((s = panel_enc(EN_SELECT)) != 0)
-                fa_gl_row = (uint8_t)((fa_gl_row + 6u + (s > 0 ? 1u : 5u)) % 6u);
+                fa_gl_row = (uint8_t)((fa_gl_row + 5u + (s > 0 ? 1u : 4u)) % 5u);
             if ((s = panel_enc(EN_ALGO)) != 0) {
                 if (fa_gl_row == 0u) {
-                    fm_bt = (uint8_t)!fm_bt;
-                    panic_req |= 1u;
-                    fa_cfg_dirty = 1;
-                } else if (fa_gl_row == 1u) {
-                    fm_midi_src = (uint8_t)clamp((int32_t)fm_midi_src + (s > 0 ? 1 : -1), 0, 3);
+                    static const uint8_t SRC[3] = {0, 1, 3};
+                    int32_t d = (fm_midi_src == 3u ? 2 : (int32_t)(fm_midi_src & 1u)) + (s > 0 ? 1 : -1);
+                    fm_midi_src = SRC[clamp(d, 0, 2)];
                     panic_req |= 1u;                       /* a note of the source left must not hang */
                     fa_cfg_dirty = 1;
-                } else if (fa_gl_row == 2u) {
+                } else if (fa_gl_row == 1u) {
                     fm_midi_ch = (uint8_t)clamp((int32_t)fm_midi_ch + (s > 0 ? 1 : -1), 0, 16);
                     panic_req |= 1u;
                     fa_cfg_dirty = 1;
-                } else if (fa_gl_row == 3u) {
+                } else if (fa_gl_row == 2u) {
                     uint32_t ch;
                     fm_bend_mode = (uint8_t)clamp((int32_t)fm_bend_mode + (s > 0 ? 1 : -1), 0, 3);
                     for (ch = 0; ch < 16u; ch++)           /* the bend held now follows the new range */
                         midi_expression_channel(ch);
                     fa_cfg_dirty = 1;
                 } else
-                    fa_gl = fa_gl_row == 4u ? 2u : 3u;
+                    fa_gl = fa_gl_row == 3u ? 2u : 3u;
             }
         } else if (fa_gl == 2u) {
             if ((s = panel_enc(EN_SELECT)) != 0)
