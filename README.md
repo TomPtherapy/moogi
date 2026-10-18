@@ -37,7 +37,7 @@
 
 ## 3. Credits
 
-FMini-1 was made by Guilherme Ruppert. It is based on the [Felucca](https://github.com/hugelton/Felucca) project by Leo Kuroshita (Hügelton Instruments).
+FMini-1 was made by Guilherme Ruppert. It is inspired and partially based on the [Felucca](https://github.com/hugelton/Felucca) project by Leo Kuroshita (Hügelton Instruments).
 
 **AI disclaimer:** this project was developed with the assistance of [Claude](https://claude.ai), an AI model by Anthropic.
 
