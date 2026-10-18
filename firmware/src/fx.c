@@ -573,7 +573,7 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
 #if FELUCCA_FMUG_ONLY
     /* FMini-1: RATE only changes the rate. The depth is a fixed, typical pitch swing (about +-16 cents, 25% above the first pick): the delay swing
      * A (samples, half the peak to peak) shrinks as the rate rises (pitch deviation = 2 pi f A / FS), at most +-3.1 ms */
-    cdepth = (int32_t)clamp((int32_t)(6400000u / (cinc ? cinc : 1u)), 2, 137) * 2;
+    cdepth = (int32_t)clamp((int32_t)(6400000u / (cinc ? cinc : 1u)), 2, 137) * 3;
 #endif
     if (pf.ew1 && fb < THR_FB)
         fb += mulq16(THR_FB - fb, (uint32_t)pf.ew1 << 1);   /* ECHO THROW (perform.c): more feedback while held, 0.7
