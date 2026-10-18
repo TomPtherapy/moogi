@@ -7,7 +7,7 @@ name: Installer
 on:
   push:
     branches: [main]
-    paths: ["firmware/**", "web/**", "tools/**", "assets/**", "build.sh", ".github/workflows/installer.yml"]
+    paths: ["firmware/**", "web/**", "tools/**", "assets/**", "build.sh", "docs/emu/**", "docs/fmini-ad*", ".github/workflows/installer.yml"]
   workflow_dispatch:
 
 permissions:
@@ -49,6 +49,8 @@ jobs:
           mkdir -p _site
           python3 web/make_fmug_installer.py build/felucca.fwsc _site/index.html "$VERSION"
           cp build/felucca.fwsc "_site/fmini-1-$VERSION.fwsc"
+          cp docs/fmini-ad.mp4 docs/fmini-ad-poster.jpg _site/
+          cp -r docs/emu _site/emu                 # the browser emulator (web/emu/build_wasi.sh builds docs/emu)
           echo "FMini-1 v$VERSION" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-pages-artifact@v3
