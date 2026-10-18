@@ -77,6 +77,7 @@ static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_
  * values fit a byte (up_to_v4; not a version 1 PHYS sound, whose MODEL 2 means DUST) */
 #define UP_CAT_AT (UP_PMAX * 2u - 1u)
 #define UP_BPM_AT (UP_CAT_AT - 1u)               /* FMini-1: the tempo (BPM, 40..240) a preset was saved with; 0 = none (as every record before) */
+#define UP_OCT_AT (UP_CAT_AT - 6u)               /* FMini-1: the octave (OCT- / OCT+, -3..3) + 4; 0 = none */
 #define UP_FX_AT (UP_CAT_AT - 5u)                /* FMini-1: the FX page's DECAY TIME RATE TONE (G_RSIZE G_DRREV G_CRATE G_DRLVL) + 1; 0 = none */
 static const uint8_t UP_FXG[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL};
 #include "category.c"
@@ -415,6 +416,7 @@ static int up_store_cat(uint32_t k, const char *name, uint32_t cat)
     up_set_cat(&r, cat ? cat : track_cat(TSEL));
 #if FELUCCA_FMUG_ONLY
     r.packed[UP_BPM_AT] = (uint8_t)clamp(song.g[G_BPM], 40, 240);   /* (np = P_COUNT < UP_BPM_AT: no value there) */
+    r.packed[UP_OCT_AT] = (uint8_t)(clamp(song.octave, -3, 3) + 4);
     for (i = 0; i < 4u; i++)
         r.packed[UP_FX_AT + i] = (uint8_t)(clamp(song.g[UP_FXG[i]], 0, 127) + 1);
 #endif
@@ -494,6 +496,8 @@ static int up_load(uint32_t k)
 #if FELUCCA_FMUG_ONLY
     if (r->ver >= 4u && r->np <= UP_BPM_AT && r->packed[UP_BPM_AT] >= 40u && r->packed[UP_BPM_AT] <= 240u)
         song.g[G_BPM] = r->packed[UP_BPM_AT];               /* the preset's tempo */
+    if (r->ver >= 4u && r->np <= UP_OCT_AT && r->packed[UP_OCT_AT] >= 1u && r->packed[UP_OCT_AT] <= 7u)
+        song.octave = (int8_t)((int)r->packed[UP_OCT_AT] - 4);   /* its octave */
     if (r->ver >= 4u && r->np <= UP_FX_AT)
         for (i = 0; i < 4u; i++)
             if (r->packed[UP_FX_AT + i] >= 1u && r->packed[UP_FX_AT + i] <= 128u)

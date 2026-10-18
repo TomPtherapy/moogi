@@ -161,6 +161,7 @@ int main(int argc, char **argv)
         apply_preset_to(TSEL, 2);
         TSEL->p[P_AMODE] = 3; TSEL->p[P_ARATE] = 4; TSEL->p[P_AOCT] = 3; TSEL->p[P_AGATE] = 90; TSEL->p[P_AHOLD] = 1;
         song.g[G_BPM] = 93;
+        song.octave = -2;
         song.g[G_RSIZE] = 11; song.g[G_DRREV] = 0; song.g[G_CRATE] = 100; song.g[G_DRLVL] = 127;
         fa_sv_open();
         fa_sv_slot = 1;
@@ -168,11 +169,13 @@ int main(int argc, char **argv)
         fa_sv_do();
         apply_preset_to(TSEL, 4);
         song.g[G_BPM] = 150;
+        song.octave = 3;
         song.g[G_RSIZE] = 50; song.g[G_DRREV] = 50; song.g[G_CRATE] = 50; song.g[G_DRLVL] = 50;
         if (TSEL->p[P_AMODE] != 0 || TSEL->p[P_AHOLD] != 0) { printf("arp: a factory patch leaves the ARP on\n"); return 1; }
         fa_preset(1);                                   /* the next factory patch: the FX page's defaults */
         if (fa_on_user() || song.g[G_RSIZE] != GP[G_RSIZE].def || song.g[G_DRLVL] != GP[G_DRLVL].def) { printf("fx: factory patch keeps the FX settings\n"); return 1; }
         up_load(1);
+        if (song.octave != -2) { printf("octave: preset load -> %d\n", song.octave); return 1; }
         if (song.g[G_RSIZE] != 11 || song.g[G_DRREV] != 0 || song.g[G_CRATE] != 100 || song.g[G_DRLVL] != 127) {
             printf("fx: preset load: %d %d %d %d\n", song.g[G_RSIZE], song.g[G_DRREV], song.g[G_CRATE], song.g[G_DRLVL]);
             return 1;
@@ -186,6 +189,7 @@ int main(int argc, char **argv)
         up_load(0);                                     /* the first saved patch has its own (ARP off, its tempo) */
         TSEL->p[P_AMODE] = 0; TSEL->p[P_AHOLD] = 0; TSEL->p[P_ARATE] = TP[P_ARATE].def; TSEL->p[P_AOCT] = 1; TSEL->p[P_AGATE] = TP[P_AGATE].def;
         song.g[G_BPM] = bpm0;
+        song.octave = 0;
         apply_preset_to(TSEL, 0);
         TSEL->user = 0;
     }
