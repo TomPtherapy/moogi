@@ -446,5 +446,38 @@ int main(int argc, char **argv)
             fmug_block(t0);
         }
     }
+    {   /* the loudness contour is a Minimoog's ADS: the DECAY knob is the decay and the release; SUSTAIN clamps it */
+        track_t *t0 = &trk[0];
+        voice_t vv;
+        int32_t rel[2], dec_ticks[2], dq, rr;
+        for (dq = 0; dq < 2; dq++) {
+            for (rr = 0; rr < 2; rr++) {
+                int n = 0, nd = 0;
+                memset(&vv, 0, sizeof vv);
+                t0->p[P_ATK] = 40;
+                t0->p[P_DEC] = dq ? 90 : 60;
+                t0->p[P_SUS] = 64;
+                t0->p[P_REL] = rr ? 127 : 0;                 /* no longer matters */
+                esync_coef(t0);
+                vv.stage = 1;
+                while (vv.stage == 1 && n++ < 100000) env_tick(t0, &vv);
+                if (vv.stage != 2) { printf("adsr: attack never ends\n"); return 1; }
+                while (vv.env > ((int32_t)t0->p[P_SUS] << 17) && nd++ < 100000) env_tick(t0, &vv);
+                if (nd >= 100000 || vv.env != ((int32_t)t0->p[P_SUS] << 17)) { printf("adsr: decay does not land on the sustain (%d)\n", (int)vv.env); return 1; }
+                { int hold; for (hold = 0; hold < 50; hold++) env_tick(t0, &vv);
+                  if (vv.env != ((int32_t)t0->p[P_SUS] << 17)) { printf("adsr: sustain drifts\n"); return 1; } }
+                vv.stage = 3;
+                n = 0;
+                vv.active = 1;
+                while (vv.active && n < 200000) { env_tick(t0, &vv); n++; }
+                if (rr == 0) { rel[dq] = n; dec_ticks[dq] = nd; }
+                else if (n != rel[dq]) { printf("adsr: the REL param still changes the release (%d vs %d)\n", n, (int)rel[dq]); return 1; }
+            }
+        }
+        if (!(rel[1] > rel[0] * 2) || !(dec_ticks[1] > dec_ticks[0] * 2)) {
+            printf("adsr: DECAY must set both: release %d/%d decay %d/%d\n", (int)rel[0], (int)rel[1], (int)dec_ticks[0], (int)dec_ticks[1]);
+            return 1;
+        }
+    }
     return 0;
 }

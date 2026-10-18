@@ -312,7 +312,9 @@ static int32_t fmug_contour(const int16_t *p, voice_t *v)
         }
         break;
     case 2:
-        e += mulq16(sus - e, (uint32_t)k);
+        e -= mulq16(e, (uint32_t)k);                        /* the DECAY time discharges toward 0; the SUSTAIN level is a clamp */
+        if (e < sus)
+            e = sus;
         break;
     case 3:
         e -= mulq16(e, (uint32_t)k);

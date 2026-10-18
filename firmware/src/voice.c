@@ -588,17 +588,34 @@ static int32_t env_tick(track_t *t, voice_t *v)
     int32_t sus = (int32_t)p[P_SUS] << 17;              /* Q24 */
     switch (v->stage) {
     case 1:
+#if FELUCCA_FMUG_ONLY
+        {   /* the Minimoog's capacitor charges toward a level above full (a concave rise ending in a corner), like the filter's */
+            int32_t d = (int32_t)(((int64_t)((5 << 22) - v->env) * (int32_t)(T_ESYNC(t)[0] >> 1) * 824) >> 32);
+            v->env += d < 1 ? 1 : d;
+        }
+#else
         v->env += (int32_t)T_ESYNC(t)[0];                  /* ATK's step (esync_coef: the table's, or ENV SYNC's) */
+#endif
         if (v->env >= (1 << 24)) {
             v->env = 1 << 24;
             v->stage = 2;
         }
         break;
     case 2:
+#if FELUCCA_FMUG_ONLY
+        v->env -= mulq16(v->env, T_ESYNC(t)[1]);        /* the Minimoog: the DECAY time discharges toward 0, the SUSTAIN level is a clamp */
+        if (v->env < sus)
+            v->env = sus;
+#else
         v->env += mulq16(sus - v->env, T_ESYNC(t)[1]);
+#endif
         break;
     case 3:
+#if FELUCCA_FMUG_ONLY
+        v->env -= mulq16(v->env, T_ESYNC(t)[1]);        /* the DECAY knob is also the release time (no REL knob) */
+#else
         v->env -= mulq16(v->env, T_ESYNC(t)[2]);
+#endif
         if (v->env < (1 << 12)) {
             v->env = 0;
             v->stage = 0;
