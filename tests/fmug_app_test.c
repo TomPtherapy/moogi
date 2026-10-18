@@ -399,10 +399,20 @@ int main(int argc, char **argv)
                 { uint32_t g0 = fa_signature(); song.g[GID[q]] ^= 8; if (fa_signature() == g0) { printf("FX fader %u: no redraw\n", q); return 1; } song.g[GID[q]] ^= 8; }
             }
         }
-        fpress(B_SCL);                                   /* SCL: MIX, then FILT */
+        fpress(B_SCL);                                   /* SCL: OSC, then MIX, then OSC */
+        if (fa_page != 1) { printf("SCL -> OSC (%d)\n", fa_page); return 1; }
+        fpress(B_SCL);
         if (fa_page != 2) { printf("SCL -> MIX (%d)\n", fa_page); return 1; }
         fpress(B_SCL);
-        if (fa_page != 3) { printf("SCL -> FILT (%d)\n", fa_page); return 1; }
+        if (fa_page != 1) { printf("SCL -> OSC again (%d)\n", fa_page); return 1; }
+        fpress(B_EDIT);                                  /* EDIT: FILT */
+        if (fa_page != 3) { printf("EDIT -> FILT (%d)\n", fa_page); return 1; }
+        fpress(B_LFO);                                   /* LFO and HOME: CTRL, both lit */
+        fa_leds();
+        if (fa_page != 0) { printf("LFO -> CTRL (%d)\n", fa_page); return 1; }
+        fpress(B_SCL);
+        fpress(B_HOME);
+        if (fa_page != 0) { printf("HOME -> CTRL (%d)\n", fa_page); return 1; }
     }
     printf("fmug_app_test: ok\n");
     return 0;
