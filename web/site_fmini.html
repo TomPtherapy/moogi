@@ -94,6 +94,7 @@
 
   /* sections */
   section.s { padding: 104px 0 0; }
+  video.adv { display: block; width: 100%; margin-top: 28px; border-radius: 16px; border: 1px solid var(--line); background: #000; }
   .eyebrow { font: 600 12.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--or); margin: 0 0 14px; }
   h2 { margin: 0; font-size: clamp(30px, 5vw, 46px); line-height: 1.08; letter-spacing: -.03em; font-weight: 800; max-width: 760px; }
   .lead { margin: 16px 0 0; color: var(--dim); max-width: 700px; font-size: 18px; }
@@ -247,6 +248,12 @@
       </div>
       <div class="hint" id="hint" aria-hidden="true"><span data-t="hint"></span><i></i></div>
     </div>
+  </section>
+
+  <section class="s wrap" id="video">
+    <p class="eyebrow" data-t="e_video"></p>
+    <h2 data-t="h_video"></h2>
+    <video class="adv" controls playsinline preload="metadata" poster="fmini-ad-poster.jpg"><source src="fmini-ad.mp4" type="video/mp4"></video>
   </section>
 
   <section class="s wrap" id="features">
@@ -632,9 +639,9 @@ const SITE3 = {
 };
 for (const l in SITE3) Object.assign(TEXT[l], SITE3[l]);
 const SITE4 = {
-  pt: { cr_made: "O FMini-1 foi feito por Guilherme Ruppert, com base no projeto", cr_made2: ", de Leo Kuroshita (Hügelton Instruments).", cr_ai: "Aviso sobre IA: este projeto foi realizado com o auxílio do Claude, um modelo de IA da Anthropic." },
-  en: { cr_made: "FMini-1 was made by Guilherme Ruppert, based on the", cr_made2: " project by Leo Kuroshita (Hügelton Instruments).", cr_ai: "AI disclaimer: this project was developed with the assistance of Claude, an AI model by Anthropic." },
-  ja: { cr_made: "FMini-1 は Guilherme Ruppert が制作しました。ベースは", cr_made2: "（Leo Kuroshita / Hügelton Instruments）です。", cr_ai: "AI に関する注記：このプロジェクトは Anthropic の AI モデル Claude の支援を受けて作成されました。" },
+  pt: { e_video: "Vídeo", h_video: "Veja o FMini-1 em ação", cr_made: "O FMini-1 foi feito por Guilherme Ruppert, com base no projeto", cr_made2: ", de Leo Kuroshita (Hügelton Instruments).", cr_ai: "Aviso sobre IA: este projeto foi realizado com o auxílio do Claude, um modelo de IA da Anthropic." },
+  en: { e_video: "Video", h_video: "See FMini-1 in action", cr_made: "FMini-1 was made by Guilherme Ruppert, based on the", cr_made2: " project by Leo Kuroshita (Hügelton Instruments).", cr_ai: "AI disclaimer: this project was developed with the assistance of Claude, an AI model by Anthropic." },
+  ja: { e_video: "ビデオ", h_video: "FMini-1 をチェック", cr_made: "FMini-1 は Guilherme Ruppert が制作しました。ベースは", cr_made2: "（Leo Kuroshita / Hügelton Instruments）です。", cr_ai: "AI に関する注記：このプロジェクトは Anthropic の AI モデル Claude の支援を受けて作成されました。" },
 };
 for (const l in SITE4) Object.assign(TEXT[l], SITE4[l]);
 

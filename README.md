@@ -7,6 +7,14 @@
   Moogs: a 24 dB/octave ladder filter, two contours, 100 factory patches, an arpeggiator, a sequencer and MIDI.
 </p>
 
+<p align="center">
+  <video src="docs/fmini-ad.mp4" poster="docs/fmini-ad-poster.jpg" controls width="100%"></video>
+</p>
+
+<p align="center">
+  <a href="docs/fmini-ad.mp4">▶ Watch the video (30 s)</a>
+</p>
+
 ## 1. Screenshots
 
 <p align="center">
