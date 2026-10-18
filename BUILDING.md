@@ -104,6 +104,10 @@ keeps the flash's storage sectors (projects, user presets, settings) in the brow
 MIDI out, the editor, updates), TRS MIDI and the user sample slots. A build of it is on the site:
 <https://hugelton.github.io/Felucca/webapp/try/>.
 
+FMini-1's browser build (`docs/emu/`, linked from the site; firmware = `FELUCCA_FMUG_ONLY`) needs no Emscripten:
+`WASI_SDK=/path/to/wasi-sdk web/emu/build_wasi.sh` compiles the same `felucca_web.c` with wasi-sdk
+(`web/emu/wasi_shim/` stubs the few POSIX headers) into an import-free reactor module.
+
 ## Tests
 
 ```
