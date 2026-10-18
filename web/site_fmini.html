@@ -722,17 +722,20 @@ function setBar(pct, phase) {
   document.body.classList.toggle("busy", phase && phase !== "done");
   document.body.classList.toggle("finished", phase === "done");
 }
-// the write phase: the requests take the bar from 6 % to 78 %; then, while the device finishes (it programs and checks the
-// flash after the last block), +1 % every 0.7 s up to 99 %; 100 % only when the device is back (the "done" step)
-let crawl = null, wLast = 0, wTick = 0, wPct = 6;
+// the write phase: the requests take the bar from 6 % to 78 %; from there (the last block, or no request for 1.5 s) +1 %
+// every 0.7 s up to 99 % while the device finishes, whatever it still asks for; 100 % only when the device is back
+let crawl = null, wLast = 0, wTick = 0, wPct = 6, wCap = false;
 function writeBar(n) {
-  wLast = wTick = Date.now();
-  wPct = 6 + 72 * Math.min(1, n / 1167);
+  const now = Date.now();
+  if (!crawl) { wPct = 6; wCap = false; wTick = now; }
+  wLast = now;
+  wCap = wCap || n >= 1167;
+  wPct = Math.max(wPct, 6 + 72 * Math.min(1, n / 1167));
   setBar(wPct, "write");
   if (!crawl) crawl = setInterval(() => {
-    const now = Date.now();
+    const t = Date.now();
     if (!writing) { stopCrawl(); return; }
-    if (now - wLast > 1500 && now - wTick >= 700 && wPct < 99) { wTick = now; wPct = Math.min(99, wPct + 1); setBar(wPct, "write"); }
+    if ((wCap || t - wLast > 1500) && t - wTick >= 700 && wPct < 99) { wTick = t; wPct = Math.min(99, wPct + 1); setBar(wPct, "write"); }
   }, 100);
 }
 function stopCrawl() { if (crawl) clearInterval(crawl); crawl = null; }
