@@ -722,6 +722,19 @@ function setBar(pct, phase) {
   document.body.classList.toggle("busy", phase && phase !== "done");
   document.body.classList.toggle("finished", phase === "done");
 }
+// the write phase: the requests take the bar from 6 % to 78 %, then the device's own finishing work (it programs and
+// checks the flash after the last block, ~25 s) crawls it on towards 98 %; the reboot step takes it to 99 %
+let crawl = null, wLast = 0, wPct = 6;
+function writeBar(n) {
+  wLast = Date.now();
+  wPct = 6 + 72 * Math.min(1, n / 1167);
+  setBar(wPct, "write");
+  if (!crawl) crawl = setInterval(() => {
+    if (!writing) { stopCrawl(); return; }
+    if (Date.now() - wLast > 1500) { wPct += (98 - wPct) * 0.02; setBar(wPct, "write"); }
+  }, 250);
+}
+function stopCrawl() { if (crawl) clearInterval(crawl); crawl = null; }
 let image = null;
 const meta = /*META*/;
 
@@ -758,9 +771,9 @@ $("go").addEventListener("click", async () => {
       if (k === "start") setBar(0, "verify");
       if (k === "verify") { sayK("verify"); setBar((a / total) * 100, "verify"); }
       if (k === "loader") { sayK("loader"); setBar(6, "loader"); }
-      if (k === "write") { sayK("write"); setBar(((74 + a) / total) * 100, "write"); }
-      if (k === "reboot") { sayK("reboot"); setBar(99, "reboot"); }
-      if (k === "done") { setBar(100, "done"); sayK("done"); }
+      if (k === "write") { sayK("write"); writeBar(a); }
+      if (k === "reboot") { stopCrawl(); sayK("reboot"); setBar(99, "reboot"); }
+      if (k === "done") { stopCrawl(); setBar(100, "done"); sayK("done"); }
     };
     const ota = await up.find((id) => /^ota-/i.test(id.model));
     if (ota) {
@@ -810,7 +823,7 @@ $("stock-go").addEventListener("click", async () => {
     let midi;
     try { midi = await navigator.requestMIDIAccess({sysex:true}); } catch (e) { sayK("denied"); return; }
     const up = new Updater(midi, log);
-    const step = (k, n) => { log(`${k} ${n ?? ""}`); if (["start","verify","loader","write","reboot","done"].includes(k)) sayK(k); if (k === "done") setBar(100, "done"); else if (k === "write") setBar(((74 + n) / (74 + 1167)) * 100, "write"); else if (PHASES.includes(k)) setBar(k === "reboot" ? 99 : k === "loader" ? 6 : 0, k); };
+    const step = (k, n) => { log(`${k} ${n ?? ""}`); if (["start","verify","loader","write","reboot","done"].includes(k)) sayK(k); if (k === "reboot" || k === "done") stopCrawl(); if (k === "done") setBar(100, "done"); else if (k === "write") writeBar(n); else if (PHASES.includes(k)) setBar(k === "reboot" ? 99 : k === "loader" ? 6 : 0, k); };
     const loader = await up.find(id => id.model === "ota-FM-1");
     if (loader) {
       loader.link.close();
