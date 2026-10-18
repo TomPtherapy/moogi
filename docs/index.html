@@ -59,8 +59,8 @@
 
 
   /* hero: the Minimoog beside the title, then it shrinks into the FM-1's screen as the page scrolls */
-  .hero2 { position: relative; height: calc((100svh - 60px) * 3.3); }
-  .stage { position: sticky; top: 60px; height: calc(100svh - 60px); overflow: hidden; }
+  .hero2 { position: relative; height: calc(100svh - 60px); }
+  .stage { position: relative; height: 100%; overflow: hidden; }
   .copy1 { position: absolute; z-index: 3; left: max(24px, calc((100% - 1032px) / 2)); top: 50%; transform: translateY(-50%); width: min(500px, 46%); will-change: opacity, transform; }
   .kick { margin: 0 0 18px; font: 500 13px/1.4 var(--mono); color: var(--dim); }
   .kick .ver { display: inline-block; margin-left: 8px; font: 700 11.5px/1 var(--mono); background: var(--or); color: #1a0e05; border-radius: 4px; padding: 4px 6px; }
@@ -89,7 +89,6 @@
     .copy1 .tag { margin-top: 12px; font-size: 19px; }
     .copy1 .cta { margin-top: 18px; }
   }
-  body.rm .hero2 { height: calc(100svh - 60px); }
   body.rm .hint { display: none; }
 
   /* sections */
@@ -1483,13 +1482,13 @@ $("stock-go").addEventListener("click", async () => {
   const hero = $("top"), stage = $("stage"), mm = $("mm"), fm = $("fm"), lcd = $("lcd"), copy1 = $("copy1"), copy2 = $("copy2"), hint = $("hint");
   const A = $("lcd-a"), B = $("lcd-b");
   $("fm-body").src = IMG.fm1;
-  const ROT = ["splash", "ctrl", "osc", "mix", "filt", "fenv", "aenv", "fx", "arp", "seq", "glo", "preset"];
+  const ROT = ["splash", "ctrl", "osc", "mix", "filt", "fenv", "aenv", "fx"];
   const rm = matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (rm) document.body.classList.add("rm");
   A.src = IMG.splash; A.style.opacity = 1; B.style.opacity = 0;
   const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
   const ease = (x) => x * x * (3 - 2 * x);
-  let W = 0, H = 0, fmW = 0, fmH = 0, fmX = 0, fmY = 0, mmW0 = 0, mmX0 = 0, mmY0 = 0, p = -1, rot = 0, rotAt = 0;
+  let prog = 0, W = 0, H = 0, fmW = 0, fmH = 0, fmX = 0, fmY = 0, mmW0 = 0, mmX0 = 0, mmY0 = 0, p = -1, rot = 0, rotAt = 0;
   const MR = 452 / 900, FR = 512 / 859;
   function layout() {
     W = stage.clientWidth; H = stage.clientHeight;
@@ -1501,11 +1500,10 @@ $("stock-go").addEventListener("click", async () => {
     mmW0 = mob ? W * 1.5 : Math.min(W * 0.98, 1500);
     mmX0 = mob ? -W * 0.2 : Math.max(W * 0.5, W - 1.0 * mmW0 * 0.62);
     mmY0 = mob ? H * 0.52 : (H - mmW0 * MR) / 2;
-    p = -1; draw();
+    p = -1; draw(prog);
   }
-  function draw() {
-    const r = hero.getBoundingClientRect(), span = hero.offsetHeight - stage.clientHeight;
-    const np = rm ? 1 : clamp((-(r.top - 60)) / Math.max(1, span));
+  function draw(np) {
+    if (np === undefined) np = p < 0 ? prog : p;
     if (Math.abs(np - p) < 0.0004) return;
     p = np;
     const q = ease(clamp((p - 0.08) / 0.72));
@@ -1530,17 +1528,47 @@ $("stock-go").addEventListener("click", async () => {
     copy2.style.pointerEvents = p > 0.9 ? "auto" : "none";
     hint.style.opacity = 1 - clamp(p / 0.05);
   }
-  let busy = false;
-  const tick = () => { busy = false; draw(); };
-  addEventListener("scroll", () => { if (!busy) { busy = true; requestAnimationFrame(tick); } }, { passive: true });
+  /* the first scroll down starts the film; it then plays by itself, and the page is held until the end */
+  const DUR = 4200;
+  if (rm) prog = 1;
+  let state = rm ? 2 : 0, t0 = 0;                 /* 0 waiting, 1 playing, 2 done */
+  const hold = (e) => { if (state === 1) e.preventDefault(); };
+  function finish() {
+    state = 2; prog = 1; draw(1); rotAt = performance.now();
+    removeEventListener("wheel", onWheel); removeEventListener("touchstart", onTouch); removeEventListener("keydown", onKey); removeEventListener("touchmove", onMove);
+  }
+  function frame(now) {
+    if (state !== 1) return;
+    const x = clamp((now - t0) / DUR);
+    prog = x; draw(x);
+    if (x >= 1) finish(); else requestAnimationFrame(frame);
+  }
+  function start() {
+    if (state !== 0) return;
+    state = 1; t0 = performance.now(); scrollTo({ top: 0, behavior: "instant" });
+    requestAnimationFrame(frame);
+  }
+  const onWheel = (e) => { if (state === 0 && e.deltaY > 0 && scrollY < 8) { e.preventDefault(); start(); } else hold(e); };
+  let ty = 0;
+  const onTouch = (e) => { ty = e.touches[0].clientY; };
+  const onMove = (e) => { if (state === 0 && scrollY < 8 && ty - e.touches[0].clientY > 8) { e.preventDefault(); start(); } else hold(e); };
+  const onKey = (e) => { if (["ArrowDown", "PageDown", " ", "End"].includes(e.key) && state < 2 && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) { e.preventDefault(); start(); } };
+  addEventListener("wheel", onWheel, { passive: false });
+  addEventListener("touchstart", onTouch, { passive: true });
+  addEventListener("touchmove", onMove, { passive: false });
+  addEventListener("keydown", onKey);
+  addEventListener("scroll", () => { if (state === 0 && scrollY > 8) start(); else if (state === 1 && scrollY > 0) scrollTo({ top: 0, behavior: "instant" }); }, { passive: true });
+  document.querySelectorAll('a[href^="#"]').forEach((a) => a.addEventListener("click", () => { if (state < 2) finish(); }));
   addEventListener("resize", layout);
+  if (!rm && location.hash.length > 1 || scrollY > 40) { state = 2; prog = 1; }   /* a reload further down, or a link to a section: the finished picture */
   /* the finished FM-1 shows the real screens, one after the other */
   function show(i) {
     const on = A.style.opacity === "1" ? A : B, off = on === A ? B : A;
     off.src = IMG[ROT[i]]; off.style.opacity = 1; on.style.opacity = 0;
   }
-  lcd.addEventListener("click", () => { rot = (rot + 1) % ROT.length; show(rot); rotAt = performance.now(); });
-  if (!rm) setInterval(() => { if (p > 0.95 && performance.now() - rotAt > 2400) { rot = (rot + 1) % ROT.length; show(rot); rotAt = performance.now(); } }, 400);
+  const next = () => { rot = rot + 1 >= ROT.length ? 1 : rot + 1; show(rot); rotAt = performance.now(); };
+  lcd.addEventListener("click", next);
+  if (!rm) setInterval(() => { if (state === 2 && performance.now() - rotAt >= 1000) next(); }, 100);
   layout();
 })();
 </script>
