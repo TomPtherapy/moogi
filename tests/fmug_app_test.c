@@ -314,6 +314,21 @@ int main(int argc, char **argv)
         fa_gl = 3; fturn(EN_SELECT, 1);
         if (fa_gl != 1) { printf("about SELECT\n"); return 1; }
         fa_gl = 0;
+        {   /* FX: the cursor walks onto DECAY / TIME / RATE / TONE and ALGORITHM changes each global */
+            static const uint8_t GID[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL};
+            uint32_t q;
+            fa_ar = 0; fa_page = 6; fmg_cur[6] = 3;
+            for (q = 0; q < 4u; q++) {
+                int16_t b4;
+                fturn(EN_SELECT, 1); fframes(64);
+                if (fmg_cur[6] != 4u + q) { printf("FX cursor %u -> %u\n", q, fmg_cur[6]); return 1; }
+                song.g[GID[q]] = GP[GID[q]].def; b4 = song.g[GID[q]];
+                fturn(EN_ALGO, 1); fframes(64);
+                fturn(EN_ALGO, 1); fframes(64);
+                if (song.g[GID[q]] == b4) { printf("FX knob %u does not move (%d)\n", q, b4); return 1; }
+                { uint32_t g0 = fa_signature(); song.g[GID[q]] ^= 8; if (fa_signature() == g0) { printf("FX fader %u: no redraw\n", q); return 1; } song.g[GID[q]] ^= 8; }
+            }
+        }
         fpress(B_SCL);                                   /* SCL: MIX, then FILT */
         if (fa_page != 2) { printf("SCL -> MIX (%d)\n", fa_page); return 1; }
         fpress(B_SCL);
