@@ -23,4 +23,8 @@
   <img src="assets/readme/screen-seq.png" alt="SEQ pop-up" width="23%">
 </p>
 
+## 2. Installation
+
+<https://ruppert.github.io/fmini-1/>
+
 <p align="center"><sub>Based on <a href="https://github.com/hugelton/Felucca">Felucca</a> by Leo Kuroshita · <a href="LICENSE">GPL-3.0-only</a></sub></p>
