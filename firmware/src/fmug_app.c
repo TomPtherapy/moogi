@@ -238,14 +238,14 @@ static void fa_voices(int hot)
 {
     int poly = TSEL->p[P_VOICE] == V_POLY;
     int32_t x = 60, y = 184;
-    const uint16_t dk = FA_RGB(0x0D, 0x0C, 0x0B), ink = FA_RGB(0x1A, 0x0F, 0x06);
+    const uint16_t dk = FA_RGB(0x0D, 0x0C, 0x0B), ink = FA_RGB(0x1A, 0x0F, 0x06), bg = FA_RGB(0xD9, 0xD2, 0xC0);   /* beige */
     if (hot)
         cv_frame(x - 2, y - 2, 124, 19, FA_OR);
     cv_rect(x, y, 120, 15, FA_RGB(0x4A, 0x44, 0x3D));
     cv_rect(x + 1, y + 1, 118, 13, dk);
-    cv_rect(poly ? x + 60 : x + 1, y + 1, 59, 13, FA_OR);
-    cv_text_on(x + 30 - text_w(&AF_X, "MONO") / 2, y + 2 - fa_cap_y(&AF_X), &AF_X, "MONO", poly ? FA_MU : ink, poly ? dk : FA_OR);
-    cv_text_on(x + 90 - text_w(&AF_X, "POLY") / 2, y + 2 - fa_cap_y(&AF_X), &AF_X, "POLY", poly ? ink : FA_MU, poly ? FA_OR : dk);
+    cv_rect(poly ? x + 60 : x + 1, y + 1, 59, 13, bg);
+    cv_text_on(x + 30 - text_w(&AF_X, "MONO") / 2, y + 2 - fa_cap_y(&AF_X), &AF_X, "MONO", poly ? FA_MU : ink, poly ? dk : bg);
+    cv_text_on(x + 90 - text_w(&AF_X, "POLY") / 2, y + 2 - fa_cap_y(&AF_X), &AF_X, "POLY", poly ? ink : FA_MU, poly ? bg : dk);
 }
 
 static void fa_graph(uint32_t pg)
@@ -682,7 +682,7 @@ static uint32_t fa_sound_keys(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.14"
+#define FMINI_VERSION "v1.4.15"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */

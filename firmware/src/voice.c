@@ -271,6 +271,12 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
     return voice_reuse(t, &t->v[best == np ? 0 : best]);
 }
 
+#if FELUCCA_FMUG_ONLY
+static uint8_t gl_phase[NTRK];                          /* blocks rendered, per part (the glide's third) */
+#endif
+#if FELUCCA_FMUG_ONLY
+static uint8_t glide_blk[NTRK];                         /* per part: the blocks rendered (voice_render) */
+#endif
 /* glide: RATE = a fixed speed, TIME = the same time for any interval */
 static void glide_set(track_t *t, voice_t *v, int glide)
 {
@@ -699,6 +705,12 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     track_lfo_tick(t);
 #endif
     esync_coef(t);                                      /* this block's envelope steps for env_tick (ENV SYNC) */
+#if FELUCCA_FMUG_ONLY
+    glide_blk[t - trk]++;                               /* FMini-1: the glide moves every third block (3x slower) */
+#endif
+#if FELUCCA_FMUG_ONLY
+    gl_phase[(uint32_t)(t - trk) % NTRK]++;                           /* FMini-1: the glide moves every third block (3 times slower) */
+#endif
     if (e->block)                                       /* the engine's per-part work (WHEEL: bars, rotor) */
         e->block(t);
     for (i = 0; i < NVOICE; i++) {
@@ -730,7 +742,15 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             m.amp0 = v->env_out;
             v->env_out = m.amp1;
         }
+#if FELUCCA_FMUG_ONLY
+        if (v->pitch_cur != v->pitch16 && gl_phase[(uint32_t)(t - trk) % NTRK] % 3u == 0u) {   /* glide */
+#else
+#if FELUCCA_FMUG_ONLY
+        if (v->pitch_cur != v->pitch16 && glide_blk[t - trk] % 3u == 0u) {   /* glide */
+#else
         if (v->pitch_cur != v->pitch16) {               /* glide */
+#endif
+#endif
             int32_t d = v->pitch16 - v->pitch_cur;
             int32_t st = v->gstep ? v->gstep : (int32_t)(ENV_LIN[(p[P_GLIDE] ? p[P_GLIDE] : 40) & 127] >> 14);   /* slide: ~45 ms */
             if (st < 1)
