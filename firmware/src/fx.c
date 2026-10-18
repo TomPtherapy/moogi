@@ -570,6 +570,11 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     int32_t dmix = song.g[G_DMIX] * 258;
     int32_t cdepth = song.g[G_CDEPTH] * 6, rt;
     uint32_t cinc = LFO_INC[song.g[G_CRATE] & 127] / CTL;
+#if FELUCCA_FMUG_ONLY
+    /* FMini-1: RATE only changes the rate. The depth is a fixed, typical pitch swing (about +-13 cents): the delay swing
+     * A (samples, half the peak to peak) shrinks as the rate rises (pitch deviation = 2 pi f A / FS), at most +-2.5 ms */
+    cdepth = (int32_t)clamp((int32_t)(5120000u / (cinc ? cinc : 1u)), 2, 110) * 2;
+#endif
     if (pf.ew1 && fb < THR_FB)
         fb += mulq16(THR_FB - fb, (uint32_t)pf.ew1 << 1);   /* ECHO THROW (perform.c): more feedback while held, 0.7
                                                              * at most (the loop's gain below 1: it never runs away) */
