@@ -15,7 +15,7 @@ static void ml_knob(const track_t *t, uint32_t id);              /* (midi_learn.
 static uint8_t fmg_gdirty;                                        /* a global (FK_GLB) changed: fmug_app.c saves it */
 static uint8_t fmg_cur[7];                                        /* the cursor of each page: 0..3 the knobs, 4.. extras */
 
-enum { FK_BYTE, FK_PAR, FK_SW, FK_NAME, FK_GLIDE, FK_BYP, FK_INS, FK_GLB };   /* FK_BYP: a send's on / off (its value kept aside); FK_INS: the INSERT */
+enum { FK_BYTE, FK_PAR, FK_SW, FK_NAME, FK_GLIDE, FK_BYP, FK_INS, FK_GLB, FK_VOICE };   /* FK_BYP: a send's on / off (its value kept aside); FK_INS: the INSERT */
 typedef struct {
     const char *lb;                                               /* card label (<= 6) */
     uint8_t kind, a, b;                                           /* a: byte index or param id; b: switch bit / names */
@@ -24,10 +24,11 @@ typedef struct {
 enum { FN_RANGE, FN_WAVE };
 #define FMG_NF 9u
 static const struct { const char *name; uint8_t n; fmgf_t f[FMG_NF]; } FMG_PAGE[7] = {
-    {"CONTROLLERS", 8, {{"TUNE", FK_BYTE, FG_TUNE, 0, ICON_TUNE}, {"GLIDE", FK_GLIDE, FG_GLID, 0, ICON_GLIDE},
+    {"CONTROLLERS", FELUCCA_FMUG_ONLY ? 9 : 8, {{"TUNE", FK_BYTE, FG_TUNE, 0, ICON_TUNE}, {"GLIDE", FK_GLIDE, FG_GLID, 0, ICON_GLIDE},
                         {"MOD MIX", FK_BYTE, FG_MMIX, 0, ICON_MOD}, {"LFO RATE", FK_PAR, P_LRATE, 0, ICON_RATE},
                         {"MOD OSC", FK_SW, FG_SW1, FS_MOSC, ICON_MOD}, {"MOD FLT", FK_SW, FG_SW1, FS_MFLT, ICON_MOD},
-                        {"GLIDE", FK_SW, FG_SW2, FT_GLIDE, ICON_GLIDE}, {"LFO SQR", FK_SW, FG_SW2, FT_SQR, ICON_LFO_WAVE}}},
+                        {"GLIDE", FK_SW, FG_SW2, FT_GLIDE, ICON_GLIDE}, {"LFO SQR", FK_SW, FG_SW2, FT_SQR, ICON_LFO_WAVE},
+                        {"VOICES", FK_VOICE, P_VOICE, 0, ICON_LEVEL}}},
     {"OSCILLATOR BANK", 8, {{"OSC 1", FK_NAME, FG_R1, FN_RANGE, ICON_OCTAVE}, {"OSC 2", FK_NAME, FG_R2, FN_RANGE, ICON_OCTAVE},
                         {"OSC 3", FK_NAME, FG_R3, FN_RANGE, ICON_OCTAVE}, {"DET 2", FK_BYTE, FG_F2, 0, ICON_DETUNE},
                         {"OSC 1", FK_NAME, FG_W1, FN_WAVE, ICON_WAVE}, {"OSC 2", FK_NAME, FG_W2, FN_WAVE, ICON_WAVE},
@@ -84,6 +85,8 @@ static int fmg_sw_on(const fmgf_t *f)
         return TSEL->p[f->a] > 0;
     if (f->kind == FK_INS)
         return TSEL->p[P_ITYPE] != 0;
+    if (f->kind == FK_VOICE)
+        return TSEL->p[P_VOICE] == V_POLY;
     return (fmg_byte(f->a) & f->b) != 0u;
 }
 /* the GLIDE switch and knob drive the part's common GLIDE time (voice.c): on = the kept time, off = none */
@@ -150,6 +153,14 @@ static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
         fmg_gdirty = 1;
         break;
     }
+    case FK_VOICE:                                    /* FMini-1: MONO / POLY (12 voices), kept in the preset */
+        if (t->p[P_VOICE] != (s > 0 ? V_POLY : V_MONO)) {
+            t->p[P_VOICE] = (int16_t)(s > 0 ? V_POLY : V_MONO);
+            t->p[P_PRIO] = 1;
+            panic_req |= (uint8_t)(1u << trk_index(t));   /* what sounds is released: the mode changes */
+            motion_capture(t, P_VOICE, t->p[P_VOICE]);
+        }
+        break;
     case FK_INS:                                      /* the track's INSERT: a phaser on / off */
         t->p[P_ITYPE] = (int16_t)(s > 0 ? IT_PHASER : 0);
         t->p[P_IMIX] = 127;
@@ -205,7 +216,7 @@ static void fmg_range(uint32_t pg, uint32_t i, int32_t *lo, int32_t *hi)
 {
     const fmgf_t *f = fmg_field(pg, i);
     *lo = 0;
-    *hi = f->kind == FK_SW || f->kind == FK_BYP || f->kind == FK_INS ? 1 : f->kind == FK_NAME ? 5 : 127;
+    *hi = f->kind == FK_SW || f->kind == FK_BYP || f->kind == FK_INS || f->kind == FK_VOICE ? 1 : f->kind == FK_NAME ? 5 : 127;
     if (f->kind == FK_GLB) {
         *lo = GP[f->a].min;
         *hi = GP[f->a].max;
@@ -265,6 +276,10 @@ static void fmg_card_at(uint32_t pg, uint32_t i, int32_t vo, const char **label,
         *ratio = RATIO(d, v);
         return;
     }
+    case FK_VOICE:
+        v = vo >= 0 ? vo : (int32_t)fmg_sw_on(f);
+        str_cpy(val, v ? "POLY" : "MONO", 12);
+        return;
     case FK_SW:
     case FK_BYP:
     case FK_INS:

@@ -110,14 +110,50 @@ int main(int argc, char **argv)
         if (!fa_on_user() || TSEL->user != 1) { printf("save: PRESETS does not reach it\n"); return 1; }
         fa_preset(1);                                   /* ... and round to the first factory patch */
         if (fa_on_user() || TSEL->p[P_E7] != 0) { printf("save: no wrap\n"); return 1; }
-        TSEL->p[P_VOICE] = V_POLY;
+        TSEL->p[P_VOICE] = V_LEGATO;
         fa_mono();
         if (TSEL->p[P_VOICE] != V_MONO) { printf("not mono\n"); return 1; }
+        TSEL->p[P_VOICE] = V_POLY;
+        fa_mono();
+        if (TSEL->p[P_VOICE] != V_POLY) { printf("POLY is not kept\n"); return 1; }
+        TSEL->p[P_VOICE] = V_MONO;
         {
             uint32_t k;
             for (k = 0; k < FMUG_NFACTORY; k++)
                 if (!ENGINES[ENGI_FMUG]->presets[k].mono) { printf("preset %u is poly\n", k); return 1; }
         }
+    }
+    {   /* CTRL's VOICES (the ninth control): ALGORITHM sets POLY / MONO, SAVE keeps it, a factory patch is MONO, 12 voices play */
+        uint32_t k, n = 0;
+        fa_page = 0;
+        fmg_force_page = 0;
+        fmg_cur[0] = 8;
+        apply_preset_to(TSEL, 1);
+        fa_mono();
+        fmg_algo(1);
+        if (TSEL->p[P_VOICE] != V_POLY) { printf("voices: ALGORITHM does not set POLY\n"); return 1; }
+        fa_sv_open();
+        fa_sv_slot = 2;
+        str_cpy(fa_sv_name, "POLY PATCH", 13);
+        fa_sv_do();
+        apply_preset_to(TSEL, 3);
+        fa_mono();
+        if (TSEL->p[P_VOICE] != V_MONO) { printf("voices: a factory patch is not MONO\n"); return 1; }
+        up_load(2);
+        fa_mono();
+        if (TSEL->p[P_VOICE] != V_POLY) { printf("voices: the preset does not keep POLY\n"); return 1; }
+        TSEL->p[P_MUTE] = 0;
+        for (k = 0; k < 12u; k++)
+            trk_note_on(TSEL, (uint8_t)(48u + 3u * k), 100);
+        for (k = 0; k < NVOICE; k++)
+            n += TSEL->v[k].active && TSEL->v[k].gate;
+        if (n != 12u) { printf("voices: %u of 12 voices sound\n", n); return 1; }
+        for (k = 0; k < NVOICE; k++) TSEL->v[k].active = TSEL->v[k].gate = 0;
+        fmg_algo(-1);
+        if (TSEL->p[P_VOICE] != V_MONO) { printf("voices: ALGORITHM does not set MONO\n"); return 1; }
+        fmg_cur[0] = 0;
+        apply_preset_to(TSEL, 0);
+        fa_mono();
     }
     {   /* the ARP settings and the tempo are part of a saved preset: SAVE keeps them, loading the preset sets them,
          * a factory patch turns the arpeggiator off */

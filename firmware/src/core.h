@@ -8,7 +8,11 @@
 #include <stdint.h>
 
 /* ------------------------------------------------------------ sizes --- */
+#if FELUCCA_FMUG_ONLY
+#define NVOICE 12                /* FMini-1: 12 voices when the instrument is set to POLY */
+#else
 #define NVOICE 8                 /* voices per part, and the budget shared by all parts */
+#endif
 #define NPART 4                  /* synth parts: tracks 1..4 */
 #define NTRK NPART               /* tracks (the formats and the protocol count these): every track is a part */
 #define NSTEP 64

@@ -16,7 +16,11 @@
  * pages (ui_fmug.c). State per voice: s[0..3] the ladder, s[4] its last output, s[7] the contour (stage << 24 |
  * level, Q23); the noise is the part's (fmug_nbuf: one source, made once a block). */
 #define ENGI_FMUG (13u + FELUCCA_SLICE)   /* engines.c ENGINES[] (append-only: after SLICE) */
+#if FELUCCA_FMUG_ONLY
+#define FMUG_POLY 12             /* FMini-1: POLY mode plays 12 voices */
+#else
 #define FMUG_POLY 4
+#endif
 #define FG_SIZE 32u
 #ifndef FMUG_KMAX
 #define FMUG_KMAX 18400

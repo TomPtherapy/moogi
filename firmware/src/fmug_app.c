@@ -232,6 +232,21 @@ static void fa_switch(uint32_t pg, uint32_t ex, int32_t cx, int hot)
     fa_ctext(cx, 182, &AF_X, on ? "ON" : "OFF", on ? (pg == 0u ? FA_RED : pg == 2u ? FA_BLUE : FA_OR) : FA_MU);
 }
 
+/* CTRL's VOICES: MONO | POLY, the chosen half filled */
+static void fa_voices(int hot)
+{
+    int poly = TSEL->p[P_VOICE] == V_POLY;
+    int32_t x = 60, y = 195;
+    const uint16_t dk = FA_RGB(0x0D, 0x0C, 0x0B), ink = FA_RGB(0x1A, 0x0F, 0x06);
+    if (hot)
+        cv_frame(x - 2, y - 2, 124, 19, FA_OR);
+    cv_rect(x, y, 120, 15, FA_RGB(0x4A, 0x44, 0x3D));
+    cv_rect(x + 1, y + 1, 118, 13, dk);
+    cv_rect(poly ? x + 60 : x + 1, y + 1, 59, 13, FA_OR);
+    cv_text_on(x + 30 - text_w(&AF_X, "MONO") / 2, y + 2 - fa_cap_y(&AF_X), &AF_X, "MONO", poly ? FA_MU : ink, poly ? dk : FA_OR);
+    cv_text_on(x + 90 - text_w(&AF_X, "POLY") / 2, y + 2 - fa_cap_y(&AF_X), &AF_X, "POLY", poly ? ink : FA_MU, poly ? FA_OR : dk);
+}
+
 static void fa_graph(uint32_t pg)
 {
     int32_t k[4], x, i;
@@ -666,7 +681,7 @@ static uint32_t fa_sound_keys(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.12"
+#define FMINI_VERSION "v1.4.13"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -757,8 +772,10 @@ static void fa_arp_show(void)
 static void fa_ctl_loc(uint32_t n, uint32_t *pg, uint32_t *i)
 {
     uint32_t p = 0;
-    while (p < 7u && n >= fmg_count(p))
-        n -= fmg_count(p++);
+    while (p < 7u && n >= fmg_count(p) - (p == 0u)) {   /* (CTRL's VOICES has no CC: the list keeps its numbers) */
+        n -= fmg_count(p) - (p == 0u);
+        p++;
+    }
     *pg = p;
     *i = n;
 }
@@ -970,6 +987,8 @@ static void fa_scene(void)
 {
     uint32_t pg = fa_page, i, cur = fmg_curi(pg), ex = fmg_count(pg) > 4u ? fmg_count(pg) - 4u : 0u;
     char b[24];
+    if (pg == 0u && ex > 4u)                                 /* CTRL: the fifth is VOICES, drawn apart */
+        ex = 4u;
     int32_t x;
     cv_rect(8, 0, 224, 240, fa_bg(0));                       /* the panel: the gradient in 20 bands */
     for (i = 0; i < 20u; i++)
@@ -1029,6 +1048,8 @@ static void fa_scene(void)
     } else {
         for (i = 0; i < ex; i++)
             fa_switch(pg, i, 36 + (int32_t)i * 56, cur == 4u + i);
+        if (pg == 0u)
+            fa_voices(cur == 8u);
     }
     {   /* the foot: the patch's number (00..99, or U01.. of a saved one) and name, the page "n/7" */
         int32_t w;
@@ -1284,13 +1305,15 @@ static void fa_buttons(uint32_t pressed)
         song.octave = song.octave < 3 ? song.octave + 1 : song.octave;
 }
 
-/* the instrument is monophonic, like the one it follows: one voice (a new key retriggers the contours and glides when GLIDE
- * is on), the lowest key wins; every patch and every saved preset plays this way whatever its record says */
+/* the instrument is MONO, like the one it follows (one voice: a new key retriggers the contours and glides when GLIDE
+ * is on, the lowest key wins), or POLY (CTRL's VOICES: 12 voices); it is part of the preset (P_VOICE is in its record).
+ * Whatever else a patch or a record says (LEGATO, UNISON, a factory patch's own) plays MONO */
 static void fa_mono(void)
 {
     uint32_t i;
     for (i = 0; i < NTRK; i++) {
-        trk[i].p[P_VOICE] = V_MONO;
+        if (trk[i].p[P_VOICE] != V_POLY)
+            trk[i].p[P_VOICE] = V_MONO;
         trk[i].p[P_PRIO] = 1;
     }
 }
