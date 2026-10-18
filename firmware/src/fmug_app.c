@@ -279,18 +279,37 @@ static void fa_wave_boxes(uint32_t pg, uint32_t cur)
 {
     static const char *const WV[6] = {"TRI", "SHARK", "SAW", "SQR", "PULSE W", "PULSE N"};
     uint32_t j;
-    for (j = 0; j < 3u; j++) {
-        int32_t x = 14 + (int32_t)j * 74, w = clamp((int32_t)fmg_byte(FG_W1 + j), 0, 5);
-        char t[24] = "OSC ";
+    for (j = 0; j < 3u; j++) {                             /* each box sits under its oscillator's knob (the columns of fa_scene) */
+        int32_t cx = 36 + (int32_t)j * 56, x = cx - 26, w = clamp((int32_t)fmg_byte(FG_W1 + j), 0, 5);
         int hot = cur == 4u + j;
-        cv_rect(x, 146, 66, 36, hot ? FA_OR : FA_LINE);
-        cv_rect(x + 1, 147, 64, 34, FA_BOX);
-        fa_poly(FA_WAVE[w], FA_WAVE_N[w], x + 6, 151, 54, 26, FA_OR);
-        t[4] = (char)('1' + j);
-        t[5] = ' ';
-        t[6] = 0;
-        str_cpy(t + 6, WV[w], 12);
-        fa_ctext(x + 33, 188, &AF_X, t, hot ? FA_OR : FA_CR);
+        cv_rect(x, 146, 52, 36, hot ? FA_OR : FA_LINE);
+        cv_rect(x + 1, 147, 50, 34, FA_BOX);
+        fa_poly(FA_WAVE[w], FA_WAVE_N[w], x + 5, 151, 42, 26, FA_OR);
+        fa_ctext(cx, 188, &AF_X, WV[w], hot ? FA_OR : FA_CR);
+    }
+    {                                                       /* DET 3: the fourth column's lower knob (the upper one is DET 2) */
+        const char *lb, *un;
+        char val[16];
+        int32_t ratio, cx = 204, cy = 173, k, a;
+        uint32_t ic;
+        int hot = cur == 7u;
+        fmg_card_at(pg, 7, -1, &lb, val, &un, &ratio, &ic);
+        for (k = 0; k < 11; k++) {
+            int32_t ai = (-135 + 270 * k / 10 + 360) % 360 * 1024 / 360, sn = SINE[ai & 1023], cs = SINE[(ai + 256) & 1023];
+            cv_line_t(cx + sn * 22 / 32768, cy - cs * 22 / 32768, cx + sn * 25 / 32768, cy - cs * 25 / 32768, FA_CR, 1);
+        }
+        if (hot)
+            for (k = 0; k < 64; k++)
+                cv_pset(cx + SINE[k * 16 & 1023] * 21 / 32768, cy - SINE[(k * 16 + 256) & 1023] * 21 / 32768, FA_OR);
+        fa_knob_draw(cx, cy);
+        a = (ratio < 0 ? 0 : ratio) * 270 / 1000 + 225;
+        {
+            int32_t ai = a % 360 * 1024 / 360, px = cx + SINE[ai & 1023] * 12 / 32768, py = cy - SINE[(ai + 256) & 1023] * 12 / 32768;
+            cv_rect(px - 1, py - 1, 3, 3, FA_RGB(0xF6, 0xF1, 0xE3));
+        }
+        fa_ctext(cx, 138, &AF_X, lb, hot ? FA_OR : FA_CR);
+        fa_num(val, ratio);
+        fa_ctext(cx, 201, &AF_S, val, FA_OR);
     }
 }
 
@@ -561,8 +580,8 @@ static uint32_t fa_sound_keys(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.2"
-#define FA_NPG 43u                                        /* the controls of the seven screens (FMG_PAGE: 8+7+8+4+4+4+8) */
+#define FMINI_VERSION "v1.4.3"
+#define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
 static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 PITCH BEND, 3 MIDI CC, 4 ABOUT */
@@ -576,7 +595,7 @@ static const char *const FA_PG_TAG[8] = {"CTRL", "OSC", "MIX", "FILT", "F.ENV", 
  * 73 attack, 74 cutoff, 75 decay, 91 / 93 / 94 sends), the free ones in order for the rest */
 static const uint8_t FA_CC0[FA_NCC] = {
     20, 5, 21, 22, 23, 24, 25, 26,                        /* CTRL: TUNE GLIDE MOD MIX LFO RATE, MOD OSC MOD FLT GLIDE LFO SQR */
-    27, 28, 29, 30, 31, 33, 34,                           /* OSC: ranges, DETUNE, waves */
+    27, 28, 29, 30, 31, 33, 34, 62,                       /* OSC: ranges, DETUNE 2, waves, DETUNE 3 */
     35, 36, 37, 39, 40, 41, 42, 43,                       /* MIX: levels, NOISE, switches */
     74, 71, 44, 45,                                       /* FILT */
     46, 47, 48, 49,                                       /* F.ENV */
@@ -590,7 +609,7 @@ static uint8_t *fa_cfg_byte(uint32_t i) { return &favorites.factory[7u + i / 32u
 static void fa_cfg_load(void)
 {
     uint32_t i;
-    if (*fa_cfg_byte(0) == 0xA7u && *fa_cfg_byte(1) == 0x4Du) {
+    if (*fa_cfg_byte(0) == 0xA7u && *fa_cfg_byte(1) == 0x4Eu) {
         uint32_t src = *fa_cfg_byte(2), ch = *fa_cfg_byte(3);
         fm_midi_src = (uint8_t)(src == 0u || src == 1u ? src : 3u);   /* (2 was Bluetooth) */
         fm_midi_ch = (uint8_t)(ch > 16u ? 0u : ch);
@@ -615,7 +634,7 @@ static void fa_cfg_save(void)
         return;
     fa_cfg_dirty = 0;
     *fa_cfg_byte(0) = 0xA7;
-    *fa_cfg_byte(1) = 0x4D;
+    *fa_cfg_byte(1) = 0x4E;
     *fa_cfg_byte(2) = fm_midi_src;
     *fa_cfg_byte(3) = fm_midi_ch;
     for (i = 0; i < FA_NCC; i++)
@@ -659,7 +678,10 @@ static void fa_ctl_name(uint32_t n, const char **tag, char *name)
     *tag = FA_PG_TAG[pg];
     str_cpy(name, lb, 16);
     if (pg == 1u)
-        str_cpy(name + str_len(name), i < 3u ? " RANGE" : " WAVE", 7);
+        if (i < 3u)
+            str_cpy(name + str_len(name), " RANGE", 7);
+        else if (i >= 4u && i < 7u)
+            str_cpy(name + str_len(name), " WAVE", 7);
     else if (pg == 2u)
         str_cpy(name + str_len(name), i < 4u ? " LEVEL" : " ON", 7);
     else if (pg == 0u && i == 1u)
