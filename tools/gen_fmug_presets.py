@@ -62,8 +62,8 @@ p("SOLO LEAD", ("8", "SAW"), ("8", "SQR", 66), ("16", "SAW"), (100, 90, 60, 0), 
 p("SINGING", ("8", "TRI"), ("8", "SAW", 65), ("4", "TRI", 64), (100, 80, 60, 0), 66, 55, 50, (10, 80, 80), (6, 85, 115, 45), mod=30, flags="MOSC GL", gl=22, fx=(0, 15, 30, 35), pat=5)
 p("PULSE LEAD", ("8", "PW"), ("8", "PN", 66), ("16", "SQR"), (100, 90, 60, 0), 72, 45, 55, (0, 68, 60), (0, 78, 110, 38), flags="GL", gl=15, fx=(0, 10, 30, 25), pat=4)
 p("SQUARE LEAD", ("8", "SQR"), ("8", "SQR", 66), ("4", "SQR"), (100, 90, 40, 0), 76, 35, 50, (0, 70, 70), (0, 80, 110, 35), flags="GL", gl=18, fx=(0, 5, 30, 25))
-p("SAW LEAD", ("8", "SAW"), ("8", "SAW", 65), ("4", "SAW"), (100, 90, 50, 0), 80, 40, 45, (0, 72, 70), (0, 82, 112, 35), flags="GL", gl=20, fx=(15, 10, 30, 25), pat=4)
-p("SINE LEAD", ("8", "TRI"), ("8", "TRI", 66), ("16", "TRI", 63), (127, 127, 110, 0), 100, 12, 30, (0, 70, 90), (0, 85, 118, 45), mod=18, flags="MOSC GL", gl=38, kbd=100, fx=(22, 36, 34, 14), pat=4)
+p("SAW LEAD", ("8", "SAW"), ("8", "SAW", 65), ("4", "SAW"), (100, 90, 50, 0), 80, 40, 45, (0, 72, 70), (0, 82, 112, 35), flags="GL", gl=4, fx=(15, 10, 30, 25), pat=4)
+p("TOM SAWYER", ("8", "SQR"), ("8", "SAW", 67), ("16", "SAW", 62), (100, 100, 50, 0), 66, 72, 88, (0, 55, 38), (0, 80, 115, 22), mod=14, flags="MOSC", kbd=70, pat=4)   # the Rush intro lead: pulse + detuned saws, resonant filter that swells and settles on each note
 p("GLIDE LEAD", ("8", "SAW"), ("8", "SQR", 66), ("16", "SQR"), (100, 90, 70, 0), 68, 55, 55, (0, 66, 60), (0, 78, 112, 40), flags="GL", gl=60, fx=(0, 10, 35, 30), pat=4)
 p("RESO LEAD", ("8", "SAW"), ("8", "SAW", 66), ("16", "SQR"), (100, 90, 60, 0), 60, 100, 70, (0, 64, 40), (0, 76, 110, 38), flags="GL", gl=18, fx=(10, 10, 30, 25), pat=4)
 p("WARM LEAD", ("8", "TRI"), ("8", "SAW", 65), ("16", "TRI"), (100, 80, 70, 0), 62, 40, 40, (8, 78, 80), (6, 85, 115, 45), mod=15, flags="MOSC GL", gl=22, fx=(0, 15, 35, 35), pat=5)
@@ -144,7 +144,7 @@ FXMAP = {
  "HOLLOW BASS": (0, 40, 0, 8), "RUBBER BASS": (28, 0, 18, 0), "SOFT BASS": (0, 22, 0, 12), "BUZZ BASS": (45, 12, 0, 0), "OCTAVE BASS": (16, 0, 24, 0),
  "PEDAL BASS": (0, 0, 0, 18), "WOBBLE BASS": (30, 0, 28, 0), "PHAT BASS": (20, 45, 0, 4), "PLUCK BASS": (0, 0, 34, 8),
  "MOOG LEAD": (0, 0, 28, 8), "FAT LEAD": (18, 35, 30, 10), "SOLO LEAD": (10, 0, 45, 14), "SINGING": (0, 26, 22, 24), "PULSE LEAD": (0, 32, 18, 6),
- "SQUARE LEAD": (15, 0, 38, 0), "SAW LEAD": (20, 12, 34, 10), "SINE LEAD": (22, 36, 34, 14), "GLIDE LEAD": (0, 0, 52, 16), "RESO LEAD": (25, 0, 26, 6),
+ "SQUARE LEAD": (15, 0, 38, 0), "SAW LEAD": (20, 12, 34, 10), "TOM SAWYER": (18, 0, 24, 10), "GLIDE LEAD": (0, 0, 52, 16), "RESO LEAD": (25, 0, 26, 6),
  "WARM LEAD": (0, 38, 0, 22), "BITE LEAD": (50, 0, 18, 0), "FLUTE LEAD": (0, 0, 14, 30), "REED LEAD": (6, 22, 0, 10), "VOX LEAD": (0, 48, 0, 26),
  "ROCK LEAD": (85, 0, 22, 6), "PROG LEAD": (30, 16, 56, 12), "SCREAM LEAD": (75, 0, 30, 0), "OCTAVE LEAD": (0, 0, 36, 6), "DUAL LEAD": (12, 60, 0, 6),
  "SOFT LEAD": (0, 24, 0, 28), "WHISTLE": (0, 0, 30, 36), "CRY LEAD": (22, 0, 40, 18), "SWEEP LEAD": (8, 30, 0, 24), "THIN LEAD": (0, 0, 26, 6),
@@ -165,7 +165,7 @@ for x in P:
 assert set(FXMAP) == {x["name"] for x in P}, set(FXMAP) ^ {x["name"] for x in P}
 
 def _cat(i, n):                        # the groups, by a patch's place before the showcase moves it
-    if n in ("FIFTHS", "5TH LEAD", "ARP SAW", "ARP PULSE", "SYNC-ISH", "SINE LEAD"): return "L"
+    if n in ("FIFTHS", "5TH LEAD", "ARP SAW", "ARP PULSE", "SYNC-ISH", "TOM SAWYER"): return "L"
     if i < 24: return "B"
     if i < 50: return "L"
     if n in ("ORGAN", "CLAVI", "E PIANO"): return "K"
@@ -177,7 +177,7 @@ for i, x in enumerate(P):
     x["cat"] = _cat(i, x["name"])
 
 # ---- the first ten: a showcase of very different sounds; the groups follow
-SHOW = ["SAW LEAD", "SINE LEAD", "MOOG BASS", "ACID BASS", "5TH LEAD", "PLUCK", "HARP", "JET", "SIREN", "WARM PAD"]
+SHOW = ["SAW LEAD", "TOM SAWYER", "MOOG BASS", "ACID BASS", "5TH LEAD", "PLUCK", "HARP", "JET", "SIREN", "WARM PAD"]
 SHOWCAT = "LLBBLUUFFP"
 byname = {x["name"]: x for x in P}
 P[:] = [byname[n] for n in SHOW] + [x for x in P if x["name"] not in SHOW]
