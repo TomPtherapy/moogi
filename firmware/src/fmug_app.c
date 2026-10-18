@@ -308,22 +308,54 @@ static const uint16_t FA_TINY[26] = {
     0x2BED, 0x6BAE, 0x3923, 0x6B6E, 0x79A7, 0x79A4, 0x396B, 0x5BED, 0x7497, 0x126A, 0x5BAD, 0x4927, 0x5FED,
     0x6B6D, 0x2B6A, 0x6BA4, 0x2B73, 0x6BAD, 0x388E, 0x7492, 0x5B6F, 0x5B6A, 0x5BFD, 0x5AAD, 0x5A92, 0x72A7,
 };
+/* the 4..5 x 6 glyphs of the letters the faders use (a '#' is ink), top row first; other letters: the 3 x 5 font above */
+static const char *const FA_TINY6[][7] = {
+    {"A", ".##.", "#..#", "#..#", "####", "#..#", "#..#"},
+    {"C", ".###", "#...", "#...", "#...", "#...", ".###"},
+    {"D", "###.", "#..#", "#..#", "#..#", "#..#", "###."},
+    {"E", "####", "#...", "###.", "#...", "#...", "####"},
+    {"I", "###", ".#.", ".#.", ".#.", ".#.", "###"},
+    {"M", "#...#", "##.##", "#.#.#", "#...#", "#...#", "#...#"},
+    {"N", "#..#", "##.#", "##.#", "#.##", "#.##", "#..#"},
+    {"O", ".##.", "#..#", "#..#", "#..#", "#..#", ".##."},
+    {"R", "###.", "#..#", "###.", "#.#.", "#..#", "#..#"},
+    {"T", "#####", "..#..", "..#..", "..#..", "..#..", "..#.."},
+    {"Y", "#...#", "#...#", ".#.#.", "..#..", "..#..", "..#.."},
+};
+static int32_t fa_tiny_w(char ch)
+{
+    uint32_t k;
+    for (k = 0; k < NELEM(FA_TINY6); k++)
+        if (FA_TINY6[k][0][0] == ch)
+            return (int32_t)str_len(FA_TINY6[k][1]);
+    return 3;
+}
 static void fa_tiny_text(int32_t cx, int32_t y, const char *s, uint16_t fg)
 {
-    int32_t w = 0, x, r, c;
+    int32_t w = -1, x, r, c;
     const char *p;
     for (p = s; *p; p++)
-        w += 4;
-    x = cx - (w - 1) / 2;
-    for (p = s; *p; p++, x += 4) {
-        uint32_t g;
-        if (*p < 'A' || *p > 'Z')
-            continue;
-        g = FA_TINY[*p - 'A'];
-        for (r = 0; r < 5; r++)
-            for (c = 0; c < 3; c++)
-                if ((g >> (14 - (r * 3 + c))) & 1u)
-                    cv_pset(x + c, y + r, fg);
+        w += fa_tiny_w(*p) + 1;
+    x = cx - w / 2;
+    for (p = s; *p; p++) {
+        uint32_t k;
+        int32_t gw = fa_tiny_w(*p);
+        for (k = 0; k < NELEM(FA_TINY6); k++)
+            if (FA_TINY6[k][0][0] == *p) {
+                for (r = 0; r < 6; r++)
+                    for (c = 0; c < gw; c++)
+                        if (FA_TINY6[k][1 + r][c] == '#')
+                            cv_pset(x + c, y + r, fg);
+                break;
+            }
+        if (k == NELEM(FA_TINY6) && *p >= 'A' && *p <= 'Z') {
+            uint32_t g = FA_TINY[*p - 'A'];
+            for (r = 0; r < 5; r++)
+                for (c = 0; c < 3; c++)
+                    if ((g >> (14 - (r * 3 + c))) & 1u)
+                        cv_pset(x + c, y + r, fg);
+        }
+        x += gw + 1;
     }
 }
 
@@ -344,7 +376,7 @@ static void fa_fader(uint32_t pg, uint32_t i, int32_t cx, int hot)
     cv_rect(x + 1, y + 1, 42, 5, FA_BOX);
     cv_rect(x + 1, y + 1, fw, 5, FA_OR);
     cv_rect(x + 1 + fw - (fw > 1 ? 1 : 0), y - 1, 2, 9, FA_RGB(0xF6, 0xF1, 0xE3));     /* the cap */
-    fa_tiny_text(cx, 153, lb, hot ? FA_OR : FA_RGB(0xA6, 0x9C, 0x88));
+    fa_tiny_text(cx, 152, lb, hot ? FA_OR : FA_RGB(0xA6, 0x9C, 0x88));
     if (f->kind != FK_NAME && (f->kind != FK_GLB || GP[f->a].fmt == F_PCT))
         fa_num(val, ratio);
     else if (f->a == G_CRATE)                              /* RATE in Hz */
@@ -634,7 +666,7 @@ static uint32_t fa_sound_keys(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.7"
+#define FMINI_VERSION "v1.4.8"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
