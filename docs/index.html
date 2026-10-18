@@ -1385,17 +1385,18 @@ function setBar(pct, phase) {
   document.body.classList.toggle("busy", phase && phase !== "done");
   document.body.classList.toggle("finished", phase === "done");
 }
-// the write phase: the requests take the bar from 6 % to 78 %, then the device's own finishing work (it programs and
-// checks the flash after the last block, ~25 s) crawls it on towards 98 %; the reboot step takes it to 99 %
-let crawl = null, wLast = 0, wPct = 6;
+// the write phase: the requests take the bar from 6 % to 78 %; then, while the device finishes (it programs and checks the
+// flash after the last block), +1 % every 0.7 s up to 99 %; 100 % only when the device is back (the "done" step)
+let crawl = null, wLast = 0, wTick = 0, wPct = 6;
 function writeBar(n) {
-  wLast = Date.now();
+  wLast = wTick = Date.now();
   wPct = 6 + 72 * Math.min(1, n / 1167);
   setBar(wPct, "write");
   if (!crawl) crawl = setInterval(() => {
+    const now = Date.now();
     if (!writing) { stopCrawl(); return; }
-    if (Date.now() - wLast > 1500) { wPct += (98 - wPct) * 0.02; setBar(wPct, "write"); }
-  }, 250);
+    if (now - wLast > 1500 && now - wTick >= 700 && wPct < 99) { wTick = now; wPct = Math.min(99, wPct + 1); setBar(wPct, "write"); }
+  }, 100);
 }
 function stopCrawl() { if (crawl) clearInterval(crawl); crawl = null; }
 let image = null;
