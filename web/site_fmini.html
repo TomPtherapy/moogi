@@ -73,6 +73,7 @@
   .fm .body { display: block; width: 100%; height: auto; filter: drop-shadow(0 30px 50px rgba(0,0,0,.6)); }
   .fm .lcd { position: absolute; left: 30.73%; top: 15.23%; width: 16.76%; height: 28.3%; background: #000; overflow: hidden; border-radius: 1.5%; opacity: 0;
              box-shadow: 0 0 18px rgba(255,122,26,.18); cursor: pointer; }
+  .fm .lcd #scr { position: absolute; inset: 0; }
   .fm .lcd img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transition: opacity .6s ease; }
   .copy2 { position: absolute; z-index: 3; left: 0; right: 0; text-align: center; opacity: 0; pointer-events: none; padding: 0 24px; }
   .copy2 h2 { margin: 0 auto; font-size: clamp(26px, 4vw, 40px); }
@@ -234,7 +235,7 @@
       <img class="mm" id="mm" alt="Minimoog" src="/*HERO*/">
       <figure class="fm" id="fm">
         <img class="body" id="fm-body" alt="M-VAVE FM-1" src="">
-        <div class="lcd" id="lcd"><img id="lcd-a" alt=""><img id="lcd-b" alt=""></div>
+        <div class="lcd" id="lcd"><div id="scr"><img id="lcd-a" alt=""><img id="lcd-b" alt=""></div></div>
       </figure>
       <div class="copy2" id="copy2">
         <h2 data-t="hero2_t"></h2>
@@ -857,7 +858,8 @@ $("stock-go").addEventListener("click", async () => {
     const mx = sx + (ex - sx) * q, my = sy + (ey - sy) * q;
     mm.style.width = w + "px"; mm.style.left = mx - w / 2 + "px"; mm.style.top = my - h / 2 + "px";
     mm.style.opacity = 1 - clamp((q - 0.88) / 0.12);
-    lcd.style.opacity = clamp((q - 0.55) / 0.3);
+    lcd.style.opacity = 1;
+    $("scr").style.opacity = clamp((p - 0.9) / 0.1);
     copy1.style.opacity = 1 - clamp((p - 0.04) / 0.16);
     copy1.style.transform = (mob ? "" : "translateY(-50%) ") + "translateX(" + (-clamp(p / 0.2) * 40) + "px)";
     copy1.style.pointerEvents = p > 0.12 ? "none" : "";
@@ -865,39 +867,45 @@ $("stock-go").addEventListener("click", async () => {
     copy2.style.pointerEvents = p > 0.9 ? "auto" : "none";
     hint.style.opacity = 1 - clamp(p / 0.05);
   }
-  /* the first scroll down starts the film; it then plays by itself, and the page is held until the end */
-  const DUR = 4200;
+  /* the first scroll down plays the film by itself; scrolling up at the top plays it backwards */
+  const DUR = 2100;
   if (rm) prog = 1;
-  let state = rm ? 2 : 0, t0 = 0;                 /* 0 waiting, 1 playing, 2 done */
-  const hold = (e) => { if (state === 1) e.preventDefault(); };
-  function finish() {
-    state = 2; prog = 1; draw(1); rotAt = performance.now();
-    removeEventListener("wheel", onWheel); removeEventListener("touchstart", onTouch); removeEventListener("keydown", onKey); removeEventListener("touchmove", onMove);
+  let state = rm ? 2 : 0, t0 = 0, dir = 1;         /* 0 start picture, 1 playing forward, 2 finished, 3 playing backwards */
+  const hold = (e) => { if (state === 1 || state === 3) e.preventDefault(); };
+  function done() {
+    prog = 1; state = 2; draw(1);
+    A.src = IMG.splash; A.style.opacity = 1; B.style.opacity = 0; rot = 0; rotAt = performance.now();
   }
+  function home() { prog = 0; state = 0; draw(0); }
   function frame(now) {
-    if (state !== 1) return;
+    if (state !== 1 && state !== 3) return;
     const x = clamp((now - t0) / DUR);
-    prog = x; draw(x);
-    if (x >= 1) finish(); else requestAnimationFrame(frame);
+    prog = dir > 0 ? x : 1 - x; draw(prog);
+    if (x >= 1) { if (dir > 0) done(); else home(); } else requestAnimationFrame(frame);
   }
-  function start() {
-    if (state !== 0) return;
-    state = 1; t0 = performance.now(); scrollTo({ top: 0, behavior: "instant" });
+  function play(d) {
+    dir = d; state = d > 0 ? 1 : 3; t0 = performance.now() - (d > 0 ? prog : 1 - prog) * DUR;
+    scrollTo({ top: 0, behavior: "instant" });
     requestAnimationFrame(frame);
+    setTimeout(() => { if (state === 1) done(); else if (state === 3) home(); }, DUR + 1500);   /* never leave the page held */
   }
-  const onWheel = (e) => { if (state === 0 && e.deltaY > 0 && scrollY < 8) { e.preventDefault(); start(); } else hold(e); };
+  let arriveT = 0, prevY = scrollY;                    /* a flick that lands on the top must not bounce straight into the film */
+  const atTop = () => scrollY < 8;
+  const wantDown = () => { if (state === 0 && atTop()) { play(1); return true; } return false; };
+  const wantUp = () => { if (state === 2 && atTop() && !rm && performance.now() - arriveT > 450) { play(-1); return true; } return false; };
+  addEventListener("wheel", (e) => { if ((e.deltaY > 0 && wantDown()) || (e.deltaY < 0 && wantUp())) e.preventDefault(); else hold(e); }, { passive: false });
   let ty = 0;
-  const onTouch = (e) => { ty = e.touches[0].clientY; };
-  const onMove = (e) => { if (state === 0 && scrollY < 8 && ty - e.touches[0].clientY > 8) { e.preventDefault(); start(); } else hold(e); };
-  const onKey = (e) => { if (["ArrowDown", "PageDown", " ", "End"].includes(e.key) && state < 2 && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) { e.preventDefault(); start(); } };
-  addEventListener("wheel", onWheel, { passive: false });
-  addEventListener("touchstart", onTouch, { passive: true });
-  addEventListener("touchmove", onMove, { passive: false });
-  addEventListener("keydown", onKey);
-  addEventListener("scroll", () => { if (state === 0 && scrollY > 8) start(); else if (state === 1 && scrollY > 0) scrollTo({ top: 0, behavior: "instant" }); }, { passive: true });
-  document.querySelectorAll('a[href^="#"]').forEach((a) => a.addEventListener("click", () => { if (state < 2) finish(); }));
+  addEventListener("touchstart", (e) => { ty = e.touches[0].clientY; }, { passive: true });
+  addEventListener("touchmove", (e) => { const dy = ty - e.touches[0].clientY; if ((dy > 8 && wantDown()) || (dy < -8 && wantUp())) e.preventDefault(); else hold(e); }, { passive: false });
+  addEventListener("keydown", (e) => {
+    if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (["ArrowDown", "PageDown", " ", "End"].includes(e.key)) { if (wantDown()) e.preventDefault(); else hold(e); }
+    else if (["ArrowUp", "PageUp", "Home"].includes(e.key)) { if (wantUp()) e.preventDefault(); else hold(e); }
+  });
+  addEventListener("scroll", () => { if (scrollY < 1 && prevY >= 1) arriveT = performance.now(); prevY = scrollY; if (state === 0 && scrollY > 8) play(1); else if ((state === 1 || state === 3) && scrollY > 0) scrollTo({ top: 0, behavior: "instant" }); }, { passive: true });
+  document.querySelectorAll('a[href^="#"]').forEach((a) => a.addEventListener("click", () => { if (state !== 2) done(); }));
   addEventListener("resize", layout);
-  if (!rm && location.hash.length > 1 || scrollY > 40) { state = 2; prog = 1; }   /* a reload further down, or a link to a section: the finished picture */
+  if ((!rm && location.hash.length > 1) || scrollY > 40) { state = 2; prog = 1; }   /* a reload further down, or a link to a section: the finished picture */
   /* the finished FM-1 shows the real screens, one after the other */
   function show(i) {
     const on = A.style.opacity === "1" ? A : B, off = on === A ? B : A;
