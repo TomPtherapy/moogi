@@ -419,5 +419,32 @@ int main(int argc, char **argv)
         if (fa_page != 0) { printf("HOME -> CTRL (%d)\n", fa_page); return 1; }
     }
     printf("fmug_app_test: ok\n");
+    {   /* the CUTOFF / EMPH / CNTR knobs glide: a click is a ramp of small steps, silence snaps */
+        track_t *t0 = &trk[0];
+        int32_t last, d, steps = 0, big = 0, kk;
+        static const uint8_t KN3[3] = {P_E0, P_E1, P_E2};
+        for (kk = 0; kk < 3; kk++) {
+            t0->v[0].active = 0;
+            t0->p[KN3[kk]] = 64;
+            fmug_block(t0);
+            if (fmug_sm[0][kk] != 64 << 8) { printf("knob glide: silent block does not snap\n"); return 1; }
+            t0->v[0].active = 1;
+            fmug_block(t0);                        /* the first block of a note follows the knobs at once */
+            t0->p[KN3[kk]] = 65;
+            last = fmug_sm[0][kk];
+            while (fmug_sm[0][kk] != 65 << 8 && steps < 400) {
+                fmug_block(t0);
+                d = fmug_sm[0][kk] - last;
+                if (d <= 0 || fmug_sm[0][kk] > 65 << 8) { printf("knob glide: not monotonic\n"); return 1; }
+                if (d > 16 + 256 / 16) big++;
+                last = fmug_sm[0][kk];
+                steps++;
+            }
+            if (steps < 20 || steps >= 400 || big) { printf("knob glide %d: steps %d big %d\n", (int)kk, steps, big); return 1; }
+            steps = 0;
+            t0->v[0].active = 0;
+            fmug_block(t0);
+        }
+    }
     return 0;
 }

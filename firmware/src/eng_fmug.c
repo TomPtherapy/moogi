@@ -57,6 +57,8 @@ static struct {                                  /* the patch as the audio ISR s
 static int32_t fmug_nst[NTRK] = {0x2F6E2B1, 0x1A2B3C5, 0x3C4D5E7, 0x0F1E2D3};   /* a part's noise generator */
 static int32_t fmug_pk[NTRK][3];                 /* its pink filter */
 static int32_t fmug_nbuf[NTRK][CTL];             /* the part's noise for this block, +-32768: one source, all its voices */
+static int32_t fmug_sm[NTRK][3];                 /* the smoothed CUTOFF, EMPH, CNTR knobs (Q8): the encoder's steps become ramps */
+static uint8_t fmug_sm_ok;                       /* bit tr: fmug_sm[tr] follows the knobs (clear = snap to them) */
 static int32_t fmug_mn[NTRK];                    /* the modulation noise of this block, +-16384 */
 
 /* the highest value of each byte */
@@ -183,6 +185,21 @@ static void fmug_block(track_t *t)
     }
     for (i = 0; i < NVOICE && !t->v[i].active; i++)
         ;
+    {   /* the knobs' steps (one encoder click = 1/127) glide: ~12 ms, one-pole per block, exact landing; silent = snap */
+        static const uint8_t KN[3] = {P_E0, P_E1, P_E2};
+        uint32_t j;
+        for (j = 0; j < 3; j++) {
+            int32_t want = (int32_t)clamp(t->p[KN[j]], 0, 127) << 8, d = want - fmug_sm[tr][j];
+            if (i == NVOICE || !(fmug_sm_ok & (1u << tr)))
+                fmug_sm[tr][j] = want;
+            else
+                fmug_sm[tr][j] += d > 0 ? (d < 16 ? d : (d + 15) >> 4) : (d > -16 ? d : -((-d + 15) >> 4));
+        }
+        if (i == NVOICE)
+            fmug_sm_ok &= (uint8_t)~(1u << tr);
+        else
+            fmug_sm_ok |= (uint8_t)(1u << tr);
+    }
     if (i == NVOICE)
         return;                                              /* nothing sounds: no noise to make */
     g = fmug_eff[tr].p;
@@ -373,8 +390,8 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             mix[i] += mulq15(fmug_nbuf[tr][i], ln);
 
     /* the cutoff: the knob, the contour, the keyboard, the modulation, the host's (LFO / matrix / ENV routings) */
-    cut = ((int32_t)p[P_E0] << 8) + m->cutoff;
-    cut += (env15 * (int32_t)p[P_E2] / 127) * 70 >> 7;                          /* the contour: up to ~5 octaves */
+    cut = fmug_sm[tr][0] + m->cutoff;
+    cut += (int32_t)(((int64_t)env15 * fmug_sm[tr][2] / (127 * 256)) * 70) >> 7;                          /* the contour: up to ~5 octaves */
     cut += ((v->pitch_cur - 60 * 16) * 19 * (int32_t)g[FG_KBD]) >> 7;           /* keyboard tracking */
     if (sw & FS_MFLT)
         cut += (mod * 40) >> 7;
@@ -385,7 +402,7 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
             gg += ((SVF_G[i0 + 1] - gg) * (cut & 255)) >> 8;
         G16 = (int32_t)(((uint32_t)gg << 16) / (uint32_t)(4096 + gg));
     }
-    k = (int32_t)p[P_E1] * FMUG_KMAX / 127;                         /* the resonance, Q12 (4 * 4096 = the ladder's self-oscillation) */
+    k = (int32_t)((int64_t)fmug_sm[tr][1] * FMUG_KMAX / (127 * 256));                         /* the resonance, Q12 (4 * 4096 = the ladder's self-oscillation) */
     k = mulq16(k, (uint32_t)(65536 - G16));                        /* the delayed feedback needs less as the cutoff rises */
     gain = 4096 + (k >> 3);                                       /* the real ladder loses its bass as EMPHASIS rises: only an eighth is given back */
 
