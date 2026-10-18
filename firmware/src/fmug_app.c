@@ -221,22 +221,23 @@ static void fa_knob_col(uint32_t pg, uint32_t i, int32_t cx, int hot)
 static void fa_switch(uint32_t pg, uint32_t ex, int32_t cx, int hot)
 {
     const fmgf_t *f = fmg_field(pg, 4u + ex);
-    int on = fmg_sw_on(f), x = cx - 15, y = 163;
+    int on = fmg_sw_on(f), x = cx - 15, y = pg == 0u ? 154 : 163;   /* CTRL: higher, no ON / OFF under it (VOICES below) */
     uint16_t col = pg == 0u ? FA_RED : pg == 2u ? FA_BLUE : on ? FA_OR : FA_RGB(0xD9, 0xD2, 0xC0);
     if (hot)
         cv_frame(x - 3, y - 3, 36, 20, FA_OR);
     cv_rect(x, y, 31, 14, FA_RGB(0x4A, 0x44, 0x3D));
     cv_rect(x + 1, y + 1, 29, 12, FA_RGB(0x0D, 0x0C, 0x0B));
     cv_rect(on ? x + 15 : x + 2, y + 2, 14, 10, col);
-    fa_ctext(cx, 150, &AF_X, f->lb, hot ? FA_OR : FA_CR);
-    fa_ctext(cx, 182, &AF_X, on ? "ON" : "OFF", on ? (pg == 0u ? FA_RED : pg == 2u ? FA_BLUE : FA_OR) : FA_MU);
+    fa_ctext(cx, pg == 0u ? 141 : 150, &AF_X, f->lb, hot ? FA_OR : FA_CR);
+    if (pg != 0u)
+        fa_ctext(cx, 182, &AF_X, on ? "ON" : "OFF", on ? (pg == 2u ? FA_BLUE : FA_OR) : FA_MU);
 }
 
 /* CTRL's VOICES: MONO | POLY, the chosen half filled */
 static void fa_voices(int hot)
 {
     int poly = TSEL->p[P_VOICE] == V_POLY;
-    int32_t x = 60, y = 195;
+    int32_t x = 60, y = 184;
     const uint16_t dk = FA_RGB(0x0D, 0x0C, 0x0B), ink = FA_RGB(0x1A, 0x0F, 0x06);
     if (hot)
         cv_frame(x - 2, y - 2, 124, 19, FA_OR);
@@ -681,7 +682,7 @@ static uint32_t fa_sound_keys(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.13"
+#define FMINI_VERSION "v1.4.14"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
