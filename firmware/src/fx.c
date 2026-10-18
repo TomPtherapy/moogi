@@ -99,7 +99,8 @@ static void track_dist(track_t *t, int32_t *b, uint32_t n)
     if (!d)
         return;                                         /* states kept: switching on does not click */
     g = 4096 + d * d * 2;                                /* Q12: 1x .. ~9x, gentle at first */
-    k = 32000 - d * 95;                                  /* tone: transparent at low drive .. ~3 kHz, Q15 */
+    k = 32000 - d * 95 + ((int32_t)song.g[G_DRLVL] - 64) * 150;   /* tone: transparent at low drive .. ~3 kHz, Q15; G_DRLVL (TONE) moves it */
+    k = clamp(k, 2500, 32500);
     mk = 30000 - d * 120;                                /* make-up */
     b0 = softclip(bias);
     for (i = 0; i < (int32_t)n; i++) {

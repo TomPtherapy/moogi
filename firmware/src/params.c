@@ -218,7 +218,7 @@ static const param_desc_t GP[G_COUNT] = {
     /* inert: they set the GM drum part (level, reverb send), which is gone (drums are the DRUM engine
      * on any part). On no page; kept so the ids and G_COUNT, which the project format and the
      * editor protocol depend on, do not move */
-    [G_DRLVL] = PD("-", F_INT, 0, 0, 0),
+    [G_DRLVL] = PD("TONE", F_PCT, 0, 127, 64),   /* FMini-1: the DRIVE's tone (fx.c track_dist), 64 = as before; was inert */
     [G_DRREV] = PD("-", F_INT, 0, 0, 0),
 };
 

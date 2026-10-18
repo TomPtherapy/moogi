@@ -52,6 +52,7 @@ int main(int argc, char **argv)
 {
     int pg;
     const char *dir = argc > 1 ? argv[1] : ".";
+    { uint32_t gi; for (gi = 0; gi < G_COUNT; gi++) song.g[gi] = GP[gi].def; }   /* main.c's power-on globals */
     fa_init();
     for (pg = 0; pg < 7; pg++) {
         fa_page = (uint8_t)pg;
@@ -157,11 +158,11 @@ int main(int argc, char **argv)
             fa_ctl_apply(n, 0);
             for (i = 0; i < FG_SIZE; i++) h0 = h0 * 31u + fmug_patch[0][i];
             for (i = 0; i < P_COUNT; i++) h0 = h0 * 31u + (uint32_t)TSEL->p[i];
-            h0 = h0 * 31u + (uint32_t)song.g[G_BPM];
+            for (i = 0; i < G_COUNT; i++) h0 = h0 * 31u + (uint32_t)song.g[i];
             fa_ctl_apply(n, 127);
             for (i = 0; i < FG_SIZE; i++) h1 = h1 * 31u + fmug_patch[0][i];
             for (i = 0; i < P_COUNT; i++) h1 = h1 * 31u + (uint32_t)TSEL->p[i];
-            h1 = h1 * 31u + (uint32_t)song.g[G_BPM];
+            for (i = 0; i < G_COUNT; i++) h1 = h1 * 31u + (uint32_t)song.g[i];
             if (h0 == h1) { const char *tg; char nm[16]; fa_ctl_name(n, &tg, nm); printf("control %u (%s %s) ignores its CC\n", n, tg, nm); bad++; }
         }
         if (bad) return 1;

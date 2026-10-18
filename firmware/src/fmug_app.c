@@ -275,6 +275,34 @@ static void fa_graph(uint32_t pg)
     }
 }
 
+/* a smaller knob (a scale of ticks, no numerals) for a control that has no K slot: its label above, its value below */
+static void fa_knob_mini(uint32_t pg, uint32_t i, int32_t cx, int32_t cy, int hot)
+{
+    const char *lb, *un;
+    char val[16];
+    int32_t ratio, k, a;
+    uint32_t ic;
+    const fmgf_t *f = fmg_field(pg, i);
+    fmg_card_at(pg, i, -1, &lb, val, &un, &ratio, &ic);
+    for (k = 0; k < 11; k++) {
+        int32_t ai = (-135 + 270 * k / 10 + 360) % 360 * 1024 / 360, sn = SINE[ai & 1023], cs = SINE[(ai + 256) & 1023];
+        cv_line_t(cx + sn * 22 / 32768, cy - cs * 22 / 32768, cx + sn * 25 / 32768, cy - cs * 25 / 32768, FA_CR, 1);
+    }
+    if (hot)
+        for (k = 0; k < 64; k++)
+            cv_pset(cx + SINE[k * 16 & 1023] * 21 / 32768, cy - SINE[(k * 16 + 256) & 1023] * 21 / 32768, FA_OR);
+    fa_knob_draw(cx, cy);
+    a = (ratio < 0 ? 0 : ratio) * 270 / 1000 + 225;
+    {
+        int32_t ai = a % 360 * 1024 / 360, px = cx + SINE[ai & 1023] * 12 / 32768, py = cy - SINE[(ai + 256) & 1023] * 12 / 32768;
+        cv_rect(px - 1, py - 1, 3, 3, FA_RGB(0xF6, 0xF1, 0xE3));
+    }
+    fa_ctext(cx, 138, &AF_X, lb, hot ? FA_OR : FA_CR);
+    if (f->kind != FK_NAME && (f->kind != FK_GLB || GP[f->a].fmt == F_PCT))
+        fa_num(val, ratio);
+    fa_ctext(cx, 201, &AF_S, val, FA_OR);
+}
+
 static void fa_wave_boxes(uint32_t pg, uint32_t cur)
 {
     static const char *const WV[6] = {"TRI", "SHARK", "SAW", "SQR", "PULSE W", "PULSE N"};
@@ -287,30 +315,7 @@ static void fa_wave_boxes(uint32_t pg, uint32_t cur)
         fa_poly(FA_WAVE[w], FA_WAVE_N[w], x + 5, 151, 42, 26, FA_OR);
         fa_ctext(cx, 188, &AF_X, WV[w], hot ? FA_OR : FA_CR);
     }
-    {                                                       /* DET 3: the fourth column's lower knob (the upper one is DET 2) */
-        const char *lb, *un;
-        char val[16];
-        int32_t ratio, cx = 204, cy = 173, k, a;
-        uint32_t ic;
-        int hot = cur == 7u;
-        fmg_card_at(pg, 7, -1, &lb, val, &un, &ratio, &ic);
-        for (k = 0; k < 11; k++) {
-            int32_t ai = (-135 + 270 * k / 10 + 360) % 360 * 1024 / 360, sn = SINE[ai & 1023], cs = SINE[(ai + 256) & 1023];
-            cv_line_t(cx + sn * 22 / 32768, cy - cs * 22 / 32768, cx + sn * 25 / 32768, cy - cs * 25 / 32768, FA_CR, 1);
-        }
-        if (hot)
-            for (k = 0; k < 64; k++)
-                cv_pset(cx + SINE[k * 16 & 1023] * 21 / 32768, cy - SINE[(k * 16 + 256) & 1023] * 21 / 32768, FA_OR);
-        fa_knob_draw(cx, cy);
-        a = (ratio < 0 ? 0 : ratio) * 270 / 1000 + 225;
-        {
-            int32_t ai = a % 360 * 1024 / 360, px = cx + SINE[ai & 1023] * 12 / 32768, py = cy - SINE[(ai + 256) & 1023] * 12 / 32768;
-            cv_rect(px - 1, py - 1, 3, 3, FA_RGB(0xF6, 0xF1, 0xE3));
-        }
-        fa_ctext(cx, 138, &AF_X, lb, hot ? FA_OR : FA_CR);
-        fa_num(val, ratio);
-        fa_ctext(cx, 201, &AF_S, val, FA_OR);
-    }
+    fa_knob_mini(pg, 7, 204, 173, cur == 7u);
 }
 
 /* ------------------------------------------------------- presets --- */
@@ -580,7 +585,7 @@ static uint32_t fa_sound_keys(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.3"
+#define FMINI_VERSION "v1.4.4"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -609,11 +614,17 @@ static uint8_t *fa_cfg_byte(uint32_t i) { return &favorites.factory[7u + i / 32u
 static void fa_cfg_load(void)
 {
     uint32_t i;
-    if (*fa_cfg_byte(0) == 0xA7u && *fa_cfg_byte(1) == 0x4Eu) {
+    if (*fa_cfg_byte(0) == 0xA7u && *fa_cfg_byte(1) == 0x4Fu) {
         uint32_t src = *fa_cfg_byte(2), ch = *fa_cfg_byte(3);
         fm_midi_src = (uint8_t)(src == 0u || src == 1u ? src : 3u);   /* (2 was Bluetooth) */
         fm_midi_ch = (uint8_t)(ch > 16u ? 0u : ch);
         fm_bend_mode = (uint8_t)(*fa_cfg_byte(4u + FA_NCC) & 3u);
+        for (i = 0; i < 4u; i++) {                         /* DECAY TEMPO RATE TONE */
+            static const uint8_t GID[4] = {G_RSIZE, G_DTIME, G_CRATE, G_DRLVL};
+            uint32_t c = *fa_cfg_byte(5u + FA_NCC + i);
+            if (c != 0xFFu && (int32_t)c >= GP[GID[i]].min && (int32_t)c <= GP[GID[i]].max)
+                song.g[GID[i]] = (int16_t)c;
+        }
         fm_bt = 0;
         for (i = 0; i < FA_NCC; i++) {
             uint32_t c = *fa_cfg_byte(4u + i);
@@ -630,16 +641,22 @@ static void fa_cfg_load(void)
 static void fa_cfg_save(void)
 {
     uint32_t i;
-    if (!fa_cfg_dirty)
+    if (!fa_cfg_dirty && !fmg_gdirty)
         return;
     fa_cfg_dirty = 0;
+    fmg_gdirty = 0;
     *fa_cfg_byte(0) = 0xA7;
-    *fa_cfg_byte(1) = 0x4E;
+    *fa_cfg_byte(1) = 0x4F;
     *fa_cfg_byte(2) = fm_midi_src;
     *fa_cfg_byte(3) = fm_midi_ch;
     for (i = 0; i < FA_NCC; i++)
         *fa_cfg_byte(4u + i) = fa_cc[i];
     *fa_cfg_byte(4u + FA_NCC) = fm_bend_mode;
+    {
+        static const uint8_t GID[4] = {G_RSIZE, G_DTIME, G_CRATE, G_DRLVL};
+        for (i = 0; i < 4u; i++)
+            *fa_cfg_byte(5u + FA_NCC + i) = (uint8_t)song.g[GID[i]];
+    }
     settings_save();                                      /* (deferred while anything plays) */
 }
 static void fa_gl_close(void)
@@ -688,8 +705,8 @@ static void fa_ctl_name(uint32_t n, const char **tag, char *name)
         str_cpy(name, "GLIDE TIME", 16);
     else if (pg == 0u && i == 6u)
         str_cpy(name, "GLIDE ON", 16);
-    else if (pg == 6u && i >= 4u && i < 7u)
-        str_cpy(name + str_len(name), " ON", 4);
+    else if (pg == 6u && i >= 4u)
+        str_cpy(name, i == 4u ? "REVERB DECAY" : i == 5u ? "DELAY TEMPO" : i == 6u ? "CHORUS RATE" : "DRIVE TONE", 16);
 }
 
 /* a CC value v (0..127) for control n */
@@ -727,6 +744,13 @@ static void fa_ctl_apply(uint32_t n, uint32_t v)
     case FK_BYTE:
         fmg_write(f->a, v);
         break;
+    case FK_GLB: {
+        const param_desc_t *d = &GP[f->a];
+        int32_t n = d->max - d->min + 1;
+        song.g[f->a] = (int16_t)(d->min + (d->fmt == F_ENUM ? (int32_t)v * n / 128 : ((int32_t)v * (n - 1) + 63) / 127));
+        fmg_gdirty = 1;
+        break;
+    }
     default:                                              /* a switch: on from 64 */
         fmg_turn(pg, i, v >= 64u ? 1 : -1, EN_ALGO);
         break;
@@ -914,6 +938,11 @@ static void fa_scene(void)
         fa_wave_boxes(pg, cur);
     } else if (pg == 3u || pg == 4u || pg == 5u) {
         fa_graph(pg);
+    } else if (pg == 6u) {                                   /* FX: DECAY TEMPO RATE TONE under their sends, a thin bar between the four sections */
+        for (i = 0; i < 4u; i++)
+            fa_knob_mini(pg, 4u + i, 36 + (int32_t)i * 56, 173, cur == 4u + i);
+        for (i = 1; i < 4u; i++)
+            cv_rect(8 + (int32_t)i * 56, 38, 1, 168, FA_LINE);
     } else {
         for (i = 0; i < ex; i++)
             fa_switch(pg, i, 36 + (int32_t)i * 56, cur == 4u + i);
@@ -1017,7 +1046,11 @@ static void fa_splash_v(int ver)                         /* the picture (assets/
 static void fa_splash(void) { fa_splash_v(0); }           /* power-on: 3 s (main.c) */
 
 /* ---------------------------------------------------------- control --- */
-static void fa_goto(uint32_t pg) { fa_page = (uint8_t)(pg % FA_NPAGE); }
+static void fa_goto(uint32_t pg)
+{
+    fa_page = (uint8_t)(pg % FA_NPAGE);
+    fa_cfg_save();                                        /* (the FX page's globals) */
+}
 
 /* SELECT: one control on; past a page's last control the next page's first (the other way: the last) */
 static void fa_select(int32_t s)

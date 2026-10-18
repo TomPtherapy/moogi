@@ -12,9 +12,10 @@
  * the engine's E0..E5 (CUTOFF EMPHASIS CONTOUR, the contour's ATTACK DECAY SUSTAIN), the amplitude envelope, the common
  * LFO RATE and the FX sends. Included by ui_graph.c after ui_fm6op.c. */
 static void ml_knob(const track_t *t, uint32_t id);              /* (midi_learn.c) */
+static uint8_t fmg_gdirty;                                        /* a global (FK_GLB) changed: fmug_app.c saves it */
 static uint8_t fmg_cur[7];                                        /* the cursor of each page: 0..3 the knobs, 4.. extras */
 
-enum { FK_BYTE, FK_PAR, FK_SW, FK_NAME, FK_GLIDE, FK_BYP, FK_INS };   /* FK_BYP: a send's on / off (its value kept aside); FK_INS: the INSERT */
+enum { FK_BYTE, FK_PAR, FK_SW, FK_NAME, FK_GLIDE, FK_BYP, FK_INS, FK_GLB };   /* FK_BYP: a send's on / off (its value kept aside); FK_INS: the INSERT */
 typedef struct {
     const char *lb;                                               /* card label (<= 6) */
     uint8_t kind, a, b;                                           /* a: byte index or param id; b: switch bit / names */
@@ -43,8 +44,8 @@ static const struct { const char *name; uint8_t n; fmgf_t f[FMG_NF]; } FMG_PAGE[
                          {"SUSTAIN", FK_PAR, P_SUS, 0, ICON_SUSTAIN}, {"LEVEL", FK_PAR, P_LEVEL, 0, ICON_LEVEL}}},
     {"EFFECTS", 8, {{"REVERB", FK_PAR, P_REV, 0, ICON_REVERB}, {"DELAY", FK_PAR, P_DLY, 0, ICON_DELAY},
                     {"CHORUS", FK_PAR, P_CHOR, 0, ICON_CHORUS}, {"DRIVE", FK_PAR, P_DIST, 0, ICON_DRIVE},
-                    {"REV", FK_BYP, P_REV, 0, ICON_REVERB}, {"DLY", FK_BYP, P_DLY, 1, ICON_DELAY},
-                    {"CHO", FK_BYP, P_CHOR, 2, ICON_CHORUS}, {"INSERT", FK_INS, P_ITYPE, 0, ICON_DRIVE}}},
+                    {"DECAY", FK_GLB, G_RSIZE, 0, ICON_REVERB}, {"TEMPO", FK_GLB, G_DTIME, 0, ICON_DELAY},
+                    {"RATE", FK_GLB, G_CRATE, 0, ICON_CHORUS}, {"TONE", FK_GLB, G_DRLVL, 0, ICON_DRIVE}}},
 };
 static const char *const FMG_RANGE[6] = {"LO", "32'", "16'", "8'", "4'", "2'"};
 static const char *const FMG_WAVE[6] = {"TRI", "SHARK", "SAW", "SQR", "PLS W", "PLS N"};
@@ -143,6 +144,12 @@ static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
         ml_knob(t, f->a);
         break;
     }
+    case FK_GLB: {                                    /* a global (reverb decay, delay tempo, chorus rate, drive tone) */
+        const param_desc_t *d = &GP[f->a];
+        song.g[f->a] = (int16_t)param_turn(d, song.g[f->a], fmg_acc(role, s, d->fmt == F_ENUM ? 0 : d->max - d->min));
+        fmg_gdirty = 1;
+        break;
+    }
     case FK_INS:                                      /* the track's INSERT: a phaser on / off */
         t->p[P_ITYPE] = (int16_t)(s > 0 ? IT_PHASER : 0);
         t->p[P_IMIX] = 127;
@@ -199,6 +206,10 @@ static void fmg_range(uint32_t pg, uint32_t i, int32_t *lo, int32_t *hi)
     const fmgf_t *f = fmg_field(pg, i);
     *lo = 0;
     *hi = f->kind == FK_SW || f->kind == FK_BYP || f->kind == FK_INS ? 1 : f->kind == FK_NAME ? 5 : 127;
+    if (f->kind == FK_GLB) {
+        *lo = GP[f->a].min;
+        *hi = GP[f->a].max;
+    }
     if (f->kind == FK_PAR) {
         *lo = track_desc(TSEL, f->a)->min;
         *hi = track_desc(TSEL, f->a)->max;
@@ -237,6 +248,13 @@ static void fmg_card_at(uint32_t pg, uint32_t i, int32_t vo, const char **label,
     case FK_PAR: {
         const param_desc_t *d = track_desc(TSEL, f->a);
         v = vo >= 0 ? vo : t->p[f->a];
+        param_format(d, v, val, unit);
+        *ratio = RATIO(d, v);
+        return;
+    }
+    case FK_GLB: {
+        const param_desc_t *d = &GP[f->a];
+        v = vo >= 0 ? vo : song.g[f->a];
         param_format(d, v, val, unit);
         *ratio = RATIO(d, v);
         return;
