@@ -235,6 +235,12 @@ static uint32_t div_samples(uint32_t div)
 static const uint8_t DIV_DOT[3] = {2, 3, 1};           /* 3 quarters >> this */
 static uint32_t delay_samples(void)
 {
+#if FELUCCA_FMUG_ONLY
+    {   /* FMini-1: the time in ms (FX > TIME) */
+        uint32_t m = (uint32_t)dly_ms(song.g[G_DRREV]) * (uint32_t)FS / 1000u;
+        return m < 16u ? 16u : m >= DLY_LEN ? DLY_LEN - 1u : m;
+    }
+#endif
     uint32_t d = (uint32_t)song.g[G_DTIME];
     uint32_t s = d - 10u < 3u ? (beat_samples() * 3u) >> DIV_DOT[d - 10u] : div_samples(d);
     return s < 16u ? 16u : s >= DLY_LEN ? DLY_LEN - 1u : s;

@@ -183,6 +183,9 @@ static const param_desc_t *ins_desc(int32_t type, uint32_t k)
     return &INS_DESC[type < 5 ? 0 : type == 5 ? 1 : 2][k];   /* (IT_SOFT .. IT_FUZZ, IT_CRUSH, the swept ones) */
 }
 
+/* FMini-1: the delay time in ms of G_DRREV's 0..127: 10 ms .. 1.4 s, a squared curve (fine at the short end) */
+static int32_t dly_ms(int32_t v) { v = v < 0 ? 0 : v > 127 ? 127 : v; return 10 + v * v * 1390 / 16129; }
+
 static const param_desc_t GP[G_COUNT] = {
     [G_BPM] = PD("BPM", F_BPM, 40, 240, 120),
     [G_SWING] = PD("SWG", F_PCT, 0, 100, 0),
@@ -219,7 +222,7 @@ static const param_desc_t GP[G_COUNT] = {
      * on any part). On no page; kept so the ids and G_COUNT, which the project format and the
      * editor protocol depend on, do not move */
     [G_DRLVL] = PD("TONE", F_PCT, 0, 127, 64),   /* FMini-1: the DRIVE's tone (fx.c track_dist), 64 = as before; was inert */
-    [G_DRREV] = PD("-", F_INT, 0, 0, 0),
+    [G_DRREV] = PD("DLY", F_INT, 0, 127, 65),   /* FMini-1: the delay's TIME in ms (dly_ms; fx.c delay_samples); was inert */
 };
 
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)

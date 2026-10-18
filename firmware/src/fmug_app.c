@@ -129,6 +129,31 @@ static void fa_knob_draw(int32_t cx, int32_t cy)
         }
 }
 
+/* the knob at 4/5 of its size (area-sampled from the baked one: 2 x 2 taps a pixel, the opaque ones averaged) */
+static void fa_knob_draw_s(int32_t cx, int32_t cy)
+{
+    int32_t x, y, sx, sy;
+    if (!fa_knob_ok)
+        fa_bake_knob();
+    for (y = 0; y < 30; y++)
+        for (x = 0; x < 30; x++) {
+            uint32_t r = 0, g = 0, b = 0, n = 0;
+            for (sy = 0; sy < 2; sy++)
+                for (sx = 0; sx < 2; sx++) {
+                    int32_t u = (x * 2 + sx) * 38 / 60, v = (y * 2 + sy) * 38 / 60;
+                    uint16_t c = fa_knob_bmp[v * 38 + u];
+                    if (c) {
+                        r += (uint32_t)(c >> 11);
+                        g += (c >> 5) & 63u;
+                        b += c & 31u;
+                        n++;
+                    }
+                }
+            if (n >= 2u)
+                cv_pset(cx - 15 + x, cy - 15 + y, (uint16_t)(((r / n) << 11) | ((g / n) << 5) | (b / n) | 0x0841u));
+        }
+}
+
 /* ------------------------------------------------------------- text --- */
 static int32_t fa_cap_y(const aafont_t *f) { return f == &AF_L ? AF_L_CAP_Y : f == &AF_N ? AF_N_CAP_Y : f == &AF_X ? AF_X_CAP_Y : f == &AF_S ? AF_S_CAP_Y : AF_M_CAP_Y; }
 static int32_t fa_cap_h(const aafont_t *f) { return f == &AF_L ? AF_L_CAP_H : f == &AF_N ? AF_N_CAP_H : f == &AF_X ? AF_X_CAP_H : f == &AF_S ? AF_S_CAP_H : AF_M_CAP_H; }
@@ -276,31 +301,37 @@ static void fa_graph(uint32_t pg)
 }
 
 /* a smaller knob (a scale of ticks, no numerals) for a control that has no K slot: its label above, its value below */
-static void fa_knob_mini(uint32_t pg, uint32_t i, int32_t cx, int32_t cy, int hot)
+static void fa_knob_mini(uint32_t pg, uint32_t i, int32_t cx, int32_t cy, int hot, int small)
 {
     const char *lb, *un;
     char val[16];
-    int32_t ratio, k, a;
+    int32_t ratio, k, a, r0 = small ? 18 : 22, r1 = small ? 20 : 25, rh = small ? 17 : 21, rp = small ? 10 : 12;
     uint32_t ic;
     const fmgf_t *f = fmg_field(pg, i);
     fmg_card_at(pg, i, -1, &lb, val, &un, &ratio, &ic);
     for (k = 0; k < 11; k++) {
         int32_t ai = (-135 + 270 * k / 10 + 360) % 360 * 1024 / 360, sn = SINE[ai & 1023], cs = SINE[(ai + 256) & 1023];
-        cv_line_t(cx + sn * 22 / 32768, cy - cs * 22 / 32768, cx + sn * 25 / 32768, cy - cs * 25 / 32768, FA_CR, 1);
+        cv_line_t(cx + sn * r0 / 32768, cy - cs * r0 / 32768, cx + sn * r1 / 32768, cy - cs * r1 / 32768, FA_CR, 1);
     }
     if (hot)
         for (k = 0; k < 64; k++)
-            cv_pset(cx + SINE[k * 16 & 1023] * 21 / 32768, cy - SINE[(k * 16 + 256) & 1023] * 21 / 32768, FA_OR);
-    fa_knob_draw(cx, cy);
+            cv_pset(cx + SINE[k * 16 & 1023] * rh / 32768, cy - SINE[(k * 16 + 256) & 1023] * rh / 32768, FA_OR);
+    if (small)
+        fa_knob_draw_s(cx, cy);
+    else
+        fa_knob_draw(cx, cy);
     a = (ratio < 0 ? 0 : ratio) * 270 / 1000 + 225;
     {
-        int32_t ai = a % 360 * 1024 / 360, px = cx + SINE[ai & 1023] * 12 / 32768, py = cy - SINE[(ai + 256) & 1023] * 12 / 32768;
-        cv_rect(px - 1, py - 1, 3, 3, FA_RGB(0xF6, 0xF1, 0xE3));
+        int32_t ai = a % 360 * 1024 / 360, px = cx + SINE[ai & 1023] * rp / 32768, py = cy - SINE[(ai + 256) & 1023] * rp / 32768;
+        if (small)
+            cv_rect(px - 1, py - 1, 2, 2, FA_RGB(0xF6, 0xF1, 0xE3));
+        else
+            cv_rect(px - 1, py - 1, 3, 3, FA_RGB(0xF6, 0xF1, 0xE3));
     }
-    fa_ctext(cx, 138, &AF_X, lb, hot ? FA_OR : FA_CR);
+    fa_ctext(cx, small ? 141 : 138, &AF_X, lb, hot ? FA_OR : FA_CR);
     if (f->kind != FK_NAME && (f->kind != FK_GLB || GP[f->a].fmt == F_PCT))
         fa_num(val, ratio);
-    fa_ctext(cx, 201, &AF_S, val, FA_OR);
+    fa_ctext(cx, small ? 192 : 201, &AF_S, val, FA_OR);
 }
 
 static void fa_wave_boxes(uint32_t pg, uint32_t cur)
@@ -315,7 +346,7 @@ static void fa_wave_boxes(uint32_t pg, uint32_t cur)
         fa_poly(FA_WAVE[w], FA_WAVE_N[w], x + 5, 151, 42, 26, FA_OR);
         fa_ctext(cx, 188, &AF_X, WV[w], hot ? FA_OR : FA_CR);
     }
-    fa_knob_mini(pg, 7, 204, 173, cur == 7u);
+    fa_knob_mini(pg, 7, 204, 173, cur == 7u, 0);
 }
 
 /* ------------------------------------------------------- presets --- */
@@ -585,7 +616,7 @@ static uint32_t fa_sound_keys(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.4"
+#define FMINI_VERSION "v1.4.5"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -620,7 +651,7 @@ static void fa_cfg_load(void)
         fm_midi_ch = (uint8_t)(ch > 16u ? 0u : ch);
         fm_bend_mode = (uint8_t)(*fa_cfg_byte(4u + FA_NCC) & 3u);
         for (i = 0; i < 4u; i++) {                         /* DECAY TEMPO RATE TONE */
-            static const uint8_t GID[4] = {G_RSIZE, G_DTIME, G_CRATE, G_DRLVL};
+            static const uint8_t GID[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL};
             uint32_t c = *fa_cfg_byte(5u + FA_NCC + i);
             if (c != 0xFFu && (int32_t)c >= GP[GID[i]].min && (int32_t)c <= GP[GID[i]].max)
                 song.g[GID[i]] = (int16_t)c;
@@ -653,7 +684,7 @@ static void fa_cfg_save(void)
         *fa_cfg_byte(4u + i) = fa_cc[i];
     *fa_cfg_byte(4u + FA_NCC) = fm_bend_mode;
     {
-        static const uint8_t GID[4] = {G_RSIZE, G_DTIME, G_CRATE, G_DRLVL};
+        static const uint8_t GID[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL};
         for (i = 0; i < 4u; i++)
             *fa_cfg_byte(5u + FA_NCC + i) = (uint8_t)song.g[GID[i]];
     }
@@ -706,7 +737,7 @@ static void fa_ctl_name(uint32_t n, const char **tag, char *name)
     else if (pg == 0u && i == 6u)
         str_cpy(name, "GLIDE ON", 16);
     else if (pg == 6u && i >= 4u)
-        str_cpy(name, i == 4u ? "REVERB DECAY" : i == 5u ? "DELAY TEMPO" : i == 6u ? "CHORUS RATE" : "DRIVE TONE", 16);
+        str_cpy(name, i == 4u ? "REVERB DECAY" : i == 5u ? "DELAY TIME" : i == 6u ? "CHORUS RATE" : "DRIVE TONE", 16);
 }
 
 /* a CC value v (0..127) for control n */
@@ -940,7 +971,7 @@ static void fa_scene(void)
         fa_graph(pg);
     } else if (pg == 6u) {                                   /* FX: DECAY TEMPO RATE TONE under their sends, a thin bar between the four sections */
         for (i = 0; i < 4u; i++)
-            fa_knob_mini(pg, 4u + i, 36 + (int32_t)i * 56, 173, cur == 4u + i);
+            fa_knob_mini(pg, 4u + i, 36 + (int32_t)i * 56, 168, cur == 4u + i, 1);
         for (i = 1; i < 4u; i++)
             cv_rect(8 + (int32_t)i * 56, 38, 1, 168, FA_LINE);
     } else {

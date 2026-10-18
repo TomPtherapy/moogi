@@ -44,7 +44,7 @@ static const struct { const char *name; uint8_t n; fmgf_t f[FMG_NF]; } FMG_PAGE[
                          {"SUSTAIN", FK_PAR, P_SUS, 0, ICON_SUSTAIN}, {"LEVEL", FK_PAR, P_LEVEL, 0, ICON_LEVEL}}},
     {"EFFECTS", 8, {{"REVERB", FK_PAR, P_REV, 0, ICON_REVERB}, {"DELAY", FK_PAR, P_DLY, 0, ICON_DELAY},
                     {"CHORUS", FK_PAR, P_CHOR, 0, ICON_CHORUS}, {"DRIVE", FK_PAR, P_DIST, 0, ICON_DRIVE},
-                    {"DECAY", FK_GLB, G_RSIZE, 0, ICON_REVERB}, {"TEMPO", FK_GLB, G_DTIME, 0, ICON_DELAY},
+                    {"DECAY", FK_GLB, G_RSIZE, 0, ICON_REVERB}, {"TIME", FK_GLB, G_DRREV, 0, ICON_DELAY},
                     {"RATE", FK_GLB, G_CRATE, 0, ICON_CHORUS}, {"TONE", FK_GLB, G_DRLVL, 0, ICON_DRIVE}}},
 };
 static const char *const FMG_RANGE[6] = {"LO", "32'", "16'", "8'", "4'", "2'"};
@@ -255,6 +255,12 @@ static void fmg_card_at(uint32_t pg, uint32_t i, int32_t vo, const char **label,
     case FK_GLB: {
         const param_desc_t *d = &GP[f->a];
         v = vo >= 0 ? vo : song.g[f->a];
+        if (f->a == G_DRREV) {                        /* the delay time in ms */
+            fmt_int(val, dly_ms(v));
+            str_cpy(val + str_len(val), "ms", 4);
+            *ratio = RATIO(d, v);
+            return;
+        }
         param_format(d, v, val, unit);
         *ratio = RATIO(d, v);
         return;
