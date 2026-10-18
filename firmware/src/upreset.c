@@ -76,6 +76,7 @@ static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_
  * versions 1..3 (a 16-bit value in every pair) has none; giving it one (a rename) rewrites it as version 4 / 5 when its
  * values fit a byte (up_to_v4; not a version 1 PHYS sound, whose MODEL 2 means DUST) */
 #define UP_CAT_AT (UP_PMAX * 2u - 1u)
+#define UP_BPM_AT (UP_CAT_AT - 1u)               /* FMini-1: the tempo (BPM, 40..240) a preset was saved with; 0 = none (as every record before) */
 #include "category.c"
 static uint32_t up_cat_of(const up_rec_t *r)
 {
@@ -410,6 +411,9 @@ static int up_store_cat(uint32_t k, const char *name, uint32_t cat)
         up_set_value(&r, i, motion_base_value(TSEL, i));
     up_pat_from(&r, TSEL->step);
     up_set_cat(&r, cat ? cat : track_cat(TSEL));
+#if FELUCCA_FMUG_ONLY
+    r.packed[UP_BPM_AT] = (uint8_t)clamp(song.g[G_BPM], 40, 240);   /* (np = P_COUNT < UP_BPM_AT: no value there) */
+#endif
     if (drum_track(TSEL)) {                             /* a DRUM track that strikes a lane: its grid */
         uint32_t any = 0;
         for (i = 0; i < 16u; i++)
@@ -483,6 +487,10 @@ static int up_load(uint32_t k)
         upf_track_load(t, k);                           /* FM6: the preset's own patch (up_fm6.c) */
     }
     t->user = (uint8_t)(k + 1u);
+#if FELUCCA_FMUG_ONLY
+    if (r->ver >= 4u && r->np <= UP_BPM_AT && r->packed[UP_BPM_AT] >= 40u && r->packed[UP_BPM_AT] <= 240u)
+        song.g[G_BPM] = r->packed[UP_BPM_AT];               /* the preset's tempo */
+#endif
     load_end(t);
     sync_reload = 1;
     ui.force = 1;

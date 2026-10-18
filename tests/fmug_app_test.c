@@ -119,6 +119,32 @@ int main(int argc, char **argv)
                 if (!ENGINES[ENGI_FMUG]->presets[k].mono) { printf("preset %u is poly\n", k); return 1; }
         }
     }
+    {   /* the ARP settings and the tempo are part of a saved preset: SAVE keeps them, loading the preset sets them,
+         * a factory patch turns the arpeggiator off */
+        int16_t bpm0 = song.g[G_BPM];
+        apply_preset_to(TSEL, 2);
+        TSEL->p[P_AMODE] = 3; TSEL->p[P_ARATE] = 4; TSEL->p[P_AOCT] = 3; TSEL->p[P_AGATE] = 90; TSEL->p[P_AHOLD] = 1;
+        song.g[G_BPM] = 93;
+        fa_sv_open();
+        fa_sv_slot = 1;
+        str_cpy(fa_sv_name, "ARP PATCH", 13);
+        fa_sv_do();
+        apply_preset_to(TSEL, 4);
+        song.g[G_BPM] = 150;
+        if (TSEL->p[P_AMODE] != 0 || TSEL->p[P_AHOLD] != 0) { printf("arp: a factory patch leaves the ARP on\n"); return 1; }
+        up_load(1);
+        if (TSEL->p[P_AMODE] != 3 || TSEL->p[P_ARATE] != 4 || TSEL->p[P_AOCT] != 3 || TSEL->p[P_AGATE] != 90 || TSEL->p[P_AHOLD] != 1 ||
+            song.g[G_BPM] != 93) {
+            printf("arp: preset load: mode %d rate %d oct %d gate %d hold %d bpm %d\n", TSEL->p[P_AMODE], TSEL->p[P_ARATE],
+                   TSEL->p[P_AOCT], TSEL->p[P_AGATE], TSEL->p[P_AHOLD], song.g[G_BPM]);
+            return 1;
+        }
+        up_load(0);                                     /* the first saved patch has its own (ARP off, its tempo) */
+        TSEL->p[P_AMODE] = 0; TSEL->p[P_AHOLD] = 0; TSEL->p[P_ARATE] = TP[P_ARATE].def; TSEL->p[P_AOCT] = 1; TSEL->p[P_AGATE] = TP[P_AGATE].def;
+        song.g[G_BPM] = bpm0;
+        apply_preset_to(TSEL, 0);
+        TSEL->user = 0;
+    }
     {   /* GLIDE: the knob alone makes the track glide; ARP pop-up changes the arp; HOME */
         int i;
         fa_page = 0;

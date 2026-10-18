@@ -1281,6 +1281,12 @@ static void pat_load_ui(track_t *t, uint32_t n)
  * insert, which chops whatever the track plays in time with its sequencer */
 static int param_kept(uint32_t i)
 {
+#if FELUCCA_FMUG_ONLY
+    /* FMini-1: the arpeggiator (MODE RATE OCT GATE, ARP 2) is part of the preset: a load sets it (a factory patch: off),
+     * SAVE stores it with the tempo (upreset.c) */
+    if (i >= P_AMODE && i <= P_AORDER)
+        return 0;
+#endif
     return i == P_LEVEL || i == P_PAN || i == P_MUTE || (i >= P_AMODE && i <= P_SGATE) ||
            (i >= P_SLCR && i <= P_SLDEPTH) || i == P_CHRD || i == P_VOIC || i == P_SQNT;
 }
