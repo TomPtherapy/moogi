@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * FMini-1: the eight screens of the README, drawn by the real code of fmug_app.c (as tests/fmug_app_test.c does) into
- * DIR/shot_<name>.ppm: splash, osc, mix, filter, fx, fxrev and fxdly (the FX EDIT pop-ups), preset (the pop-up of patch 00), arp, seq.
+ * DIR/shot_<name>.ppm: splash, osc, mix, filter, fx, fxrev and fxdly (the FX EDIT pop-ups), preset (the pop-up of patch 00), arp, seq,
+ * glo (the GLOBAL list: assets/site/glo.webp is this one, 960 x 960).
  *   cc -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o /tmp/shots tools/readme_shots.c -lm && /tmp/shots /tmp/fa
  *   python3 tools/gen_readme_art.py /tmp/fa
  * (after the generation step of tools/build.py has made build/gen) */
@@ -74,6 +75,9 @@ int main(int argc, char **argv)
     redraw();
     shot("arp");
     fa_ar = 0; trk[0].p[P_AMODE] = 0;
+    fa_page = 1; fa_gl = 1; fa_gl_row = 0; redraw();       /* GLO: the list (MIDI IN, CHANNEL, MIDI CC, PITCH BEND, ABOUT) */
+    shot("glo");
+    fa_gl = 0; fa_page = 0; redraw();
     fpress(B_SEQ);                                     /* SEQ: a take of eight notes, playing */
     fpress(B_REC);
     for (i = 0; i < 8u; i++) { input_on(&trk[0], RIFF[i], 100); trk_all_off(&trk[0]); }
@@ -84,6 +88,6 @@ int main(int argc, char **argv)
     redraw();
     if (!fa_sq || !song.playing) { printf("seq not open / not playing\n"); return 1; }
     shot("seq");
-    printf("10 shots in %s\n", dir);
+    printf("11 shots in %s\n", dir);
     return 0;
 }

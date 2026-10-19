@@ -7,13 +7,13 @@
 # contour's amount (co(octaves)), fenv (attack ms, decay ms, sustain 0..127) the filter contour, env (attack, decay, sustain,
 # release) the loudness contour; send = (drive, chorus, delay, reverb) levels; rv / dl / ch / dr the FX settings.
 import os
-from gen_fmug_presets import A, o, osc_off, co, st_pit, hz, ms, cut, dly, semi, det
+from gen_fmug_presets import A, o, osc_off, co, st_pit, hz, ms, cut, dly, semi, det, CUTHZ
 
 
 def showcase(b):
     b.add("MINI LEAD", "lead", (o("8", "SAW", 90), o("8", "SAW", 90, 11), o("16", "SQR", 70)),
-          cutoff=1200, emph=45, cntr=co(2.0), kbd=64, fenv=(0, 350, 70), env=(3, 400, 110, 180),
-          vib=30, mosc=True, lfo=(5.5, "SIN", 400, "OFF"), glide=60,
+          cutoff=CUTHZ[83], emph=45, cntr=co(2.0), kbd=64, fenv=(0, 350, 70), env=(3, 400, 110, 180),
+          vib=30, mosc=False, lfo=(5.5, "SIN", 400, "OFF"), glide=40, oct=1,      # knob: CUTOFF 6.5 (+10 %), GLIDE 3.9 (-10 %)
           send=(30, 0, 55, 40), rv=("HALL", 60, 80), dl=("ANALOG", 375, 45), dr=("TUBE", 70, 64), pat=4)
     b.add("I FEEL ARP", "bass", (o("16", "SAW", 120), o("16", "SQR", 110, 11), o("32", "TRI", 90)),
           cutoff=500, emph=50, cntr=co(2.5), kbd=40, fenv=(0, 120, 20), env=(2, 180, 40, 60),
@@ -21,12 +21,12 @@ def showcase(b):
           arp=A("UP", "1/16", 2, 0.45), arp_on=True, pat=2)
     b.add("LUSH STRINGS", "pad", (o("8", "SAW", 80), o("8", "SAW", 80, 22), o("4", "SAW", 60, -22)),
           cutoff=2500, emph=10, cntr=0, kbd=64, fenv=(0, 400, 100), env=(350, 600, 118, 700),
-          vib=14, mosc=True, lfo=(5.0, "SIN", 800, "OFF"), poly=True,
+          vib=14, mosc=False, lfo=(5.0, "SIN", 800, "OFF"), poly=True,
           send=(0, 90, 0, 50), rv=("HALL", 80, 85), ch=("MULTI", 70, 0.5), pat=5)
     b.add("ROTARY ORG", "keys", (o("16", "TRI", 90), o("8", "TRI", 100), o("4", "SQR", 50)),
-          cutoff=6000, emph=0, cntr=0, kbd=100, fenv=(0, 100, 127), env=(6, 100, 127, 60),
+          cutoff=CUTHZ[105], emph=0, cntr=0, kbd=100, fenv=(0, 100, 127), env=(6, 100, 127, 60),      # knob: CUTOFF 8.2 (-0.2)
           lfo=(6.5, "SIN", 0, "OFF"), trem=20, pit=st_pit(0.1), poly=True,
-          send=(0, 80, 0, 25), rv=("ROOM", 40, 70), ch=("STEREO", 90, 6.5), pat=6)
+          send=(0, 80, 0, 64), rv=("HALL", 40, 70), ch=("STEREO", 90, 6.5), pat=6)
     b.add("CRYSTAL BELL", "keys", (o("4", "TRI", 100), o("4", "TRI", 70, 693), o("2", "TRI", 40, 516)),
           cutoff=1500, emph=10, cntr=co(3.0), kbd=127, fenv=(0, 1500, 0), env=(1, 2500, 0, 1500), poly=True,
           send=(0, 20, 30, 70), rv=("PLATE", 80, 100), dl=("DIGITAL", 375, 40), ch=("STEREO", 60, 0.5), pat=7)
@@ -53,7 +53,7 @@ def showcase(b):
 def hard_leads(b):                       # 10-19: intense, aggressive, big
     b.add("EMERSON", "lead", (o("8", "SAW", 100), o("8", "SAW", 100, -17), o("16", "SQR", 75, 6)),
           cutoff=2000, emph=64, cntr=co(1.8), kbd=90, fenv=(0, 600, 55), env=(2, 300, 118, 260),
-          vib=28, mosc=True, lfo=(5.3, "SIN", 600, "OFF"), glide=150,
+          vib=28, mosc=False, lfo=(5.3, "SIN", 600, "OFF"), glide=150,
           send=(60, 0, 55, 35), rv=("PLATE", 45, 80), dl=("TAPE", 300, 38), dr=("TUBE", 80, 70), pat=4)
     b.add("NUMAN", "lead", (o("8", "SAW", 100), o("8", "SAW", 100, 9), o("4", "SAW", 60, -9)),
           cutoff=3200, emph=22, cntr=co(1.2), kbd=100, fenv=(0, 700, 85), env=(4, 220, 122, 320),
@@ -140,37 +140,37 @@ def soft_leads(b):                       # 20-29: gentler, singing, mellow
 def basses(b):                           # 30-39
     b.add("MOOG BASS", "bass", (o("16", "SAW", 110), o("16", "SAW", 100, -9), o("8", "TRI", 60)),
           cutoff=300, emph=30, cntr=co(2.2), kbd=40, fenv=(0, 600, 35), env=(3, 400, 118, 150),
-          send=(30, 0, 0, 8), rv=("ROOM", 20, 60), dr=("TUBE", 60, 64), pat=2)
+          send=(30, 0, 0, 8), rv=("ROOM", 20, 60), dr=("TUBE", 60, 64), oct=-1, pat=2)
     b.add("CHAMELEON", "bass", (o("16", "SQR", 110), o("16", "SQR", 95, 5), o("8", "SAW", 55, -5)),
           cutoff=330, emph=78, cntr=co(3.9), kbd=55, fenv=(0, 95, 0), env=(1, 170, 45, 50),
-          send=(35, 0, 25, 10), rv=("ROOM", 20, 60), dl=("SLAP", 100, 25), dr=("TUBE", 70, 64), pat=2)
+          send=(35, 0, 25, 10), rv=("ROOM", 20, 60), dl=("SLAP", 100, 25), dr=("TUBE", 70, 64), oct=-1, pat=2)
     b.add("SUB BASS", "bass", (o("32", "TRI", 110), o("16", "TRI", 100), osc_off()),
           cutoff=300, emph=0, cntr=co(0.5), kbd=0, fenv=(0, 200, 60), env=(8, 300, 118, 120),
-          send=(40, 0, 0, 0), dr=("SOFT", 40, 64), pat=8)
+          send=(40, 0, 0, 0), dr=("SOFT", 40, 64), oct=-1, pat=8)
     b.add("WOBBLE BASS", "bass", (o("16", "SAW", 105), o("16", "SAW", 105, -23), o("32", "TRI", 70)),
           cutoff=380, emph=75, cntr=co(0.5), kbd=40, fenv=(0, 200, 60), env=(4, 300, 118, 150),
           vib=110, mflt=True, lfo=(2.0, "TRI", 0, "1/8"),
-          send=(80, 0, 0, 15), dr=("TUBE", 60, 64), pat=2)
+          send=(80, 0, 0, 15), dr=("TUBE", 60, 64), oct=-1, pat=2)
     b.add("OCTAVE PUMP", "bass", (o("16", "SQR", 110), o("8", "SAW", 75, 7), osc_off()),
           cutoff=1100, emph=15, cntr=co(3.0), kbd=50, fenv=(0, 90, 0), env=(1, 160, 40, 50),
-          send=(30, 0, 25, 12), dl=("DIGITAL", 188, 30), arp=A("UP+8", "1/8", 1, 0.55, 0, 127), arp_on=True, pat=2)
+          send=(30, 0, 25, 12), dl=("DIGITAL", 188, 30), arp=A("UP+8", "1/8", 1, 0.55, 0, 127), arp_on=True, oct=-1, pat=2)
     b.add("SEQ BASS", "bass", (o("16", "SAW", 110), o("16", "SAW", 100, 13), o("32", "SQR", 70)),
           cutoff=650, emph=70, cntr=co(2.8), kbd=60, fenv=(0, 110, 0), env=(1, 140, 0, 40),
           send=(50, 0, 40, 15), dl=("DIGITAL", 188, 35), dr=("TUBE", 70, 64),
-          arp=A("ORD", "1/16", 1, 0.35, 25, 127), arp_on=True, pat=13)
+          arp=A("ORD", "1/16", 1, 0.35, 25, 127), arp_on=True, oct=-1, pat=13)
     b.add("REESE", "bass", (o("16", "SAW", 105, -25), o("16", "SAW", 105, 25), o("8", "SAW", 60)),
           cutoff=500, emph=15, cntr=co(0.8), kbd=40, fenv=(0, 500, 60), env=(8, 400, 120, 300),
           vib=30, mflt=True, lfo=(0.25, "TRI", 0, "OFF"),
-          send=(60, 100, 0, 35), ch=("MULTI", 100, 0.25), dr=("TUBE", 50, 64), pat=8)
+          send=(60, 100, 0, 35), ch=("MULTI", 100, 0.25), dr=("TUBE", 50, 64), oct=-1, pat=8)
     b.add("RUBBER", "bass", (o("16", "TRI", 127), o("16", "SQR", 115), o("8", "TRI", 60)),
           cutoff=500, emph=55, cntr=co(2.2), kbd=50, fenv=(0, 120, 0), env=(1, 500, 0, 100), penv=st_pit(2.5),
-          send=(25, 0, 18, 0), dr=("TUBE", 50, 64), pat=2)
+          send=(25, 0, 18, 0), dr=("TUBE", 50, 64), oct=-1, pat=2)
     b.add("FUZZ BASS", "bass", (o("16", "SQR", 120), o("8", "SQR", 100, 7), o("16", "SQR", 70, -7)),
           cutoff=1500, emph=20, cntr=co(1.0), kbd=70, fenv=(0, 200, 60), env=(2, 250, 115, 100),
-          send=(127, 0, 0, 10), dr=("SOFT", 55, 55), arp=A("REPEAT", "1/8", 1, 0.6, 0, 127), arp_on=True, pat=2)
+          send=(127, 0, 0, 10), dr=("SOFT", 55, 55), arp=A("REPEAT", "1/8", 1, 0.6, 0, 127), arp_on=True, oct=-1, pat=2)
     b.add("WONDER BASS", "bass", (o("16", "SAW", 100), o("8", "SQR", 95), o("16", "TRI", 70)),
           cutoff=450, emph=50, cntr=co(2.8), kbd=60, fenv=(0, 260, 30), env=(3, 400, 100, 120), glide=35,
-          send=(20, 0, 20, 20), dl=("ANALOG", 250, 30), pat=2)
+          send=(20, 0, 20, 20), dl=("ANALOG", 250, 30), oct=-1, pat=2)
 
 
 def pads(b):                             # 40-49: pads and strings

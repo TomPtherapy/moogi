@@ -737,14 +737,15 @@ static uint32_t fa_sound_keys(void)
 /* ----------------------------------------------------------- GLO --- */
 /* GLO opens the global settings pop-up: MIDI IN (USB / MIDI / ALL), CHANNEL (ALL / 1..16), MIDI CC (every
  * knob, switch and wave box of every screen and the ARP's lines, each with its own CC, 0 = none; a CC sent from the
- * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
+ * controller while the list is open is taken for the highlighted line), PITCH BEND (the range) and ABOUT (the splash
+ * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.32"
+#define FMINI_VERSION "v1.5"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
-static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 PITCH BEND, 3 MIDI CC, 4 ABOUT */
+static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 MIDI CC, 3 PITCH BEND, 4 ABOUT */
 static uint8_t fa_cc_i;                                   /* the control highlighted in MIDI CC */
 static uint8_t fa_cc[FA_NCC];                             /* its CC, 0 = none */
 static uint8_t fa_cfg_dirty;
@@ -957,8 +958,8 @@ static void fa_gl_dialog(void)
         else
             str_cpy(b, "ALL", 4);
         fa_line(84, "MIDI CHANNEL", b, fa_gl_row == 1u);
-        fa_line(106, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 2u);
-        fa_line(128, "MIDI CC", ">", fa_gl_row == 3u);
+        fa_line(106, "MIDI CC", ">", fa_gl_row == 2u);
+        fa_line(128, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 3u);
         fa_line(150, "ABOUT", ">", fa_gl_row == 4u);
         fa_ctext(120, 198, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
     } else {                                              /* MIDI CC: a window of six lines on the list */
@@ -1183,7 +1184,7 @@ static uint32_t fa_signature(void)
     return (h ^ t->preset) * 16777619u;
 }
 
-static void fa_splash_v(int ver);
+static void fa_splash(void);
 static void fa_draw(void)
 {
     uint32_t sig = fa_signature(), band;
@@ -1193,7 +1194,7 @@ static void fa_draw(void)
     ui.force = 0;
     fmg_force_page = (int8_t)fa_page;
     if (fa_gl == 3u) {                                    /* ABOUT: the splash, the version bottom right */
-        fa_splash_v(1);
+        fa_splash();
         return;
     }
     for (band = 0; band < 2u; band++) {
@@ -1207,7 +1208,7 @@ static void fa_draw(void)
 }
 
 #include "fmini_splash.h"
-static void fa_splash_v(int ver)                         /* the picture (assets/fmini-splash.png); ver: with the version */
+static void fa_splash(void)                              /* the picture (assets/fmini-splash.png), the version bottom right: power-on (3 s, main.c) and ABOUT */
 {
     uint32_t band, x, y;
     for (band = 0; band < 2u; band++) {
@@ -1216,13 +1217,11 @@ static void fa_splash_v(int ver)                         /* the picture (assets/
         for (y = band * 120u; y < band * 120u + 120u; y++)
             for (x = 0; x < 240u; x++)
                 cv_pset((int32_t)x, (int32_t)y, FMINI_SPLASH_PAL[FMINI_SPLASH[y * 240u + x]]);
-        if (ver)
-            cv_text_on(232 - text_w(&AF_S, FMINI_VERSION), 220, &AF_S, FMINI_VERSION, FA_CR, 0);
+        cv_text_on(232 - text_w(&AF_S, FMINI_VERSION), 220, &AF_S, FMINI_VERSION, FA_CR, 0);
         cv_oy = 0;
         cv_blit(0, band * 120u);
     }
 }
-static void fa_splash(void) { fa_splash_v(0); }           /* power-on: 3 s (main.c) */
 
 /* ---------------------------------------------------------- control --- */
 static void fa_goto(uint32_t pg)
@@ -1526,14 +1525,14 @@ static void fa_input(void)
                     fm_midi_ch = (uint8_t)clamp((int32_t)fm_midi_ch + (s > 0 ? 1 : -1), 0, 16);
                     panic_req |= 1u;
                     fa_cfg_dirty = 1;
-                } else if (fa_gl_row == 2u) {
+                } else if (fa_gl_row == 3u) {
                     uint32_t ch;
                     fm_bend_mode = (uint8_t)clamp((int32_t)fm_bend_mode + (s > 0 ? 1 : -1), 0, 3);
                     for (ch = 0; ch < 16u; ch++)           /* the bend held now follows the new range */
                         midi_expression_channel(ch);
                     fa_cfg_dirty = 1;
                 } else
-                    fa_gl = fa_gl_row == 3u ? 2u : 3u;
+                    fa_gl = fa_gl_row == 2u ? 2u : 3u;
             }
         } else if (fa_gl == 2u) {
             if ((s = panel_enc(EN_SELECT)) != 0)

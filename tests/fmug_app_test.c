@@ -79,6 +79,19 @@ int main(int argc, char **argv)
     }
     fa_splash();
     dump(dir, 9);
+    {   /* the power-on splash carries the version, bottom right, as ABOUT does: the same picture, and not the bare one */
+        uint32_t i, diff = 0, same = 1;
+        static uint16_t sp[240u * 240u];
+        for (i = 0; i < 240u * 240u; i++) sp[i] = host_screen[i];
+        fa_gl = 3; fa_sig_prev = 0; ui.force = 1; fa_draw(); fa_gl = 0;
+        for (i = 0; i < 240u * 240u; i++) if (sp[i] != host_screen[i]) same = 0;
+        if (!same) { printf("splash != ABOUT\n"); return 1; }
+        for (i = 0; i < 240u * 240u; i++) {
+            uint32_t x = i % 240u, y = i / 240u;
+            if (y >= 218u && y < 232u && x >= 232u - text_w(&AF_S, FMINI_VERSION) && x < 232u && sp[i] != swap16(FMINI_SPLASH_PAL[FMINI_SPLASH[i]])) diff++;
+        }
+        if (!diff) { printf("splash: no version text\n"); return 1; }
+    }
     fa_page = 3;                                       /* patch 100 and the SAVE dialog */
     TSEL->p[P_E7] = 99;
     fmug_load_slot(0, 99);
@@ -235,6 +248,14 @@ int main(int argc, char **argv)
                     printf("patch %u: FX %u = %d (%d)\n", k, fxk, song.g[FA_XG[fxk]], x->fx[fxk]); bad++;
                 }
             if (song.octave != x->oct || (k >= 50u && k < 60u && x->oct != -1)) { printf("patch %u: octave %d\n", k, song.octave); bad++; }
+            if (k >= 30u && k < 40u && song.octave != -1) { printf("patch %u: a bass comes in with OCT-1 (%d)\n", k, song.octave); bad++; }
+            if ((k == 0u || k == 2u || k == 10u) && (fmug_patch[0][FG_SW1] & FS_MOSC)) { printf("patch %u: MOD OSC is off\n", k); bad++; }
+            if (k == 0u && (song.octave != 1 || TSEL->p[P_E0] != 83 || fmug_patch[0][FG_GLID] != 50)) {      /* CUTOFF 6.5 (+10 %), GLIDE 3.9 (-10 %), OCT+ */
+                printf("patch 0: octave %d cutoff %d glide %d\n", song.octave, TSEL->p[P_E0], fmug_patch[0][FG_GLID]); bad++;
+            }
+            if (k == 3u && (TSEL->p[P_E0] != 105 || TSEL->p[P_REV] != 64 || song.g[G_RTYPE] != 1)) {          /* CUTOFF 8.2 (-0.2), REVERB 5.0, HALL */
+                printf("patch 3: cutoff %d reverb %d type %d\n", TSEL->p[P_E0], TSEL->p[P_REV], song.g[G_RTYPE]); bad++;
+            }
         }
         if (on < 22u || on > 28u) { printf("bank: ARP on in %u of 100 patches\n", on); bad++; }
         if (song.g[G_BPM] != 117) { printf("bank: a patch changed the tempo (%d)\n", song.g[G_BPM]); bad++; }
@@ -467,10 +488,20 @@ int main(int argc, char **argv)
         fturn(EN_SELECT, -1);
         if (fa_gl_row != 4) { printf("rows wrap\n"); return 1; }
         /* GLO: PITCH BEND draws at once, ABOUT closes with either encoder */
-        fa_gl = 1; fa_gl_row = 2; fm_bend_mode = 0;
+        fa_gl = 1; fa_gl_row = 3; fm_bend_mode = 0;
         sig = fa_signature();
         fturn(EN_ALGO, 1);
         if (fm_bend_mode != 1 || fa_signature() == sig) { printf("bend redraw\n"); return 1; }
+        /* GLO order: MIDI IN, CHANNEL, MIDI CC (above PITCH BEND), PITCH BEND, ABOUT */
+        fa_gl = 1; fa_gl_row = 1; fturn(EN_SELECT, 1);
+        if (fa_gl_row != 2) { printf("MIDI CC is row 2\n"); return 1; }
+        ui.force = 1; fa_draw(); dump(dir, 40);
+        fturn(EN_ALGO, 1);
+        if (fa_gl != 2) { printf("MIDI CC opens\n"); return 1; }
+        fa_gl = 1; fa_gl_row = 2; fturn(EN_SELECT, 1);
+        if (fa_gl_row != 3) { printf("PITCH BEND follows MIDI CC\n"); return 1; }
+        fa_gl = 1; fa_gl_row = 4; fturn(EN_ALGO, 1);
+        if (fa_gl != 3) { printf("ABOUT opens\n"); return 1; }
         fa_gl = 3; fturn(EN_ALGO, 1);
         if (fa_gl != 1) { printf("about ALGO\n"); return 1; }
         fa_gl = 3; fturn(EN_SELECT, 1);
