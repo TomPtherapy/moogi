@@ -38,7 +38,7 @@ def main(path):
     L += arr("ENV_LIN", "uint32_t", [max(1, int((1 << 24) * CTL / (m * FS / 1000))) for m in ms], 8)
     exp_k = []
     for m in ms:
-        tau = m / 1000 / 4.6                       # ~99 % of the way after "m" ms
+        tau = m / 1000 / 6.9                       # ~99.9 % (-60 dB, inaudible) of the way after "m" ms: the knob's time is how long it is heard
         exp_k.append(max(1, min(65535, int(65536 * (1 - math.exp(-CTL / (tau * FS)))))))
     L += arr("ENV_EXP", "uint16_t", exp_k)
     # LFO 0.05 .. 40 Hz, phase increment per control tick
