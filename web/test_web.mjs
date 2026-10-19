@@ -1640,8 +1640,9 @@ const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 
 /* an FM-1 on WebMIDI: identity, then "device asks, host answers" reads of the image */
 class FakeFM1 {
-  constructor(image, { unplugAfter = Infinity } = {}) {
+  constructor(image, { unplugAfter = Infinity, run = "Felucca", ota = "Felucca Update" } = {}) {
     this.image = image; this.unplugAfter = unplugAfter; this.served = 0; this.bad = 0;
+    this.runName = run; this.otaName = ota;                    // the USB names: "Felucca" / "Felucca Update" (until v1.4.27), "FMini-1" / "FMini-1 Update" (v1.4.28+)
     this.access = { inputs: new Map(), outputs: new Map() };
     this.boot("FM-1_015", "FM-1");
   }
@@ -1677,8 +1678,8 @@ class FakeFM1 {
       this.waiting = null;
       this.served++;
       if (this.served >= this.unplugAfter) { this.input.state = this.output.state = "disconnected"; return; }
-      if (addr === 0xE0000000) setTimeout(() => this.boot("ota-FM-1_900", "Felucca Update"), 300);
-      else if (addr === 0xF0000000) setTimeout(() => this.boot("FM-1_900", "Felucca"), 300);
+      if (addr === 0xE0000000) setTimeout(() => this.boot("ota-FM-1_900", this.otaName), 300);
+      else if (addr === 0xF0000000) setTimeout(() => this.boot("FM-1_900", this.runName), 300);
       else this.next();
     }
   }
@@ -1702,6 +1703,17 @@ async function updater() {
   const got = await new Updater(dev.access).install(image, "FM-1_900", (k) => steps.push(k));
   ok(got === "FM-1_900" && dev.bad === 0 && steps.includes("write") && steps.at(-1) === "done",
     `fm1ota.js: install: running firmware -> loader -> Felucca (${dev.served} reads)`);
+
+  /* the USB names the firmware has had: the update loader ("FMini-1 Update" since v1.4.29) must be found by its name too */
+  for (const [run, ota] of [["FMini-1", "FMini-1 Update"], ["Felucca", "FMini-1 Update"], ["FM-1", "Felucca Update"]]) {
+    const dn = new FakeFM1(image, { run, ota });
+    dn.boot("FM-1_015", run);
+    const gn = await new Updater(dn.access).install(image, "FM-1_900").then((v) => v, (x) => x.code || String(x));
+    ok(gn === "FM-1_900" && dn.bad === 0, `fm1ota.js: install through the ports "${run}" -> "${ota}" -> "${run}" (${gn})`);
+    const dr = new FakeFM1(image, { run, ota });
+    dr.boot("ota-FM-1_900", ota);
+    ok(await new Updater(dr.access).resume(image) === true, `fm1ota.js: resume finds the loader named "${ota}"`);
+  }
 
   const dev2 = new FakeFM1(image, { unplugAfter: 3 });
   dev2.boot("ota-FM-1_900", "Felucca Update");
