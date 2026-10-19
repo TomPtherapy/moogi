@@ -11,6 +11,9 @@
  * track's own (SLOT OWN) with one undo per gesture, as ui_fm6op.c does for FM6. The rest are the track's parameters:
  * the engine's E0..E5 (CUTOFF EMPHASIS CONTOUR, the contour's ATTACK DECAY SUSTAIN), the amplitude envelope, the common
  * LFO RATE and the FX sends. Included by ui_graph.c after ui_fm6op.c. */
+#ifndef FELUCCA_FMUG_ONLY
+#define FELUCCA_FMUG_ONLY 0                  /* (the host tests of Felucca's whole UI) */
+#endif
 static void ml_knob(const track_t *t, uint32_t id);              /* (midi_learn.c) */
 static uint8_t fmg_gdirty;                                        /* a global (FK_GLB) changed: fmug_app.c saves it */
 static uint8_t fmg_cur[11];                                        /* the cursor of each page: 0..3 the knobs, 4.. extras */

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * FMini-1: the eight screens of the README, drawn by the real code of fmug_app.c (as tests/fmug_app_test.c does) into
- * DIR/shot_<name>.ppm: splash, osc, mix, filter, fx, preset (the pop-up of patch 00), arp, seq.
+ * DIR/shot_<name>.ppm: splash, osc, mix, filter, fx, fxrev and fxdly (the FX EDIT pop-ups), preset (the pop-up of patch 00), arp, seq.
  *   cc -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o /tmp/shots tools/readme_shots.c -lm && /tmp/shots /tmp/fa
  *   python3 tools/gen_readme_art.py /tmp/fa
  * (after the generation step of tools/build.py has made build/gen) */
@@ -49,6 +49,7 @@ int main(int argc, char **argv)
     uint32_t i;
     dir = argc > 1 ? argv[1] : ".";
     panel_init();
+    for (i = 0; i < G_COUNT; i++) song.g[i] = GP[i].def;   /* main.c's power-on globals */
     fa_init();
     song.g[G_BPM] = 120;                               /* the tempo the ARP and the SEQ show */
     fa_splash();
@@ -57,6 +58,9 @@ int main(int argc, char **argv)
     page(2, "mix");
     page(3, "filter");
     page(6, "fx");
+    fmg_fx = 1; fmg_cur[7] = 0; redraw(); shot("fxrev");   /* EDIT: the reverb's pop-up, then FX again: the delay's */
+    fmg_fx = 2; fmg_cur[8] = 0; redraw(); shot("fxdly");
+    fmg_fx = 0; redraw();
     fa_page = 0;                                       /* PRESETS onto patch 00: its pop-up */
     apply_preset_to(TSEL, 1); TSEL->p[P_E7] = 1; fmug_poll(); fa_track_preset();
     fm1_ms += 2000; redraw();
@@ -80,6 +84,6 @@ int main(int argc, char **argv)
     redraw();
     if (!fa_sq || !song.playing) { printf("seq not open / not playing\n"); return 1; }
     shot("seq");
-    printf("8 shots in %s\n", dir);
+    printf("10 shots in %s\n", dir);
     return 0;
 }
