@@ -53,7 +53,15 @@ static const char *const N_MIDI_INPUT[] = {"USB", "TRS"};
 static const char *const N_ROUTE[] = {"CH1-4", "SEL", "CH5-8", "CH9-12", "CH13-16", "TRACK"};
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 static const char *const N_DASH[] = {"--"};
+#if FELUCCA_FMUG_ONLY
+/* FMini-1: G_RTYPE's six models (the FX > REVERB > TYPE list; fx.c rev_model maps them to the running models) */
+static const char *const N_RTYPE[] = {"ROOM", "HALL", "PLATE", "SPRING", "SHIMMER", "CLOUD"};
+static const char *const N_DLYTYPE[] = {"ANALOG", "DIGITAL", "TAPE", "P-PONG", "MULTI", "SLAP", "REVERSE"};   /* G_DTIME's use */
+static const char *const N_CHOTYPE[] = {"STEREO", "JUNO", "MULTI"};                                       /* G_ENGGO's use */
+static const char *const N_DRVTYPE[] = {"SOFT", "TUBE"};                                                  /* G_INFO's use */
+#else
 static const char *const N_RTYPE[] = {"ROOM", "SPRING", "HALL"};   /* G_RTYPE: the reverb bus's model (fx.c) */
+#endif
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
@@ -191,33 +199,57 @@ static const param_desc_t GP[G_COUNT] = {
     [G_SWING] = PD("SWG", F_PCT, 0, 100, 0),
     [G_CLOCK] = PE("CLK", N_CLOCK, 0),
     [G_TUNE] = PD("TUNE", F_INT, -50, 50, 0),     /* cents; edited on MENU > AUDIO TUNE (1.2: menu_items.c MI_TUNE) */
+#if FELUCCA_FMUG_ONLY
+    [G_DTIME] = PE("TYPE", N_DLYTYPE, 0),         /* FMini-1: the DELAY's TYPE (the tempo time is not used: G_DRREV is the time in ms) */
+#else
     [G_DTIME] = PE("TIME", N_DTIME, 1),
+#endif
     [G_DFDBK] = PD("FDBK", F_PCT, 0, 120, 60),
     [G_DCOLOR] = PD("COLR", F_PCT, 0, 127, 70),
     [G_DMIX] = PD("MIX", F_PCT, 0, 127, 90),
     [G_RSIZE] = PD("SIZE", F_PCT, 0, 127, 90),
+#if FELUCCA_FMUG_ONLY
+    [G_RDAMP] = PD("TONE", F_PCT, 0, 127, 67),    /* FMini-1: the REVERB's TONE (a high cut: 127 open; fx.c uses 127 - TONE as the damping) */
+#else
     [G_RDAMP] = PD("DAMP", F_PCT, 0, 127, 60),
+#endif
     [G_CRATE] = PD("CRT", F_LFOHZ, 0, 127, 40),
-    [G_CDEPTH] = PD("CDP", F_PCT, 0, 127, 60),
+    [G_CDEPTH] = PD("DEPTH", F_PCT, 0, 127, 60),
     /* G_MIDI, G_SYNC, G_INFO: the old SYSTEM page's (gone in 1.2), on no page: MIDI's value was never read (its card
      * showed the USB state), SYNC was a placeholder, CPU a reading; the USB state and the CPU load are MENU > SYSTEM >
      * INFO's now (ui_menu.c). Kept: the ids and G_COUNT are fixed by the formats and the protocol */
+#if FELUCCA_FMUG_ONLY
+    [G_MIDI] = PD("OUT", F_PCT, 0, 127, 64),      /* FMini-1: the DRIVE's OUTPUT level (64 = as before, up to +6 dB) */
+#else
     [G_MIDI] = PE("MIDI", N_MIDI_INPUT, 0),
+#endif
     [G_SYNC] = PE("SYNC", N_DASH, 0),
     /* MIDI IN's routing, edited on MENU > MIDI > MIDI IN (1.2: menu_items.c MI_MIDIIN; up to 1.1.5 GLO > SYSTEM ROUT),
      * stored with the project as before. (was "--": stored 0 = CH1-4, as MIDI IN always was) */
     [G_ROUTE] = PE("ROUT", N_ROUTE, 0),
+#if FELUCCA_FMUG_ONLY
+    [G_INFO] = PE("TYPE", N_DRVTYPE, 0),          /* FMini-1: the DRIVE's TYPE */
+#else
     [G_INFO] = PD("CPU", F_INT, 0, 0, 0),
+#endif
     [G_SLOT] = PD("SLOT", F_INT, 1, 4, 1),
     [G_NAME] = PE("NAME", N_DASH, 0),
     [G_LOAD] = PE("LOAD", N_GO, 0),
     [G_SAVE] = PE("SAVE", N_GO, 0),
     [G_ENGSEL] = PE("ENG", N_ENGNAME, 0),
+#if FELUCCA_FMUG_ONLY
+    [G_ENGGO] = PE("TYPE", N_CHOTYPE, 0),         /* FMini-1: the CHORUS's TYPE */
+#else
     [G_ENGGO] = PE("SET", N_GO, 0),
+#endif
     [G_CLRSEQ] = PE("CLRSQ", N_GO, 0),
     [G_INITSND] = PE("INIT", N_GO, 0),
     /* the reverb's model on the REVERB page: the id of the old GM drum channel (G_DRCH, inert since 1.0) */
-    [G_RTYPE] = PE("TYPE", N_RTYPE, 2),         /* HALL at power-on since 1.2 (ROOM before; projects keep theirs) */
+#if FELUCCA_FMUG_ONLY
+    [G_RTYPE] = PE("TYPE", N_RTYPE, 1),         /* FMini-1: HALL (index 1 of the six) */
+#else
+    [G_RTYPE] = PE("TYPE", N_RTYPE, 2),
+#endif         /* HALL at power-on since 1.2 (ROOM before; projects keep theirs) */
     /* inert: they set the GM drum part (level, reverb send), which is gone (drums are the DRUM engine
      * on any part). On no page; kept so the ids and G_COUNT, which the project format and the
      * editor protocol depend on, do not move */

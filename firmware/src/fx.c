@@ -24,7 +24,14 @@ static struct {
     int32_t sp_lp, sp_hp, sp_he, sp_size;   /* .. its loop low-pass, low cut (and its remainder), the loop
                                              * length (Q8, glides) */
     uint32_t sp_ph;                      /* .. the output tap's wobble */
+    uint8_t cho_on, dly_on, rev_on;      /* FMini-1: the bus ran last block (a bus whose send is 0 and input silent does not run at all) */
+    uint32_t dly_start;                  /* .. the delay's write index when it last started (older samples are silence) */
 } fx;
+#if FELUCCA_FMUG_ONLY
+#define RDAMP (127 - song.g[G_RDAMP])    /* FMini-1: the REVERB's TONE (open at 127) is the high cut the models call damping */
+#else
+#define RDAMP song.g[G_RDAMP]
+#endif
 
 /* SPRING (G_RTYPE 1): one spring of a spring tank, mono like the other buses, in the ROOM's own buffers (no
  * RAM of its own): the input and the loop's return -> a low cut (~110 Hz: a spring carries little bass) ->
@@ -250,7 +257,7 @@ static uint32_t delay_samples(void)
 static __attribute__((noinline)) void rev_room(const int32_t *rev_in, int32_t *out, uint32_t n)
 {
     uint32_t i, k;
-    int32_t size = 25000 + song.g[G_RSIZE] * 50, damp = 32767 - song.g[G_RDAMP] * 200;
+    int32_t size = 25000 + song.g[G_RSIZE] * 50, damp = 32767 - RDAMP * 200;
     for (i = 0; i < n; i++) {
         int32_t a = 0;
         int16_t *c = rev_comb;
@@ -283,7 +290,7 @@ static __attribute__((noinline)) void rev_spring(const int32_t *rev_in, int32_t 
 {
     uint32_t i, k, s = (uint32_t)song.g[G_RSIZE];
     int32_t g = 19661 + (int32_t)s * 85;                /* the loop's gain: 0.6 .. 0.93 */
-    int32_t kl = 26000 - song.g[G_RDAMP] * 160;         /* its low-pass: ~9 kHz .. ~1.3 kHz */
+    int32_t kl = 26000 - RDAMP * 160;         /* its low-pass: ~9 kHz .. ~1.3 kHz */
     int32_t len = (int32_t)(1323u + ((s * 1323u) >> 7)) << 8, L, L2, L3, f, w;
     int16_t *ln = rev_comb;
     int32_t *ap = rev_u.sp;
@@ -411,7 +418,7 @@ static __attribute__((noinline)) void rev_hall(const int32_t *rev_in, int32_t *o
 {
     int16_t *b = rev_comb, *a = rev_ap;
     uint32_t i, k, s, m, d;
-    int32_t kd = HL_KD(song.g[G_RDAMP]);
+    int32_t kd = HL_KD(RDAMP);
     int32_t xp = hl.x, hp = hl.hp, he = hl.he, mp = hl.m, sp = hl.s;
     (void)n;
     if (hl.sz != song.g[G_RSIZE] + 1)
@@ -561,7 +568,22 @@ static __attribute__((noinline)) void rev_switch(const int32_t *rev_in, int32_t 
     fx.rtype = (uint8_t)rt;
 }
 
-/* process the three buses for one block; sends in, wet stereo-equal out */
+static int32_t fx_any(const int32_t *x, uint32_t n)      /* a bus with anything on it */
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        if (x[i])
+            return 1;
+    return 0;
+}
+/* FMini-1: the six reverb TYPEs (params.c N_RTYPE: ROOM HALL PLATE SPRING SHIMMER CLOUD) -> the running models
+ * (0 ROOM, 1 SPRING, 2 HALL); the three not made yet run as HALL */
+#if FELUCCA_FMUG_ONLY
+static const uint8_t REV_MODEL[6] = {0, 2, 2, 1, 2, 2};
+#endif
+
+/* process the three buses for one block; sends in, wet stereo-equal out. FMini-1: a bus whose send is 0 on every part
+ * (the FX page's MIX at 0) and whose input is silent is OFF: nothing of it runs (its state cleared once), the CPU is free */
 static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t *rev_in, int32_t *wet,
                      uint32_t n)
 {
@@ -570,38 +592,83 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     int32_t dmix = song.g[G_DMIX] * 258;
     int32_t cdepth = song.g[G_CDEPTH] * 6, rt;
     uint32_t cinc = LFO_INC[song.g[G_CRATE] & 127] / CTL;
+    uint32_t cho_act = 1, dly_act = 1, rev_act = 1;
 #if FELUCCA_FMUG_ONLY
+    {
+        uint32_t sc = 0, sd = 0, sr = 0, k;
+        for (k = 0; k < NTRK; k++) {
+            sc |= (uint32_t)(trk[k].p[P_CHOR] > 0);
+            sd |= (uint32_t)(trk[k].p[P_DLY] > 0);
+            sr |= (uint32_t)(trk[k].p[P_REV] > 0);
+        }
+        cho_act = sc || fx_any(cho_in, n);
+        dly_act = sd || fx_any(dly_in, n);
+        rev_act = sr || fx_any(rev_in, n);
+    }
     /* FMini-1: RATE only changes the rate. The depth is a fixed, typical pitch swing (about +-16 cents, 25% above the first pick): the delay swing
      * A (samples, half the peak to peak) shrinks as the rate rises (pitch deviation = 2 pi f A / FS), at most +-3.1 ms */
     cdepth = (int32_t)clamp((int32_t)(6400000u / (cinc ? cinc : 1u)), 2, 137) * 3;
+    cdepth = cdepth * (int32_t)song.g[G_CDEPTH] / 60;             /* DEPTH (pop-up): 60 = the typical swing, 0 = none, 127 = about twice */
+    if (!cho_act && fx.cho_on) {
+        for (i = 0; i < CHO_LEN; i++)
+            cho_buf[i] = 0;
+        fx.cho_on = 0;
+    }
+    if (dly_act && !fx.dly_on) {
+        fx.dly_start = fx.dly_w;                         /* what the buffer holds is old: it reads as silence until rewritten */
+        fx.dly_lp = 0;
+    }
+    fx.dly_on = (uint8_t)dly_act;
+    fx.cho_on = (uint8_t)cho_act;
 #endif
     if (pf.ew1 && fb < THR_FB)
         fb += mulq16(THR_FB - fb, (uint32_t)pf.ew1 << 1);   /* ECHO THROW (perform.c): more feedback while held, 0.7
                                                              * at most (the loop's gain below 1: it never runs away) */
     for (i = 0; i < n; i++) {
         int32_t y = 0, x, r;
-        /* chorus: modulated short delay, 5..15 ms */
-        cho_buf[fx.cho_w & (CHO_LEN - 1u)] = (int16_t)clamp(cho_in[i] >> 1, -32768, 32767);
-        fx.cho_ph += cinc;
-        r = (400 << 8) + ((osc_sine(fx.cho_ph) + 32768) * cdepth >> 8);   /* Q8 delay: read between samples */
-        {
-            uint32_t ri = (uint32_t)r >> 8;
-            int32_t f = r & 255, c0 = cho_buf[(fx.cho_w - ri) & (CHO_LEN - 1u)];
-            int32_t c1 = cho_buf[(fx.cho_w - ri - 1u) & (CHO_LEN - 1u)];
-            y += (c0 + (((c1 - c0) * f) >> 8)) << 1;
+        if (cho_act) {
+            /* chorus: modulated short delay, 5..15 ms */
+            cho_buf[fx.cho_w & (CHO_LEN - 1u)] = (int16_t)clamp(cho_in[i] >> 1, -32768, 32767);
+            fx.cho_ph += cinc;
+            r = (400 << 8) + ((osc_sine(fx.cho_ph) + 32768) * cdepth >> 8);   /* Q8 delay: read between samples */
+            {
+                uint32_t ri = (uint32_t)r >> 8;
+                int32_t f = r & 255, c0 = cho_buf[(fx.cho_w - ri) & (CHO_LEN - 1u)];
+                int32_t c1 = cho_buf[(fx.cho_w - ri - 1u) & (CHO_LEN - 1u)];
+                y += (c0 + (((c1 - c0) * f) >> 8)) << 1;
+            }
+            fx.cho_w++;
         }
-        fx.cho_w++;
-        /* delay with a low-passed feedback */
-        x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)];
-        fx.dly_lp += mulq15(x - fx.dly_lp, col);
-        dly_buf[fx.dly_w & (DLY_LEN - 1u)] =
-            (int16_t)clamp((dly_in[i] >> 1) + mulq15(fx.dly_lp, fb), -32768, 32767);
-        fx.dly_w++;
-        y += mulq15(x << 1, dmix);
+        if (dly_act) {
+            /* delay with a low-passed feedback */
+#if FELUCCA_FMUG_ONLY
+            x = (fx.dly_w - fx.dly_start) >= dl ? dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)] : 0;
+#else
+            x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)];
+#endif
+            fx.dly_lp += mulq15(x - fx.dly_lp, col);
+            dly_buf[fx.dly_w & (DLY_LEN - 1u)] =
+                (int16_t)clamp((dly_in[i] >> 1) + mulq15(fx.dly_lp, fb), -32768, 32767);
+            fx.dly_w++;
+            y += mulq15(x << 1, dmix);
+        }
         wet[i] = y;
     }
     rt = song.g[G_RTYPE];
+#if FELUCCA_FMUG_ONLY
+    rt = REV_MODEL[(uint32_t)rt % 6u];
+    if (!rev_act) {                                       /* OFF: its buffers cleared once, nothing runs */
+        if (fx.rev_on) {
+            rev_clear();
+            fx.rev_on = 0;
+        }
+        hl.side = 0;
+        return;
+    }
+    fx.rev_on = 1;
+#else
     rt = rt == 1 || rt == 2 ? rt : 0;
+#endif
     hl.side = 0;
     if (rt != fx.rtype)
         rev_switch(rev_in, wet, n, rt);

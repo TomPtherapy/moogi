@@ -213,7 +213,9 @@ static void fa_knob_col(uint32_t pg, uint32_t i, int32_t cx, int hot)
     }
     fa_ctext(cx, 112, &AF_S, val, FA_OR);
     {
-        char kn[4] = {'K', (char)('1' + i), 0, 0};
+        char kn[5] = {'K', (char)('1' + i), 0, 0, 0};
+        if (pg == 6u)                                      /* FX: the parameter each knob sets (the effect is the label above) */
+            str_cpy(kn, i == 3u ? "GAIN" : "MIX", 5);
         fa_ctext(cx, 127, &AF_X, kn, FA_RGB(0x5D, 0x55, 0x4A));
     }
 }
@@ -398,6 +400,62 @@ static void fa_fader(uint32_t pg, uint32_t i, int32_t cx, int hot)
     else if (f->a == G_CRATE)                              /* RATE in Hz */
         str_cpy(val + str_len(val), "Hz", 4);
     fa_ctext(cx, 186, &AF_S, val, FA_OR);
+}
+
+/* the FX page's EDIT button under each effect: a beige frame, a dark inside, EDIT; the cursor an orange frame */
+static void fa_edit_btn(int32_t cx, int hot)
+{
+    const uint16_t dk = FA_RGB(0x0D, 0x0C, 0x0B), bg = FA_RGB(0xD9, 0xD2, 0xC0);
+    int32_t x = cx - 22, y = 156, ty = y + 1 + (19 - AF_X_CAP_H) / 2 - AF_X_CAP_Y;
+    if (hot)
+        cv_frame(x - 3, y - 3, 50, 25, FA_OR);
+    cv_rect(x, y, 44, 21, bg);
+    cv_rect(x + 1, y + 1, 42, 19, dk);
+    cv_text_on(cx - text_w(&AF_X, "EDIT") / 2, ty, &AF_X, "EDIT", hot ? FA_OR : FA_CR, dk);
+}
+
+/* one knob of an FX pop-up: a scale of ticks, the dial and its pointer, the label above and the value below */
+static void fa_pop_knob(uint32_t pg, uint32_t i, int32_t cx, int32_t cy, int hot)
+{
+    const char *lb, *un;
+    char val[16];
+    int32_t ratio, k, a;
+    uint32_t ic;
+    const fmgf_t *f = fmg_field(pg, i);
+    fmg_card_at(pg, i, -1, &lb, val, &un, &ratio, &ic);
+    for (k = 0; k < 11; k++) {
+        int32_t ai = (-135 + 270 * k / 10 + 360) % 360 * 1024 / 360, sn = SINE[ai & 1023], cs = SINE[(ai + 256) & 1023];
+        cv_line_t(cx + sn * 22 / 32768, cy - cs * 22 / 32768, cx + sn * 25 / 32768, cy - cs * 25 / 32768, FA_CR, 1);
+    }
+    if (hot)
+        for (k = 0; k < 64; k++)
+            cv_pset(cx + SINE[k * 16 & 1023] * 21 / 32768, cy - SINE[(k * 16 + 256) & 1023] * 21 / 32768, FA_OR);
+    fa_knob_draw(cx, cy);
+    a = (ratio < 0 ? 0 : ratio) * 270 / 1000 + 225;
+    {
+        int32_t ai = a % 360 * 1024 / 360, px = cx + SINE[ai & 1023] * 12 / 32768, py = cy - SINE[(ai + 256) & 1023] * 12 / 32768;
+        cv_rect(px - 1, py - 1, 3, 3, FA_RGB(0xF6, 0xF1, 0xE3));
+    }
+    fa_ctext(cx, cy - 42, &AF_X, f->lb, hot ? FA_OR : FA_CR);
+    if (f->kind == FK_PAR || (f->kind == FK_GLB && GP[f->a].fmt == F_PCT))
+        fa_num(val, ratio);
+    fa_ctext(cx, cy + 32, &AF_S, val, FA_OR);
+    {
+        char kn[4] = {'K', (char)('1' + i), 0, 0};
+        fa_ctext(cx, cy + 50, &AF_X, kn, FA_RGB(0x5D, 0x55, 0x4A));
+    }
+}
+static void fa_fx_dialog(void)
+{
+    uint32_t pg = 6u + fmg_fx, i;
+    const uint16_t bgd = FA_RGB(0x1B, 0x19, 0x17);
+    cv_rect(12, 42, 216, 164, FA_OR);
+    cv_rect(14, 44, 212, 160, bgd);
+    fa_ctext(120, 50, &AF_S, FMG_PAGE[pg].name, FA_CR);
+    cv_rect(20, 66, 200, 1, FA_RULE);
+    for (i = 0; i < 4u; i++)
+        fa_pop_knob(pg, i, 39 + (int32_t)i * 54, 112, fmg_cur[pg] == i);
+    fa_ctext(120, 190, &AF_X, fmg_fx == 2u ? "K1-K4  SCL=TAP  FX=NEXT" : "K1-K4  SELECT  ALGO  FX=NEXT", FA_MU);
 }
 
 static void fa_wave_boxes(uint32_t pg, uint32_t cur)
@@ -682,7 +740,7 @@ static uint32_t fa_sound_keys(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.29"
+#define FMINI_VERSION "v1.4.30"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -707,6 +765,8 @@ static const uint8_t FA_CC0[FA_NCC] = {
 };
 static int fa_cc_valid(uint32_t cc) { return cc == 0u || ml_free_cc(cc); }
 
+/* the FX pop-ups' other globals (their power-on values are kept with the settings, as the four of the first FX page) */
+static const uint8_t FA_GID2[8] = {G_RTYPE, G_RDAMP, G_DTIME, G_DFDBK, G_ENGGO, G_CDEPTH, G_INFO, G_MIDI};
 static uint8_t *fa_cfg_byte(uint32_t i) { return &favorites.factory[7u + i / 32u][i % 32u]; }
 static void fa_cfg_load(void)
 {
@@ -721,6 +781,13 @@ static void fa_cfg_load(void)
             uint32_t c = *fa_cfg_byte(5u + FA_NCC + i);
             if (c != 0xFFu && (int32_t)c >= GP[GID[i]].min && (int32_t)c <= GP[GID[i]].max)
                 song.g[GID[i]] = (int16_t)c;
+        }
+        for (i = 0; i < 8u; i++) {                         /* TYPE TONE | TYPE FDBK | TYPE DEPTH | TYPE OUT (the pop-ups' others) */
+            uint32_t c = *fa_cfg_byte(9u + FA_NCC + i);
+            if (c != 0xFFu && (int32_t)c >= GP[FA_GID2[i]].min && (int32_t)c <= GP[FA_GID2[i]].max)
+                song.g[FA_GID2[i]] = (int16_t)c;
+            else if (i == 0u)                              /* an older config: the reverb's TYPE list changed (HALL was 2) */
+                song.g[G_RTYPE] = GP[G_RTYPE].def;
         }
         fm_bt = 0;
         for (i = 0; i < FA_NCC; i++) {
@@ -753,6 +820,8 @@ static void fa_cfg_save(void)
         static const uint8_t GID[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL};
         for (i = 0; i < 4u; i++)
             *fa_cfg_byte(5u + FA_NCC + i) = (uint8_t)song.g[GID[i]];
+        for (i = 0; i < 8u; i++)
+            *fa_cfg_byte(9u + FA_NCC + i) = (uint8_t)song.g[FA_GID2[i]];
     }
     settings_save();                                      /* (deferred while anything plays) */
 }
@@ -823,6 +892,11 @@ static void fa_ctl_apply(uint32_t n, uint32_t v)
         return;
     }
     fa_ctl_loc(n, &pg, &i);
+    if (pg == 6u && i >= 4u) {                            /* the FX page's slots 4..7 kept their CCs: DECAY TIME RATE TONE, now in the pop-ups */
+        static const uint8_t POPI[4] = {2, 2, 3, 2};
+        pg = 6u + (i - 3u);
+        i = POPI[i - 4u];
+    }
     f = fmg_field(pg, i);
     switch (f->kind) {
     case FK_PAR:
@@ -1041,7 +1115,7 @@ static void fa_scene(void)
         fa_graph(pg);
     } else if (pg == 6u) {                                   /* FX: DECAY TEMPO RATE TONE under their sends, a thin bar between the four sections */
         for (i = 0; i < 4u; i++)
-            fa_fader(pg, 4u + i, 36 + (int32_t)i * 56, cur == 4u + i);
+            fa_edit_btn(36 + (int32_t)i * 56, cur == 4u + i);
         for (i = 1; i < 4u; i++) {                         /* the bars between the sections: a bright core with a faint glow */
             cv_rect(7 + (int32_t)i * 56, 38, 3, 168, FA_RGB(0x4A, 0x40, 0x32));
             cv_rect(8 + (int32_t)i * 56, 38, 1, 168, FA_RGB(0xD2, 0xC2, 0xA2));
@@ -1073,6 +1147,8 @@ static void fa_scene(void)
         fa_ar_dialog();
     else if (fa_sv)
         fa_dialog();
+    else if (fmg_fx)
+        fa_fx_dialog();
     else if (fa_msg_on()) {
         int32_t mw = text_w(&AF_M, fa_msg) + 20;
         cv_rect(120 - mw / 2, 96, mw, 26, FA_OR);
@@ -1088,7 +1164,7 @@ static uint32_t fa_signature(void)
     const track_t *t = TSEL;
     uint32_t h = 2166136261u, i;
     h = (h ^ fa_page) * 16777619u;
-    for (i = 0; i < 7u; i++)
+    for (i = 0; i < FMG_NPG; i++)
         h = (h ^ fmg_cur[i]) * 16777619u;
     for (i = 0; i < FG_SIZE; i++)
         h = (h ^ fmug_patch[0][i]) * 16777619u;
@@ -1100,6 +1176,9 @@ static uint32_t fa_signature(void)
         h = (h ^ fa_cc[i]) * 16777619u;
     h = (h ^ fa_sv ^ (uint32_t)fa_ar << 4 ^ (uint32_t)fa_ar_row << 5 ^ (uint32_t)song.g[G_BPM] << 8) * 16777619u;
     h = (h ^ (uint32_t)song.g[G_RSIZE] ^ (uint32_t)song.g[G_DRREV] << 7 ^ (uint32_t)song.g[G_CRATE] << 14 ^ (uint32_t)song.g[G_DRLVL] << 21) * 16777619u;   /* FX: DECAY TIME RATE TONE */
+    for (i = 0; i < 8u; i++)                                 /* the pop-ups' others, and which pop-up is open */
+        h = (h ^ (uint32_t)song.g[FA_GID2[i]]) * 16777619u;
+    h = (h ^ fmg_fx) * 16777619u;
     h = (h ^ fa_sv_slot ^ (uint32_t)fa_sv_pos << 8 ^ (uint32_t)t->user << 16 ^ (uint32_t)fa_msg_on() << 24) * 16777619u;
     for (i = 0; i < 12u; i++)
         h = (h ^ (uint8_t)fa_sv_name[i]) * 16777619u;
@@ -1191,8 +1270,10 @@ static void fa_preset(int32_t s)
         t->user = 0;
         apply_preset_to(t, nx);
         t->p[P_E7] = (int16_t)nx;
-        { static const uint8_t FXG[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL}; uint32_t q;   /* a factory patch: the FX page's defaults */
-          for (q = 0; q < 4u; q++) song.g[FXG[q]] = GP[FXG[q]].def; }
+        { uint32_t q;                                     /* a factory patch: the FX pop-ups' defaults */
+          static const uint8_t FXG[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL};
+          for (q = 0; q < 4u; q++) song.g[FXG[q]] = GP[FXG[q]].def;
+          for (q = 0; q < 8u; q++) song.g[FA_GID2[q]] = GP[FA_GID2[q]].def; }
         song.octave = 0;                                  /* ... and the middle octave */
     } else {
         up_load(fa_user_nth(nx - FMUG_NFACTORY));
@@ -1201,6 +1282,27 @@ static void fa_preset(int32_t s)
 }
 
 /* a page button: the tap opens it */
+/* the delay pop-up's TAP TEMPO (the SCL button): the time between two taps is the delay TIME (taps further apart than 1.4 s start again) */
+static uint32_t fa_tap_t;
+static void fa_tap(void)
+{
+    uint32_t now = fm1_ms, dt = now - fa_tap_t;
+    fa_tap_t = now;
+    if (dt >= 100u && dt <= 1400u) {
+        int32_t v, best = 0, bd = 1 << 30;
+        for (v = 0; v < 128; v++) {                       /* the TIME knob value whose milliseconds are the nearest */
+            int32_t d = dly_ms(v) - (int32_t)dt;
+            d = d < 0 ? -d : d;
+            if (d < bd) {
+                bd = d;
+                best = v;
+            }
+        }
+        song.g[G_DRREV] = (int16_t)best;
+        fmg_gdirty = 1;
+    }
+}
+
 static void fa_buttons(uint32_t pressed)
 {
     static const uint8_t PG_BTN[5] = {B_LFO, B_EDIT, B_SCL, B_FX, B_ENV};   /* (GLO: global, ARP, SEQ, REC, PLAY: their own) */
@@ -1286,8 +1388,24 @@ static void fa_buttons(uint32_t pressed)
             fa_sv_open();
         return;
     }
+    if (fmg_fx == 2u && ((pressed >> panel.btn[B_SCL]) & 1u)) {   /* the delay pop-up: SCL taps the tempo, it does not leave */
+        fa_tap();
+        pressed &= ~(1u << panel.btn[B_SCL]);
+    }
     for (i = 0; i < 5u; i++)
         if ((pressed >> panel.btn[PG_BTN[i]]) & 1u) {
+            if (PG_BTN[i] == B_FX && fa_page == 6u) {     /* FX again: round the four pop-ups, then back to the page */
+                fa_sv = 0;
+                fa_ar = 0;
+                fa_sq = 0;
+                fa_sq_rec = 0;
+                fa_gl_close();
+                fmg_fx = (uint8_t)((fmg_fx + 1u) % 5u);
+                if (!fmg_fx)
+                    fa_cfg_save();
+                continue;
+            }
+            fmg_fx = 0;
             fa_sv = 0;                                    /* a page button cancels the dialog */
             fa_ar = 0;
             fa_sq = 0;
@@ -1343,6 +1461,22 @@ static void fa_input(void)
         fa_preset(s);
     fa_track_preset();
     fa_cc_poll();                                         /* the CCs the MIDI inputs brought */
+    if (fa_gl || fa_sq || fa_ar || fa_sv || fa_page != 6u)
+        fmg_fx = 0;                                       /* the FX pop-up lives on the FX page alone, under no other dialog */
+    if (fmg_fx) {                                         /* an FX pop-up: K1..K4 its four knobs, SELECT / ALGO as on a page */
+        uint32_t pg = 6u + fmg_fx;
+        fmg_force_page = (int8_t)pg;
+        if ((s = panel_enc(EN_SELECT)) != 0)
+            fmg_cur[pg] = (uint8_t)((fmg_cur[pg] + 4u + (s > 0 ? 1u : 3u)) % 4u);
+        if ((s = panel_enc(EN_ALGO)) != 0)
+            fmg_turn(pg, fmg_cur[pg] % 4u, s, EN_ALGO);
+        for (k = 0; k < 4u; k++)
+            if ((s = panel_enc(EN_K1 + k)) != 0) {
+                fmg_turn(pg, k, s, EN_K1 + k);
+                fmg_cur[pg] = (uint8_t)k;
+            }
+        return;
+    }
     if (fa_gl) {                                          /* the GLO pop-up (the page's knobs wait) */
         for (k = 0; k < 4u; k++)
             (void)panel_enc(EN_K1 + k);

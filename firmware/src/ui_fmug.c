@@ -13,9 +13,9 @@
  * LFO RATE and the FX sends. Included by ui_graph.c after ui_fm6op.c. */
 static void ml_knob(const track_t *t, uint32_t id);              /* (midi_learn.c) */
 static uint8_t fmg_gdirty;                                        /* a global (FK_GLB) changed: fmug_app.c saves it */
-static uint8_t fmg_cur[7];                                        /* the cursor of each page: 0..3 the knobs, 4.. extras */
+static uint8_t fmg_cur[11];                                        /* the cursor of each page: 0..3 the knobs, 4.. extras */
 
-enum { FK_BYTE, FK_PAR, FK_SW, FK_NAME, FK_GLIDE, FK_BYP, FK_INS, FK_GLB, FK_VOICE };   /* FK_BYP: a send's on / off (its value kept aside); FK_INS: the INSERT */
+enum { FK_BYTE, FK_PAR, FK_SW, FK_NAME, FK_GLIDE, FK_BYP, FK_INS, FK_GLB, FK_VOICE, FK_EDIT };   /* FK_BYP: a send's on / off (its value kept aside); FK_INS: the INSERT; FK_EDIT (FMini-1): a button that opens an FX pop-up (a = 0..3: REVERB DELAY CHORUS DRIVE) */
 typedef struct {
     const char *lb;                                               /* card label (<= 6) */
     uint8_t kind, a, b;                                           /* a: byte index or param id; b: switch bit / names */
@@ -23,7 +23,9 @@ typedef struct {
 } fmgf_t;
 enum { FN_RANGE, FN_WAVE };
 #define FMG_NF 9u
-static const struct { const char *name; uint8_t n; fmgf_t f[FMG_NF]; } FMG_PAGE[7] = {
+static uint8_t fmg_fx;                                            /* FMini-1: the FX pop-up open (1..4: REVERB DELAY CHORUS DRIVE), 0 = none */
+#define FMG_NPG 11u                                               /* the seven pages, then the four FX pop-ups' (7 + fmg_fx - 1) */
+static const struct { const char *name; uint8_t n; fmgf_t f[FMG_NF]; } FMG_PAGE[FMG_NPG] = {
     {"CONTROLLERS", FELUCCA_FMUG_ONLY ? 9 : 8, {{"TUNE", FK_BYTE, FG_TUNE, 0, ICON_TUNE}, {"GLIDE", FK_GLIDE, FG_GLID, 0, ICON_GLIDE},
                         {"MOD MIX", FK_BYTE, FG_MMIX, 0, ICON_MOD}, {"LFO RATE", FK_PAR, P_LRATE, 0, ICON_RATE},
                         {"MOD OSC", FK_SW, FG_SW1, FS_MOSC, ICON_MOD}, {"MOD FLT", FK_SW, FG_SW1, FS_MFLT, ICON_MOD},
@@ -45,8 +47,17 @@ static const struct { const char *name; uint8_t n; fmgf_t f[FMG_NF]; } FMG_PAGE[
                          {"SUSTAIN", FK_PAR, P_SUS, 0, ICON_SUSTAIN}, {"LEVEL", FK_PAR, P_LEVEL, 0, ICON_LEVEL}}},
     {"EFFECTS", 8, {{"REVERB", FK_PAR, P_REV, 0, ICON_REVERB}, {"DELAY", FK_PAR, P_DLY, 0, ICON_DELAY},
                     {"CHORUS", FK_PAR, P_CHOR, 0, ICON_CHORUS}, {"DRIVE", FK_PAR, P_DIST, 0, ICON_DRIVE},
-                    {"DECAY", FK_GLB, G_RSIZE, 0, ICON_REVERB}, {"TIME", FK_GLB, G_DRREV, 0, ICON_DELAY},
-                    {"RATE", FK_GLB, G_CRATE, 0, ICON_CHORUS}, {"TONE", FK_GLB, G_DRLVL, 0, ICON_DRIVE}}},
+                    {"EDIT", FK_EDIT, 0, 0, ICON_REVERB}, {"EDIT", FK_EDIT, 1, 0, ICON_DELAY},
+                    {"EDIT", FK_EDIT, 2, 0, ICON_CHORUS}, {"EDIT", FK_EDIT, 3, 0, ICON_DRIVE}}},
+    /* the FX pop-ups: four knobs each (K1..K4) */
+    {"REVERB", 4, {{"MIX", FK_PAR, P_REV, 0, ICON_REVERB}, {"TYPE", FK_GLB, G_RTYPE, 0, ICON_REVERB},
+                   {"DECAY", FK_GLB, G_RSIZE, 0, ICON_REVERB}, {"TONE", FK_GLB, G_RDAMP, 0, ICON_REVERB}}},
+    {"DELAY", 4, {{"MIX", FK_PAR, P_DLY, 0, ICON_DELAY}, {"TYPE", FK_GLB, G_DTIME, 0, ICON_DELAY},
+                  {"TIME", FK_GLB, G_DRREV, 0, ICON_DELAY}, {"FEEDBK", FK_GLB, G_DFDBK, 0, ICON_DELAY}}},
+    {"CHORUS", 4, {{"MIX", FK_PAR, P_CHOR, 0, ICON_CHORUS}, {"TYPE", FK_GLB, G_ENGGO, 0, ICON_CHORUS},
+                   {"DEPTH", FK_GLB, G_CDEPTH, 0, ICON_CHORUS}, {"RATE", FK_GLB, G_CRATE, 0, ICON_CHORUS}}},
+    {"DRIVE", 4, {{"GAIN", FK_PAR, P_DIST, 0, ICON_DRIVE}, {"TYPE", FK_GLB, G_INFO, 0, ICON_DRIVE},
+                  {"TONE", FK_GLB, G_DRLVL, 0, ICON_DRIVE}, {"OUTPUT", FK_GLB, G_MIDI, 0, ICON_DRIVE}}},
 };
 static const char *const FMG_RANGE[6] = {"LO", "32'", "16'", "8'", "4'", "2'"};
 static const char *const FMG_WAVE[6] = {"TRI", "SHARK", "SAW", "SQR", "PLS W", "PLS N"};
@@ -54,11 +65,11 @@ static const char *const FMG_WAVE[6] = {"TRI", "SHARK", "SAW", "SQR", "PLS W", "
 static int fmg_page(uint32_t g) { return g >= GR_FMG0 && g <= GR_FMG6; }
 static int fmg_ok(void) { return TSEL->eng_req % NENGINES == ENGI_FMUG; }
 static int8_t fmg_force_page = -1;                               /* FELUCCA_FMUG_ONLY: fmug_app.c's page */
-static uint32_t fmg_pg(void) { return fmg_force_page >= 0 ? (uint32_t)fmg_force_page % 7u : (cur_page()->graph - GR_FMG0) % 7u; }
-static uint32_t fmg_count(uint32_t pg) { return FMG_PAGE[pg % 7u].n; }
-static const fmgf_t *fmg_field(uint32_t pg, uint32_t i) { return &FMG_PAGE[pg % 7u].f[i % FMG_NF]; }
+static uint32_t fmg_pg(void) { return fmg_force_page >= 0 ? (uint32_t)fmg_force_page % FMG_NPG : (cur_page()->graph - GR_FMG0) % 7u; }
+static uint32_t fmg_count(uint32_t pg) { return FMG_PAGE[pg % FMG_NPG].n; }
+static const fmgf_t *fmg_field(uint32_t pg, uint32_t i) { return &FMG_PAGE[pg % FMG_NPG].f[i % FMG_NF]; }
 /* the control under the page's cursor */
-static uint32_t fmg_curi(uint32_t pg) { return fmg_cur[pg % 7u] % fmg_count(pg); }
+static uint32_t fmg_curi(uint32_t pg) { return fmg_cur[pg % FMG_NPG] % fmg_count(pg); }
 
 /* byte b of the selected track's patch = v: the track's own patch now (SLOT OWN), one undo per gesture */
 static void fmg_write(uint32_t b, uint32_t v)
@@ -153,6 +164,9 @@ static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
         fmg_gdirty = 1;
         break;
     }
+    case FK_EDIT:                                     /* FMini-1: EDIT opens the FX pop-up */
+        fmg_fx = (uint8_t)(f->a + 1u);
+        break;
     case FK_VOICE:                                    /* FMini-1: MONO / POLY (12 voices), kept in the preset */
         if (t->p[P_VOICE] != (s > 0 ? V_POLY : V_MONO)) {
             t->p[P_VOICE] = (int16_t)(s > 0 ? V_POLY : V_MONO);
@@ -216,7 +230,7 @@ static void fmg_range(uint32_t pg, uint32_t i, int32_t *lo, int32_t *hi)
 {
     const fmgf_t *f = fmg_field(pg, i);
     *lo = 0;
-    *hi = f->kind == FK_SW || f->kind == FK_BYP || f->kind == FK_INS || f->kind == FK_VOICE ? 1 : f->kind == FK_NAME ? 5 : 127;
+    *hi = f->kind == FK_SW || f->kind == FK_BYP || f->kind == FK_INS || f->kind == FK_VOICE || f->kind == FK_EDIT ? 1 : f->kind == FK_NAME ? 5 : 127;
     if (f->kind == FK_GLB) {
         *lo = GP[f->a].min;
         *hi = GP[f->a].max;
@@ -272,6 +286,11 @@ static void fmg_card_at(uint32_t pg, uint32_t i, int32_t vo, const char **label,
             *ratio = RATIO(d, v);
             return;
         }
+        if (d->fmt == F_ENUM) {                        /* a TYPE: its whole name (param_format cuts at 5) */
+            str_cpy(val, d->names[v < d->min ? d->min : v > d->max ? d->max : v], 12);
+            *ratio = RATIO(d, v);
+            return;
+        }
         param_format(d, v, val, unit);
         *ratio = RATIO(d, v);
         return;
@@ -279,6 +298,9 @@ static void fmg_card_at(uint32_t pg, uint32_t i, int32_t vo, const char **label,
     case FK_VOICE:
         v = vo >= 0 ? vo : (int32_t)fmg_sw_on(f);
         str_cpy(val, v ? "POLY" : "MONO", 12);
+        return;
+    case FK_EDIT:
+        str_cpy(val, "EDIT", 12);
         return;
     case FK_SW:
     case FK_BYP:

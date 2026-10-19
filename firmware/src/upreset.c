@@ -78,8 +78,10 @@ static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_
 #define UP_CAT_AT (UP_PMAX * 2u - 1u)
 #define UP_BPM_AT (UP_CAT_AT - 1u)               /* FMini-1: the tempo (BPM, 40..240) a preset was saved with; 0 = none (as every record before) */
 #define UP_OCT_AT (UP_CAT_AT - 6u)               /* FMini-1: the octave (OCT- / OCT+, -3..3) + 4; 0 = none */
+#define UP_FX2_AT (UP_CAT_AT - 14u)              /* FMini-1: the FX pop-ups' other eight (G_RTYPE G_RDAMP G_DTIME G_DFDBK G_ENGGO G_CDEPTH G_INFO G_MIDI) + 1; 0 = none (a preset of before: their defaults) */
 #define UP_FX_AT (UP_CAT_AT - 5u)                /* FMini-1: the FX page's DECAY TIME RATE TONE (G_RSIZE G_DRREV G_CRATE G_DRLVL) + 1; 0 = none */
 static const uint8_t UP_FXG[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL};
+static const uint8_t UP_FXG2[8] = {G_RTYPE, G_RDAMP, G_DTIME, G_DFDBK, G_ENGGO, G_CDEPTH, G_INFO, G_MIDI};
 #include "category.c"
 static uint32_t up_cat_of(const up_rec_t *r)
 {
@@ -417,6 +419,8 @@ static int up_store_cat(uint32_t k, const char *name, uint32_t cat)
 #if FELUCCA_FMUG_ONLY
     r.packed[UP_BPM_AT] = (uint8_t)clamp(song.g[G_BPM], 40, 240);   /* (np = P_COUNT < UP_BPM_AT: no value there) */
     r.packed[UP_OCT_AT] = (uint8_t)(clamp(song.octave, -3, 3) + 4);
+    for (i = 0; i < 8u; i++)
+        r.packed[UP_FX2_AT + i] = (uint8_t)(clamp(song.g[UP_FXG2[i]], 0, 127) + 1);
     for (i = 0; i < 4u; i++)
         r.packed[UP_FX_AT + i] = (uint8_t)(clamp(song.g[UP_FXG[i]], 0, 127) + 1);
 #endif
@@ -498,6 +502,10 @@ static int up_load(uint32_t k)
         song.g[G_BPM] = r->packed[UP_BPM_AT];               /* the preset's tempo */
     if (r->ver >= 4u && r->np <= UP_OCT_AT && r->packed[UP_OCT_AT] >= 1u && r->packed[UP_OCT_AT] <= 7u)
         song.octave = (int8_t)((int)r->packed[UP_OCT_AT] - 4);   /* its octave */
+    if (r->ver >= 4u && r->np <= UP_FX2_AT)
+        for (i = 0; i < 8u; i++)
+            song.g[UP_FXG2[i]] = (int16_t)(r->packed[UP_FX2_AT + i] >= 1u && r->packed[UP_FX2_AT + i] <= 128u
+                                               ? r->packed[UP_FX2_AT + i] - 1u : (uint32_t)GP[UP_FXG2[i]].def);   /* its types and tones */
     if (r->ver >= 4u && r->np <= UP_FX_AT)
         for (i = 0; i < 4u; i++)
             if (r->packed[UP_FX_AT + i] >= 1u && r->packed[UP_FX_AT + i] <= 128u)

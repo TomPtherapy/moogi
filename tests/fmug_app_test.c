@@ -388,19 +388,48 @@ int main(int argc, char **argv)
         fa_gl = 3; fturn(EN_SELECT, 1);
         if (fa_gl != 1) { printf("about SELECT\n"); return 1; }
         fa_gl = 0;
-        {   /* FX: the cursor walks onto DECAY / TIME / RATE / TONE and ALGORITHM changes each global */
-            static const uint8_t GID[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL};
-            uint32_t q;
-            fa_ar = 0; fa_page = 6; fmg_cur[6] = 3;
+        {   /* FX: the cursor walks onto the four EDIT buttons; ALGORITHM opens each pop-up, K1..K4 edit its four values */
+            static const uint8_t PMAP[4][4] = {{P_REV, G_RTYPE, G_RSIZE, G_RDAMP}, {P_DLY, G_DTIME, G_DRREV, G_DFDBK},
+                                               {P_CHOR, G_ENGGO, G_CDEPTH, G_CRATE}, {P_DIST, G_INFO, G_DRLVL, G_MIDI}};
+            uint32_t q, k;
+            fa_ar = 0; fa_page = 6; fmg_cur[6] = 3; fmg_fx = 0;
             for (q = 0; q < 4u; q++) {
-                int16_t b4;
                 fturn(EN_SELECT, 1); fframes(64);
                 if (fmg_cur[6] != 4u + q) { printf("FX cursor %u -> %u\n", q, fmg_cur[6]); return 1; }
-                song.g[GID[q]] = GP[GID[q]].def; b4 = song.g[GID[q]];
                 fturn(EN_ALGO, 1); fframes(64);
-                fturn(EN_ALGO, 1); fframes(64);
-                if (song.g[GID[q]] == b4) { printf("FX knob %u does not move (%d)\n", q, b4); return 1; }
-                { uint32_t g0 = fa_signature(); song.g[GID[q]] ^= 8; if (fa_signature() == g0) { printf("FX fader %u: no redraw\n", q); return 1; } song.g[GID[q]] ^= 8; }
+                if (fmg_fx != q + 1u) { printf("EDIT %u opens pop-up %u\n", q, fmg_fx); return 1; }
+                for (k = 0; k < 4u; k++) {
+                    int32_t b4 = k == 0u ? TSEL->p[PMAP[q][0]] : song.g[PMAP[q][k]];
+                    uint32_t g0;
+                    if (k == 0u) TSEL->p[PMAP[q][0]] = 30; else song.g[PMAP[q][k]] = GP[PMAP[q][k]].def;
+                    b4 = k == 0u ? TSEL->p[PMAP[q][0]] : song.g[PMAP[q][k]];
+                    g0 = fa_signature();
+                    fturn(EN_K1 + k, 1); fframes(64);
+                    fturn(EN_K1 + k, 1); fframes(64);
+                    if ((k == 0u ? TSEL->p[PMAP[q][0]] : song.g[PMAP[q][k]]) == b4) { printf("FX pop-up %u knob %u does not move (%d)\n", q, k, (int)b4); return 1; }
+                    if (fa_signature() == g0) { printf("FX pop-up %u knob %u: no redraw\n", q, k); return 1; }
+                }
+                ui.force = 1; fa_draw(); dump(dir, 20 + (int)q);
+                fpress(B_FX);                              /* FX again: the next pop-up (after the last, the page) */
+                if (fmg_fx != (q < 3u ? q + 2u : 0u)) { printf("FX cycles %u -> %u\n", q, fmg_fx); return 1; }
+                fmg_fx = 0; fmg_cur[6] = (uint8_t)(4u + q);
+            }
+            {   /* a type's names: the six reverbs, seven delays, three choruses */
+                char v[16]; const char *u; uint32_t n;
+                static const struct { uint8_t id; uint8_t n; const char *last; } TY[4] = {{G_RTYPE, 6, "CLOUD"}, {G_DTIME, 7, "REVERSE"}, {G_ENGGO, 3, "MULTI"}, {G_INFO, 2, "TUBE"}};
+                for (n = 0; n < 4u; n++) {
+                    str_cpy(v, GP[TY[n].id].names[GP[TY[n].id].max], 16);
+                    if (GP[TY[n].id].max + 1 != TY[n].n || strcmp(v, TY[n].last)) { printf("type list %u: %d '%s'\n", n, GP[TY[n].id].max + 1, v); return 1; }
+                }
+            }
+            {   /* TAP TEMPO (SCL in the delay pop-up): two taps 500 ms apart set the delay TIME to ~500 ms and do not leave the page */
+                int32_t ms;
+                fmg_fx = 2; fa_page = 6;
+                fm1_ms += 3000u; fpress(B_SCL);
+                fm1_ms += 500u - 32u; fpress(B_SCL);
+                ms = dly_ms(song.g[G_DRREV]);
+                if (fa_page != 6 || ms < 480 || ms > 520) { printf("tap tempo: page %d, %d ms\n", fa_page, (int)ms); return 1; }
+                fmg_fx = 0;
             }
         }
         fpress(B_SCL);                                   /* SCL: OSC, then MIX, then OSC */
