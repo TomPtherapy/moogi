@@ -3,8 +3,7 @@
 </p>
 
 <p align="center">
-  Firmware that turns the <b>M-VAVE FM-1</b> keyboard into a three-oscillator monosynth in the spirit of the classic
-  Moogs: a 24 dB/octave ladder filter, two contours, 100 factory patches, an arpeggiator, a sequencer and MIDI.
+  The emulation of the classic Minimoog Model D for the M-Vave FM1, plus onboard effects, arpeggiator, sequencer and more.
 </p>
 
 <p align="center">
