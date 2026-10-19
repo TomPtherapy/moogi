@@ -603,9 +603,7 @@ static int32_t env_tick(track_t *t, voice_t *v)
         break;
     case 2:
 #if FELUCCA_FMUG_ONLY
-        v->env -= mulq16(v->env, T_ESYNC(t)[1]);        /* the Minimoog: the DECAY time discharges toward 0, the SUSTAIN level is a clamp */
-        if (v->env < sus)
-            v->env = sus;
+        v->env += mulq16(sus - v->env, T_ESYNC(t)[1]);  /* the Minimoog: the DECAY time is the drop from the peak to the SUSTAIN level, whatever it is */
 #else
         v->env += mulq16(sus - v->env, T_ESYNC(t)[1]);
 #endif

@@ -462,10 +462,10 @@ int main(int argc, char **argv)
                 vv.stage = 1;
                 while (vv.stage == 1 && n++ < 100000) env_tick(t0, &vv);
                 if (vv.stage != 2) { printf("adsr: attack never ends\n"); return 1; }
-                while (vv.env > ((int32_t)t0->p[P_SUS] << 17) && nd++ < 100000) env_tick(t0, &vv);
-                if (nd >= 100000 || vv.env != ((int32_t)t0->p[P_SUS] << 17)) { printf("adsr: decay does not land on the sustain (%d)\n", (int)vv.env); return 1; }
+                while (vv.env > ((int32_t)t0->p[P_SUS] << 17) + (1 << 18) && nd++ < 100000) env_tick(t0, &vv);
+                if (nd >= 100000) { printf("adsr: decay does not land on the sustain (%d)\n", (int)vv.env); return 1; }
                 { int hold; for (hold = 0; hold < 50; hold++) env_tick(t0, &vv);
-                  if (vv.env != ((int32_t)t0->p[P_SUS] << 17)) { printf("adsr: sustain drifts\n"); return 1; } }
+                  if (vv.env < ((int32_t)t0->p[P_SUS] << 17) || vv.env > ((int32_t)t0->p[P_SUS] << 17) + (1 << 18)) { printf("adsr: sustain drifts\n"); return 1; } }
                 vv.stage = 3;
                 n = 0;
                 vv.active = 1;
@@ -516,6 +516,23 @@ int main(int argc, char **argv)
         do { e = fmug_contour(t0->p, &vv); n++; } while (e > 260 && n < 4000000);   /* -42 dB (Q15) */
         sec = (double)n * CTL / FS;
         if (((uint32_t)vv.s[7] >> 24) != 3u || sec < 11.0 || sec > 14.5) { printf("filter release at max DECAY: %.2f s (st %u)\n", sec, (unsigned)((uint32_t)vv.s[7] >> 24)); return 1; }
+    }
+    {   /* the DECAY time is the drop to the SUSTAIN level, whatever it is: the same ~12 s at the top for sustain 0 and 80 % */
+        track_t *t0 = &trk[0];
+        voice_t vv;
+        int32_t sus, nd[2], k;
+        for (k = 0; k < 2; k++) {
+            int32_t n = 0;
+            memset(&vv, 0, sizeof vv);
+            t0->p[P_ATK] = 0; t0->p[P_DEC] = 127; t0->p[P_SUS] = k ? 100 : 0; t0->p[P_REL] = 0;
+            esync_coef(t0);
+            sus = (int32_t)t0->p[P_SUS] << 17;
+            vv.stage = 1;
+            while (vv.stage == 1) env_tick(t0, &vv);
+            while (vv.env - sus > (((1 << 24) - sus) / 100) && n < 4000000) { env_tick(t0, &vv); n++; }
+            nd[k] = n;
+            if ((double)n * CTL / FS < 11.0 || (double)n * CTL / FS > 13.5) { printf("decay to sustain %d: %.2f s\n", (int)t0->p[P_SUS], (double)n * CTL / FS); return 1; }
+        }
     }
     return 0;
 }
