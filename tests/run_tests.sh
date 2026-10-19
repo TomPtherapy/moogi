@@ -260,9 +260,9 @@ if [ -f build/gen/felucca_tables.h ]; then
     run "chord keys: diatonic and fixed chords, voicings, MONO root, releases, recording, ARP, MIDI IN, kits" "$OUT/chord_test"
     mkdir -p "$OUT/fa"
     $CC -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmug_app_test" tests/fmug_app_test.c -lm
-    run "FMini-1 app: the screen of every page, SAVE / PRESETS over 100 factory and the user patches, everything mono" "$OUT/fmug_app_test" "$OUT/fa"
+    run "FMini-1 app: the screen of every page, SAVE / PRESETS over 100 factory and the user patches, each patch its ARP, LFO, FX, LEVEL and octave, a new preset goes HOME" "$OUT/fmug_app_test" "$OUT/fa"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmug_fx_test" tests/fmug_fx_test.c -lm
-    run "FMini-1 FX: six stereo reverbs (decay, level, corners, SHIMMER's octave, type changes), seven delays, three choruses, TUBE and OUTPUT, bypass at 0" "$OUT/fmug_fx_test"
+    run "FMini-1 FX: five stereo reverbs (decay, level, corners, type changes), seven delays, three choruses, TUBE and OUTPUT, bypass at 0" "$OUT/fmug_fx_test"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/speaker_test" tests/speaker_test.c -lm
     run "SPEAKER EQ: FLAT / LOWCUT / BASS+ responses, BASS+ harmonics of the bass, the sub cut, no offset after, headroom on a full-scale kick (#180)" "$OUT/speaker_test"
     run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"

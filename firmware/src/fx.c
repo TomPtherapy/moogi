@@ -16,8 +16,8 @@ static union {                          /* ROOM's allpasses; SPRING's allpass ch
 #define rev_ap (rev_u.ap)
 #if FELUCCA_FMUG_ONLY
 /* FMini-1: the reverb types' own memory, shared (only one runs; a change clears it all). ROOM's right channel: 4 combs + 2 allpasses (+23
- * samples each, Freeverb's stereo spread); SPRING's second spring (4096 loop + its allpass states); PLATE (Dattorro's, half rate); SHIMMER's
- * pitch shifter; CLOUD's two extra diffusers. 23 KB of the pool */
+ * samples each, Freeverb's stereo spread); SPRING's second spring (4096 loop + its allpass states); PLATE (Dattorro's, half rate);
+ * CLOUD's two extra diffusers. 23 KB of the pool */
 #define RX_LEN 11520u
 static union { int16_t s[RX_LEN]; int32_t w[RX_LEN / 2u]; } rev_x __attribute__((section(".pool")));
 #endif
@@ -102,9 +102,6 @@ static const uint16_t HL_LEN[HL_NL] = {467, 509, 547, 593, 631, 673, 709, 743}; 
 #define HL_NAPX 4u                       /* CLOUD: two more diffusers (in rev_x), denser */
 static const uint16_t HL_AP[HL_NAPX] = {131, 307, 89, 223};
 static const int16_t HL_APG[HL_NAPX] = {11469, 10240, 9830, 9011};  /* Q14: 0.7, 0.625, 0.6, 0.55 */
-#define SHM_LP 19660                     /* the shifter input's low-pass coefficient (Q15, 0.6 a pole) */
-#define SHM_G 9000                       /* the shifted octave's gain back into the send (Q15) */
-#define HL_SHN 1024u                     /* SHIMMER's pitch shifter: the line, samples at 22.05 kHz (46 ms), in rev_x */
 #else
 static const uint16_t HL_AP[HL_NAP] = {131, 307};
 static const int16_t HL_APG[HL_NAP] = {11469, 10240};               /* Q14: 0.7, 0.625 */
@@ -115,10 +112,7 @@ _Static_assert(CTL % 2u == 0u && HL_NC + 2u * HL_MOD + 2u < 467u && HL_NC <= 131
 static struct {                          /* HALL's state (in the pool: no .bss) */
 #if FELUCCA_FMUG_ONLY
     uint16_t i[HL_NL], d[HL_NAPX];       /* the lines' write indices, the diffusers' */
-    uint8_t mode;                        /* 0 HALL, 1 SHIMMER (the tail's octave up fed back in), 2 CLOUD (longer, darker, 4 diffusers) */
-    uint16_t sw, sc;                     /* SHIMMER: the shifter's write index and sweep counter */
-    int32_t sh[HL_NC];                   /* .. its last block's output (into the next block's send) */
-    int32_t shp, sl1, sl2;                    /* .. its input's two low-pass poles (~3 kHz: above a quarter of the 22 kHz rate the octave would alias back down) */
+    uint8_t mode;                        /* 0 HALL, 1 CLOUD (longer, darker, 4 diffusers) */
 #else
     uint16_t i[HL_NL], d[HL_NAP];        /* the lines' write indices, the diffusers' */
 #endif
@@ -524,11 +518,10 @@ static uint32_t exp2_neg(uint32_t x)
  * RT60 * 22050 / D passes: g = 2^(-D * 3 log2(10) / (22050 * RT60)) = 2^(-D * 59.2 / 65536 * 2^(-s / 30)),
  * at most 0.99, over sqrt(7) (the matrix's rows have 7 entries of +-1: / sqrt(7) makes it orthogonal) */
 #if FELUCCA_FMUG_ONLY
-/* FMini-1: per mode: HALL RT60 0.5 s * 2^(s / 30) (0.5 .. 9.4 s); SHIMMER 0.74 s * 2^(s / 42) (0.7 .. 6 s);
- * CLOUD 3 s * 2^(s / 42) (3 .. 24 s), its lines allowed up to 0.9985 */
+/* FMini-1: per mode: HALL RT60 0.5 s * 2^(s / 30) (0.5 .. 9.4 s); CLOUD 3 s * 2^(s / 42) (3 .. 24 s), its lines allowed up to 0.9985 */
 static __attribute__((noinline)) void hall_gains(int32_t s, uint32_t mode)
 {
-    uint32_t kd = mode != 0u ? 42u : 30u, co = mode == 0u ? 59u : mode == 1u ? 40u : 10u, gm = mode == 2u ? 32720u : 32440u;
+    uint32_t kd = mode != 0u ? 42u : 30u, co = mode == 0u ? 59u : 10u, gm = mode == 1u ? 32720u : 32440u;
     uint32_t q = exp2_neg((uint32_t)s * 65536u / kd), k, g;
     for (k = 0; k < HL_NL; k++) {
         g = exp2_neg((HL_LEN[k] * co * q) >> 15);
@@ -630,8 +623,8 @@ static __attribute__((noinline)) void rev_hall(const int32_t *rev_in, int32_t *o
     int16_t *b = rev_comb, *a = rev_ap;
     uint32_t i, k, s, m, d;
 #if FELUCCA_FMUG_ONLY
-    int32_t kd = HL_KD(hl.mode == 2u ? 30 + RDAMP * 97 / 127 : RDAMP);   /* (CLOUD: never wide open: a dark, soft tail) */
-    uint32_t nap = hl.mode == 2u ? HL_NAPX : HL_NAP;
+    int32_t kd = HL_KD(hl.mode == 1u ? 30 + RDAMP * 97 / 127 : RDAMP);   /* (CLOUD: never wide open: a dark, soft tail) */
+    uint32_t nap = hl.mode == 1u ? HL_NAPX : HL_NAP;
 #else
     int32_t kd = HL_KD(RDAMP);
 #endif
@@ -645,11 +638,6 @@ static __attribute__((noinline)) void rev_hall(const int32_t *rev_in, int32_t *o
         hall_gains(song.g[G_RSIZE]);
 #endif
     hall_send(rev_in);
-#if FELUCCA_FMUG_ONLY
-    if (hl.mode == 1u)                                  /* SHIMMER: the last block's octave up joins the send (0.09) */
-        for (i = 0; i < HL_NC; i++)
-            hl.bx[i] += sh_tz(hl.sh[i] * SHM_G, 13);
-#endif
 #if FELUCCA_FMUG_ONLY
     for (k = 0; k < nap; k++) {                         /* the diffusers (CLOUD's extra two in rev_x) */
         int16_t *q = k < HL_NAP ? a : rev_x.s + (k == 2u ? 0u : HL_AP[2]);
@@ -695,22 +683,6 @@ static __attribute__((noinline)) void rev_hall(const int32_t *rev_in, int32_t *o
         int32_t t, p0, p1, p2, p3, p4, p5, p6;
         hl.l[i] = y0 + y3 + y4 - y7;                    /* the outputs */
         hl.r[i] = y1 + y2 + y5 + y6;
-#if FELUCCA_FMUG_ONLY
-        if (hl.mode == 1u) {                            /* SHIMMER: the mid up an octave: a delay line read twice as fast as written,
-                                                         * two taps half a line apart, each through a triangle (they sum to 1) */
-            uint32_t c1 = (HL_SHN - 1u) - hl.sc, c2 = (c1 + HL_SHN / 2u) & (HL_SHN - 1u);
-            int32_t m1, m2, w1 = (int32_t)(c1 < HL_SHN / 2u ? c1 : HL_SHN - 1u - c1), w2 = (int32_t)(c2 < HL_SHN / 2u ? c2 : HL_SHN - 1u - c2);
-            hl.shp += sh_tz((((hl.l[i] + hl.r[i]) >> 1) - hl.shp) * 1870, 15);        /* a low cut (~200 Hz): the octave of a low rumble would feed itself */
-            hl.sl1 += sh_tz((((hl.l[i] + hl.r[i]) >> 1) - hl.shp - hl.sl1) * SHM_LP, 15);
-            hl.sl2 += sh_tz((hl.sl1 - hl.sl2) * SHM_LP, 15);
-            rev_x.s[hl.sw & (HL_SHN - 1u)] = (int16_t)clamp(hl.sl2, -32768, 32767);
-            m1 = rev_x.s[(hl.sw - c1) & (HL_SHN - 1u)];
-            m2 = rev_x.s[(hl.sw - c2) & (HL_SHN - 1u)];
-            hl.sh[i] = sh_tz((m1 * w1 + m2 * w2) * 8, 12);
-            hl.sw++;
-            hl.sc = (hl.sc + 1u) & (HL_SHN - 1u);
-        }
-#endif
         /* the matrix: C = [0 1; -1 Q], Q (7 x 7) = chi(j - i), the quadratic character mod 7 (+1 at distances
          * 1 2 4, -1 at 3 5 6): row 1 + i of Q y = 2 (the three at +1) - (the sum of the 7) + y_1+i */
         t = y1 + y2 + y3 + y4 + y5 + y6 + y7;
@@ -892,10 +864,6 @@ static void rev_clear(void)
         fx.comb_lpr[i] = 0;
     for (i = 0; i < HL_NAPX; i++)
         hl.d[i] = 0;
-    for (i = 0; i < HL_NC; i++)
-        hl.sh[i] = 0;
-    hl.sw = hl.sc = 0;
-    hl.sl1 = hl.sl2 = hl.shp = 0;
     fx.sp2_lp = fx.sp2_hp = fx.sp2_he = 0;
     for (i = 0; i < PL_N; i++)
         pl.i[i] = 0;
@@ -931,7 +899,7 @@ static int32_t part_buf[CTL];                            /* a part's block (mix_
 #define SM1_b part_buf
 #endif
 
-/* run reverb model ty over a block, added to out (+ rev_side). FMini-1: ty is the TYPE (0 ROOM, 1 HALL, 2 PLATE, 3 SPRING, 4 SHIMMER, 5 CLOUD);
+/* run reverb model ty over a block, added to out (+ rev_side). FMini-1: ty is the TYPE (0 ROOM, 1 HALL, 2 PLATE, 3 SPRING, 4 CLOUD);
  * Felucca's: 0 ROOM, 1 SPRING, 2 HALL */
 static void rev_run(uint32_t ty, const int32_t *rev_in, int32_t *out, uint32_t n)
 {
@@ -943,7 +911,7 @@ static void rev_run(uint32_t ty, const int32_t *rev_in, int32_t *out, uint32_t n
     else if (ty == 3u)
         rev_spring(rev_in, out, n);
     else {
-        hl.mode = (uint8_t)(ty == 1u ? 0u : ty == 4u ? 1u : 2u);
+        hl.mode = (uint8_t)(ty == 1u ? 0u : 1u);
         rev_hall(rev_in, out, n);
     }
 #else
@@ -1238,7 +1206,7 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
 #endif
     rt = song.g[G_RTYPE];
 #if FELUCCA_FMUG_ONLY
-    rt = (int32_t)((uint32_t)rt % 6u);
+    rt = rt < 0 ? 0 : rt > 4 ? 4 : rt;                    /* (a stored 5, CLOUD before SHIMMER went, is the last one too) */
     if (!rev_act) {                                       /* OFF: its buffers cleared once, nothing runs */
         if (fx.rev_on) {
             rev_clear();

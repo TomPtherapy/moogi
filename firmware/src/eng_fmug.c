@@ -79,6 +79,15 @@ static void fmug_sanitize(uint8_t *v)
 #define FGP(r1, r2, r3, w1, w2, w3, f2, f3, l1, l2, l3, ln, s1, s2, tn, mm, kb, gl) \
     {r1, r2, r3, w1, w2, w3, f2, f3, l1, l2, l3, ln, s1, s2, tn, mm, kb, gl}
 #define ALLO (FS_O1 | FS_O2 | FS_O3)
+/* what a factory patch sets beyond its preset_t (a load: fmug_app.c fa_factory_extras): the arpeggiator (ON, the MODE the ARP
+ * button turns on, RATE, OCT, GATE, SWG, PROB), the LFO (RATE, WAVE, FADE, SYNC), the common modulation (LFO -> pitch, LFO ->
+ * amplitude, the amplitude contour -> pitch: P_LD_PIT P_LD_AMP P_ED_PIT, voice.c), the patch's LEVEL (P_LEVEL: every patch as loud as the next), the twelve FX settings (G_RTYPE G_RSIZE G_RDAMP
+ * G_DTIME G_DRREV G_DFDBK G_ENGGO G_CDEPTH G_CRATE G_INFO G_DRLVL G_MIDI: the reverb TYPE DECAY TONE, the delay TYPE TIME FEEDBK,
+ * the chorus TYPE DEPTH RATE, the drive TYPE TONE OUTPUT) and the keys' octave */
+typedef struct {
+    uint8_t arp[7], lfo[4], fx[12], level;
+    int8_t mod[3], oct;
+} fmug_x_t;
 #include "eng_fmug_presets.h"          /* FMUG_FACTORY (the 100 patches) and FMUG_PRESETS: tools/gen_fmug_presets.py */
 
 /* --------------------------------------------------------------- the patch --- */

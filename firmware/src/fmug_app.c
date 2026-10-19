@@ -740,7 +740,7 @@ static uint32_t fa_sound_keys(void)
  * controller while the list is open is taken for the highlighted line) and ABOUT (the splash with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.4.31"
+#define FMINI_VERSION "v1.4.32"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -765,7 +765,7 @@ static const uint8_t FA_CC0[FA_NCC] = {
 };
 static int fa_cc_valid(uint32_t cc) { return cc == 0u || ml_free_cc(cc); }
 
-/* the FX pop-ups' other globals (their power-on values are kept with the settings, as the four of the first FX page) */
+/* the FX pop-ups' other globals (the settings still keep their bytes; a factory patch, a saved one and the autosave set them) */
 static const uint8_t FA_GID2[8] = {G_RTYPE, G_RDAMP, G_DTIME, G_DFDBK, G_ENGGO, G_CDEPTH, G_INFO, G_MIDI};
 static uint8_t *fa_cfg_byte(uint32_t i) { return &favorites.factory[7u + i / 32u][i % 32u]; }
 static void fa_cfg_load(void)
@@ -776,19 +776,7 @@ static void fa_cfg_load(void)
         fm_midi_src = (uint8_t)(src == 0u || src == 1u ? src : 3u);   /* (2 was Bluetooth) */
         fm_midi_ch = (uint8_t)(ch > 16u ? 0u : ch);
         fm_bend_mode = (uint8_t)(*fa_cfg_byte(4u + FA_NCC) & 3u);
-        for (i = 0; i < 4u; i++) {                         /* DECAY TEMPO RATE TONE */
-            static const uint8_t GID[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL};
-            uint32_t c = *fa_cfg_byte(5u + FA_NCC + i);
-            if (c != 0xFFu && (int32_t)c >= GP[GID[i]].min && (int32_t)c <= GP[GID[i]].max)
-                song.g[GID[i]] = (int16_t)c;
-        }
-        for (i = 0; i < 8u; i++) {                         /* TYPE TONE | TYPE FDBK | TYPE DEPTH | TYPE OUT (the pop-ups' others) */
-            uint32_t c = *fa_cfg_byte(9u + FA_NCC + i);
-            if (c != 0xFFu && (int32_t)c >= GP[FA_GID2[i]].min && (int32_t)c <= GP[FA_GID2[i]].max)
-                song.g[FA_GID2[i]] = (int16_t)c;
-            else if (i == 0u)                              /* an older config: the reverb's TYPE list changed (HALL was 2) */
-                song.g[G_RTYPE] = GP[G_RTYPE].def;
-        }
+        /* (the FX settings are not read back: each factory patch carries its own, a saved one and the autosave theirs) */
         fm_bt = 0;
         for (i = 0; i < FA_NCC; i++) {
             uint32_t c = *fa_cfg_byte(4u + i);
@@ -1036,26 +1024,32 @@ static void fa_pp_draw(void)
     fa_ctext(120, 84, &AF_L, num, FA_OR);
     fa_ctext(120, 126, f, nm, FA_CR);
 }
-/* every frame: a new preset (PRESETS, a Program Change, a saved one loaded) is shown in the pop-up */
-static void fa_track_preset(void)
+/* every frame: a new preset (PRESETS, a Program Change, a saved one loaded) is shown in the pop-up; 1 = it changed now
+ * (the caller goes HOME) */
+static uint32_t fa_track_preset(void)
 {
     const track_t *t = TSEL;
     int32_t sl = t->p[P_E7];
-    uint32_t u = fa_on_user() ? t->user : 0u;
+    uint32_t u = fa_on_user() ? t->user : 0u, ch = 0;
     if (sl >= 0 && sl < (int32_t)FMUG_NFACTORY) {
         if (sl != fa_last_sl) {
             fa_base = (uint8_t)sl;
             fa_last_sl = (int16_t)sl;
-            if (fa_primed)
+            if (fa_primed) {
                 fa_pp_until = fm1_ms + 1500u;
+                ch = 1;
+            }
         }
     } else
         fa_last_sl = -1;
     if (u != fa_last_user) {
         fa_last_user = (uint8_t)u;
-        if (u && fa_primed)
+        if (u && fa_primed) {
             fa_pp_until = fm1_ms + 1500u;
+            ch = 1;
+        }
     }
+    return ch;
 }
 
 static void fa_scene(void)
@@ -1236,6 +1230,16 @@ static void fa_goto(uint32_t pg)
     fa_page = (uint8_t)(pg % FA_NPAGE);
     fa_cfg_save();                                        /* (the FX page's globals) */
 }
+/* HOME: the first screen, CTRL; the pop-ups close. A preset change does the same (fa_input) */
+static void fa_home(void)
+{
+    fa_sv = 0;
+    fa_ar = 0;
+    fa_sq = 0;
+    fa_sq_rec = 0;
+    fa_gl_close();
+    fa_goto(0);
+}
 
 /* SELECT: one control on; past a page's last control the next page's first (the other way: the last) */
 static void fa_select(int32_t s)
@@ -1251,6 +1255,41 @@ static void fa_select(int32_t s)
     } else {
         fmg_cur[pg] = (uint8_t)c;
     }
+}
+
+/* a factory patch n was just loaded into track t: what its preset_t does not carry (eng_fmug.c fmug_x_t): the arpeggiator
+ * (on or off, with the MODE the ARP button turns on), the LFO and the common modulation, the FX settings of the pop-ups and the keys' octave.
+ * The tempo stays the player's. Also the Program Change's way in (ui.c midi_pc_load) */
+static const uint8_t FA_XG[12] = {G_RTYPE, G_RSIZE, G_RDAMP, G_DTIME, G_DRREV, G_DFDBK, G_ENGGO, G_CDEPTH, G_CRATE, G_INFO, G_DRLVL, G_MIDI};
+static void fa_factory_extras(track_t *t, uint32_t n)
+{
+    const fmug_x_t *x;
+    uint32_t i;
+    if (n >= FMUG_NFACTORY)
+        return;
+    x = &FMUG_X[n];
+    t->p[P_AMODE] = x->arp[0] ? x->arp[1] : 0;
+    t->p[P_ARATE] = x->arp[2];
+    t->p[P_AOCT] = x->arp[3];
+    t->p[P_AGATE] = x->arp[4];
+    t->p[P_ASWING] = x->arp[5];
+    t->p[P_APROB] = x->arp[6];
+    t->p[P_AHOLD] = 0;
+    t->p[P_AORDER] = 0;
+    t->p[P_LEVEL] = x->level;
+    t->p[P_LRATE] = x->lfo[0];
+    t->p[P_LWAVE] = x->lfo[1];
+    t->p[P_LFADE] = x->lfo[2];
+    t->p[P_LSYNC] = x->lfo[3];
+    t->p[P_LD_PIT] = x->mod[0];
+    t->p[P_LD_AMP] = x->mod[1];
+    t->p[P_ED_PIT] = x->mod[2];
+    if (t != &trk[0])
+        return;
+    for (i = 0; i < 12u; i++)
+        song.g[FA_XG[i]] = (int16_t)clamp(x->fx[i], GP[FA_XG[i]].min, GP[FA_XG[i]].max);
+    song.octave = x->oct;
+    fa_ar_last = x->arp[1] ? x->arp[1] : 1u;
 }
 
 /* PRESETS: the previous / next patch of the list (factory F1..F8, then the saved ones), round; in the SAVE dialog the slot */
@@ -1270,11 +1309,7 @@ static void fa_preset(int32_t s)
         t->user = 0;
         apply_preset_to(t, nx);
         t->p[P_E7] = (int16_t)nx;
-        { uint32_t q;                                     /* a factory patch: the FX pop-ups' defaults */
-          static const uint8_t FXG[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL};
-          for (q = 0; q < 4u; q++) song.g[FXG[q]] = GP[FXG[q]].def;
-          for (q = 0; q < 8u; q++) song.g[FA_GID2[q]] = GP[FA_GID2[q]].def; }
-        song.octave = 0;                                  /* ... and the middle octave */
+        fa_factory_extras(t, nx);                         /* its arpeggiator, LFO, FX settings and octave */
     } else {
         up_load(fa_user_nth(nx - FMUG_NFACTORY));
     }
@@ -1308,12 +1343,7 @@ static void fa_buttons(uint32_t pressed)
     static const uint8_t PG_BTN[5] = {B_LFO, B_EDIT, B_SCL, B_FX, B_ENV};   /* (GLO: global, ARP, SEQ, REC, PLAY: their own) */
     uint32_t i;
     if ((pressed >> panel.btn[B_HOME]) & 1u) {            /* HOME: the first screen, CTRL; the pop-ups close */
-        fa_sv = 0;
-        fa_ar = 0;
-        fa_sq = 0;
-        fa_sq_rec = 0;
-        fa_gl_close();
-        fa_goto(0);
+        fa_home();
         return;
     }
     if ((pressed >> panel.btn[B_GLO]) & 1u) {             /* GLO: the global pop-up; inside a list, one level back */
@@ -1459,7 +1489,8 @@ static void fa_input(void)
     fa_buttons(pressed);
     if ((s = panel_enc(EN_PRESET)) != 0 && !fa_gl)
         fa_preset(s);
-    fa_track_preset();
+    if (fa_track_preset())                                  /* a new preset (the knob, a Program Change, a saved one): HOME */
+        fa_home();
     fa_cc_poll();                                         /* the CCs the MIDI inputs brought */
     if (fa_gl || fa_sq || fa_ar || fa_sv || fa_page != 6u)
         fmg_fx = 0;                                       /* the FX pop-up lives on the FX page alone, under no other dialog */
@@ -1638,6 +1669,8 @@ static void fa_init(void)
             t->engine = t->eng_req;
             fmug_load_slot(i, 0);
             fmug_adopt(i);
+            if (!i)
+                fa_factory_extras(t, 0);                 /* the first patch's arpeggiator, LFO, FX settings and octave */
         }
         t->p[P_MUTE] = i ? 1 : 0;
     }

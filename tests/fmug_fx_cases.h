@@ -1,11 +1,11 @@
 /* the cases of fmug_fx_test.c */
-static const char *const RN[6] = {"ROOM", "HALL", "PLATE", "SPRING", "SHIMMER", "CLOUD"};
-static double rev_level[6], rev_rt[6];
+static const char *const RN[5] = {"ROOM", "HALL", "PLATE", "SPRING", "CLOUD"};
+static double rev_level[5], rev_rt[5];
 static void reverb_cases(const char *dir)
 {
     uint32_t ty, n = 14u * 44100u, nb = 0;
-    double per[6];
-    for (ty = 0; ty < 6; ty++) {
+    double per[5];
+    for (ty = 0; ty < 5; ty++) {
         double c, a, b;
         clock_t t0;
         fx_reset();
@@ -50,7 +50,7 @@ static void corner_cases(void)
     uint32_t ty, dc, tn, bad_b = 0, bad_g = 0, n = 34u * 44100u;
     int32_t peak;
     uint32_t i;
-    for (ty = 0; ty < 6; ty++)
+    for (ty = 0; ty < 5; ty++)
         for (dc = 0; dc < 2; dc++)
             for (tn = 0; tn < 2; tn++) {
                 double e1, e2;
@@ -76,37 +76,14 @@ static void corner_cases(void)
                 if (peak > (1 << 22) || e2 > e1 * 0.8 + 64)
                     printf("fx: corner %s decay %u tone %u: peak %d  rms 5-8 s %.0f  28-31 s %.0f\n", RN[ty], dc * 127, tn * 127, peak, e1, e2);
             }
-    fxcheck("corners (6 types x decay 0/127 x tone 0/127, 3 s of full-scale square sends): bounded (peak < 2^22)", !bad_b);
+    fxcheck("corners (5 types x decay 0/127 x tone 0/127, 3 s of full-scale square sends): bounded (peak < 2^22)", !bad_b);
     fxcheck("corners: the tails fall (28-31 s quieter than 5-8 s) - nothing sustains or grows", !bad_g);
-}
-static void shimmer_case(void)
-{
-    uint32_t i, n = 6u * 44100u;
-    double h4, h8, s4, s8;
-    fx_reset();
-    song.g[G_RTYPE] = 1;
-    clear_in();
-    for (i = 0; i < 44100u; i++)
-        rin[i] = (int32_t)(60000 * sin(2 * 3.14159265358979 * 440.0 * i / 44100.0));
-    run_fx(n);
-    h4 = goertzel(outL, 66150, 4u * 44100u, 440);
-    h8 = goertzel(outL, 66150, 4u * 44100u, 880);
-    fx_reset();
-    song.g[G_RTYPE] = 4;
-    clear_in();
-    for (i = 0; i < 44100u; i++)
-        rin[i] = (int32_t)(60000 * sin(2 * 3.14159265358979 * 440.0 * i / 44100.0));
-    run_fx(n);
-    s4 = goertzel(outL, 66150, 4u * 44100u, 440);
-    s8 = goertzel(outL, 66150, 4u * 44100u, 880);
-    printf("fx: octave: HALL 440 Hz %.0f, 880 Hz %.0f | SHIMMER 440 Hz %.0f, 880 Hz %.0f\n", h4, h8, s4, s8);
-    fxcheck("SHIMMER: the tail of a 440 Hz note carries its octave (880 Hz at least -18 dB of 440, far above HALL's)", s8 > s4 * 0.12 && s8 > 10 * h8);
 }
 static void switch_cases(void)
 {
     uint32_t a, b, i, n = 3u * 44100u, sw = 44100u + 32u * 40u, bad = 0;
-    for (a = 0; a < 6; a++)
-        for (b = 0; b < 6; b++) {
+    for (a = 0; a < 5; a++)
+        for (b = 0; b < 5; b++) {
             int32_t pk = 0, jmp = 0, jprev = 0;
             if (a == b)
                 continue;
@@ -157,8 +134,8 @@ static void bypass_case(void)
 static void cost_case(void)
 {
     uint32_t ty, rep, n = 4u * 44100u;
-    double t[6];
-    for (ty = 0; ty < 6; ty++) {
+    double t[5];
+    for (ty = 0; ty < 5; ty++) {
         clock_t t0;
         fx_reset();
         song.g[G_RTYPE] = (int16_t)ty;
@@ -173,8 +150,8 @@ static void cost_case(void)
             t[ty] = dt < t[ty] ? dt : t[ty];
         }
     }
-    printf("fx: host cost (share of real time, -O1; the device is ~50x slower): ROOM %.2f %% HALL %.2f %% PLATE %.2f %% SPRING %.2f %% SHIMMER %.2f %% CLOUD %.2f %%\n", t[0] * 100, t[1] * 100, t[2] * 100, t[3] * 100, t[4] * 100, t[5] * 100);
-    fxcheck("cost: no type more than 4x HALL's", t[0] < 4 * t[1] && t[2] < 4 * t[1] && t[3] < 4 * t[1] && t[4] < 4 * t[1] && t[5] < 4 * t[1]);
+    printf("fx: host cost (share of real time, -O1; the device is ~50x slower): ROOM %.2f %% HALL %.2f %% PLATE %.2f %% SPRING %.2f %% CLOUD %.2f %%\n", t[0] * 100, t[1] * 100, t[2] * 100, t[3] * 100, t[4] * 100);
+    fxcheck("cost: no type more than 4x HALL's", t[0] < 4 * t[1] && t[2] < 4 * t[1] && t[3] < 4 * t[1] && t[4] < 4 * t[1]);
 }
 static const char *const DN[7] = {"ANALOG", "DIGITAL", "TAPE", "P-PONG", "MULTI", "SLAP", "REVERSE"};
 static double peakpos(const int32_t *x, uint32_t a, uint32_t b, double *mag)   /* the biggest |x| in [a, b): its position (ms) */
@@ -432,7 +409,6 @@ static void fx_cases(const char *dir)
     chorus_cases(dir);
     drive_cases();
     corner_cases();
-    shimmer_case();
     switch_cases();
     bypass_case();
     cost_case();

@@ -293,7 +293,7 @@
     <p class="lead" data-t="l_presets"></p>
     <ul class="presets" id="pl"></ul>
     <ul class="groups">
-      <li><b data-t="g_bass"></b> 25</li><li><b data-t="g_lead"></b> 25</li><li><b data-t="g_wind"></b> 20</li><li><b data-t="g_keys"></b> 15</li><li><b data-t="g_fx"></b> 15</li><li><b data-t="g_user"></b> U01–U32</li>
+      <li><b data-t="g_show"></b> 00–09</li><li><b data-t="g_hard"></b> 10–19</li><li><b data-t="g_soft"></b> 20–29</li><li><b data-t="g_bass"></b> 30–39</li><li><b data-t="g_pads"></b> 40–49</li><li><b data-t="g_brass"></b> 50–59</li><li><b data-t="g_pluck"></b> 60–69</li><li><b data-t="g_keys"></b> 70–79</li><li><b data-t="g_atmo"></b> 80–89</li><li><b data-t="g_fx"></b> 90–99</li><li><b data-t="g_user"></b> U01–U32</li>
     </ul>
   </section>
 
@@ -496,7 +496,7 @@ const SITE = {
     f1t: "Banco de osciladores", f1d: "Três osciladores com faixas de LO a 2', forma de onda individual, ajuste fino (detune) independente nos osciladores 2 e 3 e uma leve deriva de afinação, como a dos VCOs analógicos.",
     f2t: "Filtro ladder", f2d: "Passa-baixas de 4 polos, 24 dB/oitava, com saturação em cada estágio. A ênfase chega à auto-oscilação perto de 9, e o teclado controla a frequência de corte.",
     f3t: "Contornos", f3d: "Dois contornos (filtro e volume) com ataque, decaimento e sustentação. O ataque é exponencial, como o do circuito original. Glide, LFO e modulação completam a seção.",
-    f4t: "100 presets", f4d: "Todos monofônicos, em grupos de baixos, leads, metais e cordas, teclas e efeitos. Os 10 primeiros são uma vitrine de estilos bem diferentes. Salve os seus em 32 posições de usuário.",
+    f4t: "100 presets", f4d: "Dez grupos de dez: uma vitrine de estilos, hard leads, soft leads, baixos, pads e cordas, metais, plucks, teclas, atmosferas e efeitos sonoros. Cerca de um quarto já vem com o arpejador ligado. Salve os seus em 32 posições de usuário.",
     f5t: "Arpejador e sequenciador", f5d: "Um toque no ARP liga e desliga; segurar ativa o HOLD. O sequenciador grava até 16 notas (REC) e toca (PLAY). Os LEDs das teclas acendem junto com as notas.",
     f6t: "Efeitos por preset", f6d: "Reverb, delay, chorus e drive, cada preset com a sua própria combinação, para que baixos, leads e pads tenham ambientes bem diferentes.",
     h_screens: "As telas", l_screens: "O painel foi desenhado para a tela do FM-1, com knobs estriados, chaves vermelhas e azuis e gráficos de filtro e contornos. Escolha uma página:",
@@ -513,14 +513,14 @@ const SITE = {
       { i: "arp", t: "Arpejador", d: "Modo, velocidade, oitavas, gate, HOLD e tempo. Toque no botão ARP para ligar; segure para o HOLD. O quadro fecha sozinho em 4 s." },
       { i: "seq", t: "Sequenciador", d: "16 posições para notas. REC arma a gravação, PLAY toca e para, e o tempo se ajusta com o encoder." },
       { i: "save", t: "Salvar preset", d: "Escolha a posição U01–U32, escreva o nome com os encoders e aperte SAVE. Suas versões ficam junto dos 100 presets de fábrica." },
-      { i: "fxrev", t: "FX · Editar reverb", d: "O botão EDIT abre quatro knobs: MIX, TYPE (room, hall, plate, spring, shimmer com uma oitava acima e cloud, longo e denso), DECAY e TONE. Todos os reverbs são estéreo. Apertar FX de novo passa para o delay, o chorus e o drive." },
+      { i: "fxrev", t: "FX · Editar reverb", d: "O botão EDIT abre quatro knobs: MIX, TYPE (room, hall, plate, spring e cloud, longo e denso), DECAY e TONE. Todos os reverbs são estéreo. Apertar FX de novo passa para o delay, o chorus e o drive." },
       { i: "fxdly", t: "FX · Editar delay", d: "MIX, TYPE (analog, digital, tape, ping-pong, multi-tap, slapback e reverse), TIME e FEEDBACK. O botão SCL marca o tempo (tap tempo). O chorus tem Stereo (inspirado no CE-2), Juno e Multi; o drive, Soft e Tube." },
       { i: "glo", t: "Global", d: "Entrada MIDI (USB, MIDI ou todas), canal, faixa do pitch bend e a lista de controles MIDI." },
       { i: "cc", t: "Lista de MIDI CC", d: "50 controles do painel, cada um com o seu número de CC. Gire o encoder para trocar ou envie um CC do seu teclado para aprender." },
       { i: "preset", t: "Troca de preset", d: "Ao trocar de preset aparece o número e o nome em letras grandes, por 1,5 s, e some." },
     ],
-    h_presets: "Presets", l_presets: "Cem timbres monofônicos, de baixos a efeitos. Os dez primeiros mostram do que o sintetizador é capaz:",
-    g_bass: "Baixos", g_lead: "Leads", g_wind: "Metais, palhetas e pads", g_keys: "Teclas e plucks", g_fx: "Efeitos", g_user: "Seus presets",
+    h_presets: "Presets", l_presets: "Cem timbres, dos clássicos do Minimoog aos efeitos sonoros. Os dez primeiros mostram do que o sintetizador é capaz:",
+    g_show: "Vitrine", g_hard: "Hard leads", g_soft: "Soft leads", g_bass: "Baixos", g_pads: "Pads e cordas", g_brass: "Metais (OCT −1)", g_pluck: "Plucks", g_keys: "Teclas", g_atmo: "Atmosferas e drones", g_fx: "Efeitos (SFX)", g_user: "Seus presets",
     h_midi: "MIDI e controles", l_midi: "Toque pelo teclado do FM-1 ou por um controlador externo, por USB ou pela entrada MIDI.",
     m1t: "Notas e canais", m1d: "Entrada USB, entrada MIDI (TRS) ou as duas ao mesmo tempo, com filtro de canal (1–16 ou todos).",
     m2t: "Pitch bend e modulação", m2d: "Pitch bend de ±2, ±12, +2/−12 ou +2/−24 semitons, escolhido na tela Global, e roda de modulação (CC 1) que controla a modulação.",
@@ -543,7 +543,7 @@ const SITE = {
     f1t: "Oscillator bank", f1d: "Three oscillators with ranges from LO to 2', a waveform each, independent detune on oscillators 2 and 3 and a touch of pitch drift, like analog VCOs.",
     f2t: "Ladder filter", f2d: "A four-pole low-pass, 24 dB/octave, with saturation in every stage. Emphasis reaches self-oscillation near 9, and the keyboard tracks the cutoff.",
     f3t: "Contours", f3d: "Two contours (filter and loudness) with attack, decay and sustain. The attack is exponential, like the original circuit. Glide, LFO and modulation complete the section.",
-    f4t: "100 presets", f4d: "All monophonic, in groups of basses, leads, brass and strings, keys and effects. The first 10 are a showcase of very different styles. Save your own in 32 user slots.",
+    f4t: "100 presets", f4d: "Ten groups of ten: a showcase of styles, hard leads, soft leads, basses, pads and strings, brass, plucks, keys, atmospheres and sound effects. About a quarter comes with the arpeggiator already on. Save your own in 32 user slots.",
     f5t: "Arpeggiator and sequencer", f5d: "One tap on ARP turns it on and off; holding it sets HOLD. The sequencer records up to 16 notes (REC) and plays them (PLAY). The key LEDs light with the notes.",
     f6t: "Effects per preset", f6d: "Reverb, delay, chorus and drive, each preset with its own combination, so basses, leads and pads live in very different spaces.",
     h_screens: "The screens", l_screens: "The panel is drawn for the FM-1's screen, with fluted knobs, red and blue rocker switches and graphs of the filter and contours. Pick a page:",
@@ -560,14 +560,14 @@ const SITE = {
       { i: "arp", t: "Arpeggiator", d: "Mode, rate, octaves, gate, HOLD and tempo. Tap the ARP button to turn it on; hold it for HOLD. The box closes by itself after 4 s." },
       { i: "seq", t: "Sequencer", d: "16 slots for notes. REC arms recording, PLAY starts and stops, and the tempo is set with an encoder." },
       { i: "save", t: "Save preset", d: "Pick the slot U01–U32, type the name with the encoders and press SAVE. Your versions sit next to the 100 factory presets." },
-      { i: "fxrev", t: "FX · Edit reverb", d: "EDIT opens four knobs: MIX, TYPE (room, hall, plate, spring, shimmer an octave up, and cloud, long and dense), DECAY and TONE. Every reverb is stereo. Pressing FX again moves on to the delay, the chorus and the drive." },
+      { i: "fxrev", t: "FX · Edit reverb", d: "EDIT opens four knobs: MIX, TYPE (room, hall, plate, spring and cloud, long and dense), DECAY and TONE. Every reverb is stereo. Pressing FX again moves on to the delay, the chorus and the drive." },
       { i: "fxdly", t: "FX · Edit delay", d: "MIX, TYPE (analog, digital, tape, ping-pong, multi-tap, slapback and reverse), TIME and FEEDBACK. The SCL button taps the tempo. The chorus has Stereo (after the CE-2), Juno and Multi; the drive, Soft and Tube." },
       { i: "glo", t: "Global", d: "MIDI input (USB, MIDI or all), channel, pitch bend range and the list of MIDI controls." },
       { i: "cc", t: "MIDI CC list", d: "50 panel controls, each with its CC number. Turn the encoder to change it, or send a CC from your keyboard to learn it." },
       { i: "preset", t: "Preset change", d: "When the preset changes, its number and name appear in big letters for 1.5 s, then vanish." },
     ],
-    h_presets: "Presets", l_presets: "One hundred monophonic sounds, from basses to effects. The first ten show what the synth can do:",
-    g_bass: "Basses", g_lead: "Leads", g_wind: "Brass, reeds and pads", g_keys: "Keys and plucks", g_fx: "Effects", g_user: "Your presets",
+    h_presets: "Presets", l_presets: "One hundred sounds, from Minimoog classics to sound effects. The first ten show what the synth can do:",
+    g_show: "Showcase", g_hard: "Hard leads", g_soft: "Soft leads", g_bass: "Basses", g_pads: "Pads and strings", g_brass: "Brass (OCT −1)", g_pluck: "Plucks", g_keys: "Keys", g_atmo: "Atmospheres and drones", g_fx: "Effects (SFX)", g_user: "Your presets",
     h_midi: "MIDI and controls", l_midi: "Play from the FM-1's keys or from an external controller, over USB or the MIDI input.",
     m1t: "Notes and channels", m1d: "USB input, MIDI (TRS) input or both together, with a channel filter (1–16 or all).",
     m2t: "Pitch bend and modulation", m2d: "Pitch bend of ±2, ±12, +2/−12 or +2/−24 semitones, chosen on the Global screen, and a mod wheel (CC 1) that controls the modulation.",
@@ -590,7 +590,7 @@ const SITE = {
     f1t: "オシレーターバンク", f1d: "LO から 2' までのレンジ、個別の波形、オシレーター 2 と 3 それぞれのデチューン、アナログ VCO のようなわずかなピッチのゆらぎを備えた 3 基のオシレーター。",
     f2t: "ラダーフィルター", f2d: "4 ポール、24 dB/oct のローパス。各段にサチュレーションがあり、エンファシスは 9 付近で自己発振。鍵盤でカットオフを追従させられます。",
     f3t: "コンター", f3d: "アタック、ディケイ、サステインを持つ 2 つのコンター（フィルターと音量）。アタックは元の回路と同じ指数カーブ。グライド、LFO、モジュレーションも装備。",
-    f4t: "100 プリセット", f4d: "すべてモノフォニック。ベース、リード、ブラス・ストリングス、鍵盤系、エフェクトに分類。最初の 10 音は多彩なスタイルのショーケース。32 のユーザー枠に保存できます。",
+    f4t: "100 プリセット", f4d: "10 音ずつ 10 グループ：ショーケース、ハードリード、ソフトリード、ベース、パッド＆ストリングス、ブラス、プラック、鍵盤、アトモスフィア、効果音。約 4 分の 1 はアルペジエーターがオンの状態で始まります。32 のユーザー枠に保存できます。",
     f5t: "アルペジエーターとシーケンサー", f5d: "ARP を 1 回押すとオン/オフ、長押しで HOLD。シーケンサーは最大 16 音を録音（REC）して再生（PLAY）。鍵盤の LED が音に合わせて点灯します。",
     f6t: "プリセットごとのエフェクト", f6d: "リバーブ、ディレイ、コーラス、ドライブ。プリセットごとに異なる組み合わせで、ベース、リード、パッドがそれぞれ違う空間で鳴ります。",
     h_screens: "画面", l_screens: "FM-1 の画面に合わせてデザインしたパネル。ローレット付きのノブ、赤と青のロッカースイッチ、フィルターとコンターのグラフを備えます。ページを選んでください。",
@@ -613,8 +613,8 @@ const SITE = {
       { i: "cc", t: "MIDI CC 一覧", d: "パネルの 50 のコントロールそれぞれに CC 番号。エンコーダーで変更、またはキーボードから CC を送って学習できます。" },
       { i: "preset", t: "プリセット切替", d: "プリセットを変えると番号と名前が大きな文字で 1.5 秒表示され、消えます。" },
     ],
-    h_presets: "プリセット", l_presets: "ベースからエフェクトまで、100 のモノフォニック音色。最初の 10 音がこのシンセの実力を示します。",
-    g_bass: "ベース", g_lead: "リード", g_wind: "ブラス・リード楽器・パッド", g_keys: "鍵盤・プラック", g_fx: "エフェクト", g_user: "ユーザー音色",
+    h_presets: "プリセット", l_presets: "Minimoog の名音から効果音まで、100 の音色。最初の 10 音がこのシンセの実力を示します。",
+    g_show: "ショーケース", g_hard: "ハードリード", g_soft: "ソフトリード", g_bass: "ベース", g_pads: "パッド＆ストリングス", g_brass: "ブラス (OCT −1)", g_pluck: "プラック", g_keys: "鍵盤", g_atmo: "アトモスフィア", g_fx: "効果音 (SFX)", g_user: "ユーザー音色",
     h_midi: "MIDI とコントロール", l_midi: "FM-1 の鍵盤でも外部コントローラーでも、USB または MIDI 入力で演奏できます。",
     m1t: "ノートとチャンネル", m1d: "USB 入力、MIDI（TRS）入力、または両方を同時に。チャンネルフィルター（1〜16 またはすべて）付き。",
     m2t: "ピッチベンドとモジュレーション", m2d: "ピッチベンドは ±2、±12、+2/−12、+2/−24 半音からグローバル画面で選択。モジュレーションホイール（CC 1）に対応。",
@@ -632,11 +632,11 @@ const SITE = {
 for (const l in SITE) Object.assign(TEXT[l], SITE[l]);
 const SITE2 = {
   pt: { announce: "Firmware gratuito e de código aberto para o M-VAVE FM-1", e_sound: "Som", h_sound: "Três osciladores, um filtro ladder e muito corpo", e_screens: "Telas", h_screens: "Cada página, uma seção do painel",
-        e_presets: "Presets", h_presets: "Cem timbres, todos monofônicos", e_midi: "MIDI e controles", h_midi: "Toque do jeito que preferir", e_install: "Instalar", h_install: "Instale direto do navegador" },
+        e_presets: "Presets", h_presets: "Cem timbres, de clássicos a efeitos", e_midi: "MIDI e controles", h_midi: "Toque do jeito que preferir", e_install: "Instalar", h_install: "Instale direto do navegador" },
   en: { announce: "Free, open-source firmware for the M-VAVE FM-1", e_sound: "Sound", h_sound: "Three oscillators, a ladder filter and plenty of body", e_screens: "Screens", h_screens: "Every page, one section of the panel",
-        e_presets: "Presets", h_presets: "One hundred sounds, all monophonic", e_midi: "MIDI and controls", h_midi: "Play it your way", e_install: "Install", h_install: "Install straight from the browser" },
+        e_presets: "Presets", h_presets: "One hundred sounds, from classics to effects", e_midi: "MIDI and controls", h_midi: "Play it your way", e_install: "Install", h_install: "Install straight from the browser" },
   ja: { announce: "M-VAVE FM-1 用の無料オープンソース・ファームウェア", e_sound: "サウンド", h_sound: "3 基のオシレーター、ラダーフィルター、そして厚み", e_screens: "画面", h_screens: "1 ページが、パネルの 1 セクション",
-        e_presets: "プリセット", h_presets: "100 の音色、すべてモノフォニック", e_midi: "MIDI とコントロール", h_midi: "好きな方法で演奏", e_install: "インストール", h_install: "ブラウザーから直接インストール" },
+        e_presets: "プリセット", h_presets: "100 の音色、クラシックから効果音まで", e_midi: "MIDI とコントロール", h_midi: "好きな方法で演奏", e_install: "インストール", h_install: "ブラウザーから直接インストール" },
 };
 for (const l in SITE2) Object.assign(TEXT[l], SITE2[l]);
 const SITE3 = {

@@ -1484,6 +1484,9 @@ static void clean_engine(void) { clean_engine_of(TSEL); }
  * then the voice bank's B1..B32 through SLOT as the knob loads them (fm6_poll; the rest of the sound stays), an empty
  * one ignored. A program past the last is ignored, not wrapped: a number is always the same sound */
 static volatile uint8_t *const mpc_io = ui.mpc;
+#if FELUCCA_FMUG_ONLY
+static void fa_factory_extras(track_t *t, uint32_t n);   /* (fmug_app.c) */
+#endif
 static void midi_pc_load(track_t *t, uint32_t n)
 {
     uint32_t e = t->eng_req % NENGINES, k;
@@ -1504,6 +1507,10 @@ static void midi_pc_load(track_t *t, uint32_t n)
     for (k = 0; preset_orig(ENGINES[e], k) != k || n--; k++)   /* the n-th shown preset */
         ;
     apply_preset_to(t, k);
+#if FELUCCA_FMUG_ONLY
+    if (e == ENGI_FMUG)
+        fa_factory_extras(t, k);                     /* FMini-1: the patch's arpeggiator, LFO, FX settings and octave (fmug_app.c) */
+#endif
 }
 static void midi_pc_poll(void)                       /* main loop (ui_input) */
 {

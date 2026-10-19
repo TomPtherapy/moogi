@@ -90,7 +90,7 @@ int main(int argc, char **argv)
     ui.force = 1;
     fa_draw();
     dump(dir, 11);
-    {   /* SAVE: a user preset in the first free slot, found again by PRESETS; every patch is mono */
+    {   /* SAVE: a user preset in the first free slot, found again by PRESETS; the bank is mostly mono, its pads, keys and plucks poly */
         char nm[16];
         uint32_t before = fa_nuser();
         apply_preset_to(TSEL, 5);
@@ -117,10 +117,18 @@ int main(int argc, char **argv)
         fa_mono();
         if (TSEL->p[P_VOICE] != V_POLY) { printf("POLY is not kept\n"); return 1; }
         TSEL->p[P_VOICE] = V_MONO;
-        {
-            uint32_t k;
-            for (k = 0; k < FMUG_NFACTORY; k++)
-                if (!ENGINES[ENGI_FMUG]->presets[k].mono) { printf("preset %u is poly\n", k); return 1; }
+        {   /* the bank: 100 patches, a voice mode each (leads, basses and SFX mono; pads, keys, brass chords and plucks poly), names that fit */
+            uint32_t k, npoly = 0;
+            if (FMUG_NFACTORY != 100u || strlen(FMUG_CATS) != 100u || NELEM(FMUG_PRESETS) != 100u) { printf("bank size %u\n", (uint32_t)FMUG_NFACTORY); return 1; }
+            for (k = 0; k < FMUG_NFACTORY; k++) {
+                apply_preset_to(TSEL, k);
+                fa_mono();
+                if (TSEL->p[P_VOICE] != (ENGINES[ENGI_FMUG]->presets[k].mono ? V_MONO : V_POLY)) { printf("preset %u: voice mode %d\n", k, TSEL->p[P_VOICE]); return 1; }
+                if (strlen(ENGINES[ENGI_FMUG]->presets[k].name) > 12u) { printf("preset %u: name too long\n", k); return 1; }
+                npoly += !ENGINES[ENGI_FMUG]->presets[k].mono;
+            }
+            if (npoly < 25u || npoly > 75u) { printf("bank: %u poly patches\n", npoly); return 1; }
+            TSEL->p[P_VOICE] = V_MONO;
         }
     }
     {   /* CTRL's VOICES (the ninth control): ALGORITHM sets POLY / MONO, SAVE keeps it, a factory patch is MONO, 12 voices play */
@@ -136,9 +144,9 @@ int main(int argc, char **argv)
         fa_sv_slot = 2;
         str_cpy(fa_sv_name, "POLY PATCH", 13);
         fa_sv_do();
-        apply_preset_to(TSEL, 3);
+        apply_preset_to(TSEL, 0);
         fa_mono();
-        if (TSEL->p[P_VOICE] != V_MONO) { printf("voices: a factory patch is not MONO\n"); return 1; }
+        if (TSEL->p[P_VOICE] != V_MONO) { printf("voices: the first factory patch (a lead) is not MONO\n"); return 1; }
         up_load(2);
         fa_mono();
         if (TSEL->p[P_VOICE] != V_POLY) { printf("voices: the preset does not keep POLY\n"); return 1; }
@@ -156,7 +164,7 @@ int main(int argc, char **argv)
         fa_mono();
     }
     {   /* the ARP settings and the tempo are part of a saved preset: SAVE keeps them, loading the preset sets them,
-         * a factory patch turns the arpeggiator off */
+         * a factory patch brings its own (the FMUG_X table) */
         int16_t bpm0 = song.g[G_BPM];
         apply_preset_to(TSEL, 2);
         TSEL->p[P_AMODE] = 3; TSEL->p[P_ARATE] = 4; TSEL->p[P_AOCT] = 3; TSEL->p[P_AGATE] = 90; TSEL->p[P_AHOLD] = 1;
@@ -172,8 +180,11 @@ int main(int argc, char **argv)
         song.octave = 3;
         song.g[G_RSIZE] = 50; song.g[G_DRREV] = 50; song.g[G_CRATE] = 50; song.g[G_DRLVL] = 50;
         if (TSEL->p[P_AMODE] != 0 || TSEL->p[P_AHOLD] != 0) { printf("arp: a factory patch leaves the ARP on\n"); return 1; }
-        fa_preset(1);                                   /* the next factory patch: the FX page's defaults */
-        if (fa_on_user() || song.g[G_RSIZE] != GP[G_RSIZE].def || song.g[G_DRLVL] != GP[G_DRLVL].def) { printf("fx: factory patch keeps the FX settings\n"); return 1; }
+        fa_preset(1);                                   /* the next factory patch (5, DUB STAB): its own FX settings, arpeggiator and octave */
+        if (fa_on_user() || TSEL->p[P_E7] != 5 || song.g[G_RSIZE] != FMUG_X[5].fx[1] || song.g[G_DRLVL] != FMUG_X[5].fx[10] ||
+            song.g[G_RTYPE] != FMUG_X[5].fx[0] || song.g[G_DTIME] != FMUG_X[5].fx[3] || song.octave != FMUG_X[5].oct) {
+            printf("fx: factory patch 5 keeps the old FX settings (%d %d %d)\n", song.g[G_RSIZE], song.g[G_DRLVL], song.octave); return 1;
+        }
         up_load(1);
         if (song.octave != -2) { printf("octave: preset load -> %d\n", song.octave); return 1; }
         if (song.g[G_RSIZE] != 11 || song.g[G_DRREV] != 0 || song.g[G_CRATE] != 100 || song.g[G_DRLVL] != 127) {
@@ -192,6 +203,83 @@ int main(int argc, char **argv)
         song.octave = 0;
         apply_preset_to(TSEL, 0);
         TSEL->user = 0;
+    }
+    {   /* every factory patch brings its own arpeggiator, LFO, modulation, FX settings, LEVEL and octave (the PRESETS knob's way in);
+         * about a quarter has the ARP on, the brass (50..59) comes in an octave down, the tempo stays the player's */
+        uint32_t k, on = 0, fxk, bad = 0;
+        int16_t bpm0 = song.g[G_BPM];
+        song.g[G_BPM] = 117;
+        for (k = 0; k < FMUG_NFACTORY; k++) {
+            const fmug_x_t *x = &FMUG_X[k];
+            TSEL->user = 0;
+            if (k) {
+                TSEL->p[P_E7] = (int16_t)(k - 1u);
+                fa_preset(1);
+            } else {
+                apply_preset_to(TSEL, 0);
+                TSEL->p[P_E7] = 0;
+                fa_factory_extras(TSEL, 0);
+            }
+            if (TSEL->p[P_E7] != (int16_t)k || fa_on_user()) { printf("patch %u: PRESETS -> %d\n", k, TSEL->p[P_E7]); return 1; }
+            if (TSEL->p[P_AMODE] != (x->arp[0] ? x->arp[1] : 0) || TSEL->p[P_ARATE] != x->arp[2] || TSEL->p[P_AOCT] != x->arp[3] ||
+                TSEL->p[P_AGATE] != x->arp[4] || TSEL->p[P_ASWING] != x->arp[5] || TSEL->p[P_APROB] != x->arp[6] || TSEL->p[P_AHOLD] != 0) {
+                printf("patch %u: arp %d %d %d %d\n", k, TSEL->p[P_AMODE], TSEL->p[P_ARATE], TSEL->p[P_AOCT], TSEL->p[P_AGATE]); bad++;
+            }
+            if (x->arp[0] && (x->arp[1] < 1 || x->arp[1] > 14 || x->arp[3] < 1 || x->arp[3] > 4 || x->arp[4] < 1)) { printf("patch %u: arp range\n", k); bad++; }
+            on += x->arp[0];
+            if (TSEL->p[P_LEVEL] != x->level || x->level < 60 || x->level > 127) { printf("patch %u: LEVEL %d\n", k, TSEL->p[P_LEVEL]); bad++; }
+            if (TSEL->p[P_LRATE] != x->lfo[0] || TSEL->p[P_LWAVE] != x->lfo[1] || TSEL->p[P_LFADE] != x->lfo[2] || TSEL->p[P_LSYNC] != x->lfo[3] ||
+                TSEL->p[P_LD_PIT] != x->mod[0] || TSEL->p[P_LD_AMP] != x->mod[1] || TSEL->p[P_ED_PIT] != x->mod[2]) { printf("patch %u: LFO / mod\n", k); bad++; }
+            for (fxk = 0; fxk < 12u; fxk++)
+                if (song.g[FA_XG[fxk]] != clamp(x->fx[fxk], GP[FA_XG[fxk]].min, GP[FA_XG[fxk]].max) || x->fx[fxk] > GP[FA_XG[fxk]].max) {
+                    printf("patch %u: FX %u = %d (%d)\n", k, fxk, song.g[FA_XG[fxk]], x->fx[fxk]); bad++;
+                }
+            if (song.octave != x->oct || (k >= 50u && k < 60u && x->oct != -1)) { printf("patch %u: octave %d\n", k, song.octave); bad++; }
+        }
+        if (on < 22u || on > 28u) { printf("bank: ARP on in %u of 100 patches\n", on); bad++; }
+        if (song.g[G_BPM] != 117) { printf("bank: a patch changed the tempo (%d)\n", song.g[G_BPM]); bad++; }
+        if (bad) return 1;
+        song.g[G_BPM] = bpm0;                            /* (a Program Change brings the same: ui.c midi_pc_load) */
+        ui.mpc[0] = (uint8_t)(0x80u | 14u);              /* 14 RAVE ARP */
+        midi_pc_poll();
+        if (TSEL->p[P_E7] != 14 || TSEL->p[P_AMODE] != FMUG_X[14].arp[1] || song.g[G_RSIZE] != FMUG_X[14].fx[1] || song.octave != 0) {
+            printf("Program Change 14: slot %d arp %d\n", TSEL->p[P_E7], TSEL->p[P_AMODE]); return 1;
+        }
+        ui.mpc[0] = (uint8_t)(0x80u | 55u);              /* 55 BRASS SWELL: OCT-1 */
+        midi_pc_poll();
+        if (TSEL->p[P_E7] != 55 || song.octave != -1 || TSEL->p[P_AMODE] != 0) { printf("Program Change 55: octave %d\n", song.octave); return 1; }
+        song.octave = 0;
+        TSEL->p[P_AMODE] = 0;
+        TSEL->user = 0;
+        apply_preset_to(TSEL, 0);
+        TSEL->p[P_E7] = 0;
+        fa_factory_extras(TSEL, 0);
+        TSEL->p[P_AMODE] = 0;
+    }
+    {   /* a new preset always goes HOME (CTRL), from any page, with the pop-ups closed: PRESETS, a Program Change, a slot change */
+        uint32_t pgi;
+        panel_init();
+        fa_init();
+        fa_gl = 0; fa_ar = 0; fa_sv = 0; fa_sq = 0;
+        fframes(160);
+        for (pgi = 1; pgi < 7u; pgi++) {
+            fa_page = (uint8_t)pgi;
+            fmg_force_page = (int8_t)pgi;
+            fa_ar = pgi == 3u;                           /* (the ARP pop-up open on one of them) */
+            fturn(EN_PRESET, 1);
+            if (fa_page != 0 || fa_ar) { printf("HOME: PRESETS on page %u -> page %d, arp pop-up %d\n", pgi, fa_page, fa_ar); return 1; }
+        }
+        fa_page = 4;
+        fmg_force_page = 4;
+        ui.mpc[0] = (uint8_t)(0x80u | 33u);
+        fframes(48);
+        if (TSEL->p[P_E7] != 33 || fa_page != 0) { printf("HOME: Program Change -> slot %d page %d\n", TSEL->p[P_E7], fa_page); return 1; }
+        fa_page = 2;
+        fmg_force_page = 2;
+        fframes(48);
+        if (fa_page != 2) { printf("HOME: no preset change, but the page moved (%d)\n", fa_page); return 1; }
+        fa_page = 0;
+        fmg_force_page = 0;
     }
     {   /* GLIDE: the knob alone makes the track glide; ARP pop-up changes the arp; HOME */
         int i;
@@ -414,9 +502,9 @@ int main(int argc, char **argv)
                 if (fmg_fx != (q < 3u ? q + 2u : 0u)) { printf("FX cycles %u -> %u\n", q, fmg_fx); return 1; }
                 fmg_fx = 0; fmg_cur[6] = (uint8_t)(4u + q);
             }
-            {   /* a type's names: the six reverbs, seven delays, three choruses */
+            {   /* a type's names: the five reverbs, seven delays, three choruses */
                 char v[16]; const char *u; uint32_t n;
-                static const struct { uint8_t id; uint8_t n; const char *last; } TY[4] = {{G_RTYPE, 6, "CLOUD"}, {G_DTIME, 7, "REVERSE"}, {G_ENGGO, 3, "MULTI"}, {G_INFO, 2, "TUBE"}};
+                static const struct { uint8_t id; uint8_t n; const char *last; } TY[4] = {{G_RTYPE, 5, "CLOUD"}, {G_DTIME, 7, "REVERSE"}, {G_ENGGO, 3, "MULTI"}, {G_INFO, 2, "TUBE"}};
                 for (n = 0; n < 4u; n++) {
                     str_cpy(v, GP[TY[n].id].names[GP[TY[n].id].max], 16);
                     if (GP[TY[n].id].max + 1 != TY[n].n || strcmp(v, TY[n].last)) { printf("type list %u: %d '%s'\n", n, GP[TY[n].id].max + 1, v); return 1; }
@@ -451,10 +539,12 @@ int main(int argc, char **argv)
     {   /* the CUTOFF / EMPH / CNTR knobs glide (200 ms): a click is a ramp of tiny steps, silence snaps */
         track_t *t0 = &trk[0];
         int32_t last, d, n, kk, big;
+        uint32_t vi;
         static const uint8_t KN3[3] = {P_E0, P_E1, P_E2};
         for (kk = 0; kk < 3; kk++) {
             int32_t at275 = 0;
-            t0->v[0].active = 0;
+            for (vi = 0; vi < NVOICE; vi++)             /* (the patches played before may be polyphonic: their released voices are silent) */
+                t0->v[vi].active = 0;
             t0->p[KN3[kk]] = 64;
             fmug_block(t0);
             if (fmug_sm[0][kk] != 64 << 16) { printf("knob glide: silent block does not snap\n"); return 1; }

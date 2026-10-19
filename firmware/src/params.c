@@ -54,8 +54,8 @@ static const char *const N_ROUTE[] = {"CH1-4", "SEL", "CH5-8", "CH9-12", "CH13-1
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 static const char *const N_DASH[] = {"--"};
 #if FELUCCA_FMUG_ONLY
-/* FMini-1: G_RTYPE's six models (the FX > REVERB > TYPE list; fx.c rev_model maps them to the running models) */
-static const char *const N_RTYPE[] = {"ROOM", "HALL", "PLATE", "SPRING", "SHIMMER", "CLOUD"};
+/* FMini-1: G_RTYPE's five models (the FX > REVERB > TYPE list; fx.c rev_run runs them) */
+static const char *const N_RTYPE[] = {"ROOM", "HALL", "PLATE", "SPRING", "CLOUD"};
 static const char *const N_DLYTYPE[] = {"ANALOG", "DIGITAL", "TAPE", "P-PONG", "MULTI", "SLAP", "REVERSE"};   /* G_DTIME's use */
 static const char *const N_CHOTYPE[] = {"STEREO", "JUNO", "MULTI"};                                       /* G_ENGGO's use */
 static const char *const N_DRVTYPE[] = {"SOFT", "TUBE"};                                                  /* G_INFO's use */
