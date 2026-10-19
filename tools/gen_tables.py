@@ -38,7 +38,7 @@ def main(path):
     L += arr("ENV_LIN", "uint32_t", [max(1, int((1 << 24) * CTL / (m * FS / 1000))) for m in ms], 8)
     exp_k = []
     for m in ms:
-        tau = m / 1000 / 2.8                       # -24 dB after "m" ms: heard to its end (measured on the real sound: the filter closes with it)
+        tau = m / 1000 / 1.4                       # -12 dB after "m" ms: measured on the real sound, what is still heard (the patches are quiet: ~-24 dBFS)
         exp_k.append(max(1, min(65535, int(65536 * (1 - math.exp(-CTL / (tau * FS)))))))
     L += arr("ENV_EXP", "uint16_t", exp_k)
     # LFO 0.05 .. 40 Hz, phase increment per control tick
