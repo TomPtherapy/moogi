@@ -479,5 +479,43 @@ int main(int argc, char **argv)
             return 1;
         }
     }
+    {   /* both contours reach 12 s at the top of ATTACK and DECAY (the loudness one here; the filter's uses the same tables) */
+        track_t *t0 = &trk[0];
+        voice_t vv;
+        int32_t n = 0, nd = 0;
+        double sec;
+        memset(&vv, 0, sizeof vv);
+        t0->p[P_ATK] = 127; t0->p[P_DEC] = 127; t0->p[P_SUS] = 0; t0->p[P_REL] = 0;
+        esync_coef(t0);
+        vv.stage = 1;
+        while (vv.stage == 1 && n < 2000000) { env_tick(t0, &vv); n++; }
+        sec = (double)n * CTL / FS;
+        if (sec < 11.0 || sec > 13.0) { printf("attack at max: %.2f s\n", sec); return 1; }
+        while (vv.env > (1 << 17) && nd < 4000000) { env_tick(t0, &vv); nd++; }   /* -42 dB: the 99 % mark (-40 dB) */
+        sec = (double)nd * CTL / FS;
+        if (sec < 11.0 || sec > 13.5) { printf("decay at max: %.2f s\n", sec); return 1; }
+        vv.stage = 3; vv.env = 1 << 24; vv.active = 1; nd = 0;
+        while (vv.env > (1 << 17) && nd < 4000000) { env_tick(t0, &vv); nd++; }
+        sec = (double)nd * CTL / FS;
+        if (sec < 11.0 || sec > 13.5) { printf("release at max DECAY: %.2f s\n", sec); return 1; }
+    }
+    {   /* the filter contour: 12 s at the top of ATTACK, and DECAY is its decay and release */
+        track_t *t0 = &trk[0];
+        voice_t vv;
+        int32_t n = 0, e = 0;
+        double sec;
+        memset(&vv, 0, sizeof vv);
+        t0->p[P_E3] = 127; t0->p[P_E4] = 127; t0->p[P_E5] = 0;
+        vv.gate = 1;
+        vv.s[7] = 1 << 24;                                   /* stage 1 from 0 */
+        do { e = fmug_contour(t0->p, &vv); n++; } while (((uint32_t)vv.s[7] >> 24) == 1u && n < 2000000);
+        sec = (double)n * CTL / FS;
+        if (sec < 11.0 || sec > 13.0) { printf("filter attack at max: %.2f s\n", sec); return 1; }
+        vv.gate = 0;
+        n = 0;
+        do { e = fmug_contour(t0->p, &vv); n++; } while (e > 260 && n < 4000000);   /* -42 dB (Q15) */
+        sec = (double)n * CTL / FS;
+        if (((uint32_t)vv.s[7] >> 24) != 3u || sec < 11.0 || sec > 14.5) { printf("filter release at max DECAY: %.2f s (st %u)\n", sec, (unsigned)((uint32_t)vv.s[7] >> 24)); return 1; }
+    }
     return 0;
 }

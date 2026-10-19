@@ -32,8 +32,8 @@ def main(path):
          f"#define FS {FS}", f"#define CTL {CTL}", ""]
     L += fe.sine()               # (1025 points: SINE[i + 1] needs no wrap: FM6's operators; the others mask)
     L += fe.pitch()
-    # times 1 ms .. 10 s (exponential), env in Q24 (1.0 = 1<<24)
-    ms = [1.0 * (10000 ** (v / 127)) for v in range(128)]
+    # times 1 ms .. 12 s (exponential), env in Q24 (1.0 = 1<<24)
+    ms = [1.0 * (12000 ** (v / 127)) for v in range(128)]
     L += arr("TIME_MS_X10", "uint32_t", [int(round(m * 10)) for m in ms], 10)
     L += arr("ENV_LIN", "uint32_t", [max(1, int((1 << 24) * CTL / (m * FS / 1000))) for m in ms], 8)
     exp_k = []
