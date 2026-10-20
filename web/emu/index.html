@@ -57,6 +57,8 @@ a { color: inherit; }
 .dimlo .mid .slit { fill: #8a8a8e; }
 .held .face { stroke: var(--lit); stroke-width: 3; }
 .latched .face { stroke: #79b8ff; stroke-width: 3; }
+.site { display: block; width: fit-content; margin: 0 auto 14px; padding: 10px 20px; border-radius: 10px; background: #ff7a1a; color: #1a0e05; font-weight: 800; font-size: 15px; text-decoration: none; }
+.site:hover { background: #ff9440; }
 .start { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px;
          background: rgba(0, 0, 0, .5); border-radius: 4% / 6%; }
 .start[hidden] { display: none; }
@@ -74,6 +76,7 @@ footer small { font-size: 11px; opacity: .8; }
 </head>
 <body>
 <main>
+<a class="site" href="../">FMini-1 official website &rarr;</a>
 <div class="device" id="device">
   <svg id="panel" viewBox="0 0 1000 624" aria-hidden="true"></svg>
   <canvas id="screen" width="240" height="240" role="img" aria-label="The screen"></canvas>

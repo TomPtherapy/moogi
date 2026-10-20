@@ -57,6 +57,8 @@ a { color: inherit; }
 .dimlo .mid .slit { fill: #8a8a8e; }
 .held .face { stroke: var(--lit); stroke-width: 3; }
 .latched .face { stroke: #79b8ff; stroke-width: 3; }
+.site { display: block; width: fit-content; margin: 0 auto 14px; padding: 10px 20px; border-radius: 10px; background: #ff7a1a; color: #1a0e05; font-weight: 800; font-size: 15px; text-decoration: none; }
+.site:hover { background: #ff9440; }
 .start { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px;
          background: rgba(0, 0, 0, .5); border-radius: 4% / 6%; }
 .start[hidden] { display: none; }
@@ -74,6 +76,7 @@ footer small { font-size: 11px; opacity: .8; }
 </head>
 <body>
 <main>
+<a class="site" href="../">FMini-1 official website &rarr;</a>
 <div class="device" id="device">
   <svg id="panel" viewBox="0 0 1000 624" aria-hidden="true"></svg>
   <canvas id="screen" width="240" height="240" role="img" aria-label="The screen"></canvas>
@@ -98,7 +101,7 @@ footer small { font-size: 11px; opacity: .8; }
 </p>
 
 <footer>
-  <small class="version">FMini-1 v1.5.3</small><br>
+  <small class="version">FMini-1 v1.5.4</small><br>
   FMini-1 by Guilherme Ruppert, a fork of Felucca by Leo Kuroshita, Hügelton Instruments · <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0</a> · browser build after charlesvestal's <a href="https://github.com/charlesvestal/fm1-x0x">X0X</a> · DotGothic16 font, <a href="fonts/OFL.txt">SIL OFL 1.1</a><br>
   <nav><a href="../">Install on the FM-1</a><a href="https://github.com/ruppert/fmini-1">Source</a></nav>
   <small>M-VAVE and FM-1 are trademarks of their respective owners. FMini-1 is not affiliated with or endorsed by them.</small>

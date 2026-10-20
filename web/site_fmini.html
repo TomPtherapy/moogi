@@ -77,6 +77,8 @@
   .copy1 .tag { font-size: clamp(20px, 2.4vw, 28px); margin-top: 22px; }
   .copy1 .sub { font-size: 16px; }
   .copy1 .cta { margin-top: 26px; }
+  .cta-ver { margin: 10px 0 0; font: 500 11px/1 var(--mono); color: var(--mute); letter-spacing: .03em; }
+  .copy2 .cta-ver { text-align: center; }
   .mm { position: absolute; z-index: 2; left: 0; top: 0; width: 100px; height: auto; max-width: none; -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent), linear-gradient(180deg, transparent, #000 10%, #000 88%, transparent); -webkit-mask-composite: source-in; mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent), linear-gradient(180deg, transparent, #000 10%, #000 88%, transparent); mask-composite: intersect; will-change: left, top, width, opacity; pointer-events: none; }
   .fm { position: absolute; z-index: 1; margin: 0; left: 0; top: 0; opacity: 0; will-change: transform, opacity; }
   .fm .body { display: block; width: 100%; height: auto; filter: drop-shadow(0 30px 50px rgba(0,0,0,.6)); }
@@ -166,6 +168,7 @@
   @media (max-width: 700px) { .steps { grid-template-columns: 1fr; gap: 18px; } }
 
   #go { width: 100%; font: 800 18px/1 var(--sans); color: #1a0e05; border: 0; border-radius: 12px; padding: 22px 20px; cursor: pointer; background: var(--or); transition: transform .08s, background .15s; }
+  #go small { font: 600 .62em/1 var(--mono); opacity: .75; margin-left: 4px; }
   #go:hover:not(:disabled) { background: var(--or2); }
   #go:active:not(:disabled) { transform: translateY(1px); }
   #go:disabled { cursor: default; background: var(--surface2); color: var(--mute); }
@@ -241,6 +244,7 @@
           <a class="btn pri" href="#install" data-t="cta_install"></a>
           <a class="btn sec2" href="#screens" data-t="cta_screens"></a>
         </div>
+        <p class="cta-ver curver"></p>
         <ul class="tags"><li>3 OSC</li><li data-t="chip_f"></li><li data-t="chip_p"></li><li>ARP</li><li>SEQ</li><li>MIDI</li></ul>
       </div>
       <img class="mm" id="mm" alt="Minimoog" src="/*HERO*/">
@@ -255,6 +259,7 @@
           <a class="btn pri" href="#install" data-t="cta_install"></a>
           <a class="btn sec2" href="#screens" data-t="cta_screens"></a>
         </div>
+        <p class="cta-ver curver"></p>
       </div>
       <div class="hint" id="hint" aria-hidden="true"><span data-t="hint"></span><i></i></div>
     </div>
@@ -330,7 +335,7 @@
         <li><b><i>3</i><span data-t="step3"></span></b><span class="d" data-t="s3"></span></li>
       </ol>
 
-      <button id="go" disabled data-t="install"></button>
+      <button id="go" disabled><span data-t="install"></span> <small class="curver-b"></small></button>
 
       <div class="prog">
         <div class="meter" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="fill"></div></div>
@@ -386,7 +391,7 @@ const TEXT = {
     editor: "Editor",
     direct: "Ligue o cabo USB direto no computador. Não precisa de Probe nem de Transporter.",
     brick: "Se a instalação falhar e o FM-1 não ligar mais, recuperá-lo exige um Transporter:",
-    beta: "O FMini-1 é uma versão experimental, baseada no Felucca. O autor não se responsabiliza se o seu FM-1 for danificado ou se comportar de forma estranha por causa deste firmware personalizado. Use por sua conta e risco.",
+    beta: "O FMini-1 é uma versão experimental. O autor não se responsabiliza se o seu FM-1 for danificado ou se comportar de forma estranha por causa deste firmware personalizado. Use por sua conta e risco.",
     back: "Baixe o FM-1 V15 oficial na M-VAVE e escolha o FM-1.fwsc sem modificações. O navegador valida o arquivo localmente; ele não é enviado a nenhum servidor.",
     stockTitle: "Voltar ao V15 oficial", stockFile: "FM-1.fwsc oficial", stockGo: "Fazer backup e voltar ao V15 oficial",
     stockBackup: "Músicas, músicas salvas, bancos de sons, samples e ajustes atuais são salvos antes. Firmware antigo precisa de uma atualização do Felucca para fazer o backup completo.",
@@ -424,7 +429,7 @@ const TEXT = {
     editor: "エディタ（インストール後、パソコンから音色やシーケンスを編集）",
     direct: "USB ケーブルはパソコンに直接つないでください。Probe や Transporter などの機材は不要です。",
     brick: "万一インストールに失敗して起動しなくなった場合は、復旧に Transporter が必要です:",
-    beta: "FMini-1 は Felucca をベースにした実験版です。このカスタムファームウェアを使ったことで FM-1 が壊れたり不具合が起きたりしても、作者は一切の責任を負いません。自己責任でお使いください。",
+    beta: "FMini-1 は実験版です。このカスタムファームウェアを使ったことで FM-1 が壊れたり不具合が起きたりしても、作者は一切の責任を負いません。自己責任でお使いください。",
     back: "M-VAVEから公式FM-1 V15を取得し、未変更のFM-1.fwscを選んでください。ファイルはこのブラウザ内で検証し、サーバーへ送りません。",
     stockTitle: "公式V15に戻す", stockFile: "公式FM-1.fwsc", stockGo: "バックアップして公式V15へ戻す",
     stockBackup: "現在の曲・保存曲・音色バンク・サンプル・設定を先に保存します。全体バックアップ非対応版は、Feluccaを更新してから行ってください。復元はFeluccaを再インストールしてエディタから行います。",
@@ -462,7 +467,7 @@ const TEXT = {
     editor: "Editor (after installing: edit sounds and sequences from the computer)",
     direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
     brick: "If an install fails and the FM-1 no longer starts, recovering it needs a Transporter:",
-    beta: "FMini-1 is an experimental release based on Felucca. The author accepts no responsibility if your FM-1 is damaged or misbehaves because of this custom firmware. Use it at your own risk.",
+    beta: "FMini-1 is an experimental release. The author accepts no responsibility if your FM-1 is damaged or misbehaves because of this custom firmware. Use it at your own risk.",
     back: "Get official FM-1 V15 from M-VAVE and select the unmodified FM-1.fwsc. The browser validates it locally; it is not sent to a server.",
     stockTitle: "Return to official V15", stockFile: "Official FM-1.fwsc", stockGo: "Back up and return to official V15",
     stockBackup: "Current music, saved music, sound banks, samples and settings are saved first. Older firmware needs a Felucca update for complete backups. To restore an archive later, reinstall Felucca and use the editor.",
@@ -756,6 +761,8 @@ function writeBar(n) {
 function stopCrawl() { if (crawl) clearInterval(crawl); crawl = null; }
 let image = null;
 const meta = /*META*/;
+document.querySelectorAll(".curver").forEach((e) => { e.textContent = "v" + meta.version; });
+document.querySelectorAll(".curver-b").forEach((e) => { e.textContent = "(v" + meta.version + ")"; });
 
 let writing = false, stock = null, stockFileEpoch = 0;
 const lockInstaller = (on) => { writing = on; $("go").disabled = on || !image; $("stock-go").disabled = on || !stock; $("stock-file").disabled = on; $("stock-recovery").disabled = on; };
