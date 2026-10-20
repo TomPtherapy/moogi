@@ -194,7 +194,7 @@ first (a test with the number to hit), then the code.
   emulator to <https://ruppert.github.io/fmini-1/> (a few minutes). Documents at the root do not trigger it.
 - **Release checklist:** bump `FMINI_VERSION`; build; run the tests; regenerate `docs/emu` and `docs/index.html`; refresh the
   screenshots if screens changed (`tools/readme_shots.c`, then `tools/gen_readme_art.py` and the `assets/site/*.webp` it implies);
-  update the protocol doc and the site text; commit; push `fmug-1` and `main`; give the owner the `.fwsc`. The owner creates the
+  update the protocol doc and the site text; commit; push `main`; give the owner the `.fwsc`. The owner creates the
   GitHub Release by hand. Unless the owner says otherwise, nothing has been tested on a real FM-1: say so.
 - Installing is at the owner's risk; recovery of a dead FM-1 needs FM-1-transporter (BUILDING.md).
 

@@ -16,8 +16,8 @@ toolchain setup.
   minutes after the push to `main`; and GitHub Releases are created by the owner by hand (the session's API returns 403).
 - Commit trailers, on every commit (and the pull request footer from the session's reminder):
   `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` and `Claude-Session: <the session URL given in the system reminder>`.
-- Branches `fmug-1` and `main` are kept equal: `git push origin fmug-1` then `git push origin HEAD:main`. A stop hook refuses to
-  end a session with unpushed commits on `fmug-1`.
+- There is one branch, `main`: commit on it and `git push origin main` (run `git fetch origin` first: the owner sometimes edits
+  files in the GitHub web interface). A stop hook refuses to end a session with unpushed commits.
 - Do not change the project when the owner only asks a question.
 
 ## Commands (from the repository root)
@@ -73,5 +73,5 @@ list is yours.
 ## Before saying a change is done
 
 Build, run the tests that touch the change (and the whole suite for anything shared), regenerate the emulator and the installer
-if the firmware or the site changed, commit with the trailers, push both branches, and give the owner the `.fwsc`
+if the firmware or the site changed, commit with the trailers, push `main`, and give the owner the `.fwsc`
 (`SendUserFile`) with the standing reminders above.
