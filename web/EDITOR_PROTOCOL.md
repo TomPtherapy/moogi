@@ -265,7 +265,10 @@ bytes). An upload writes over it like any other data; a record that is not the s
 | 1 | PCT | 6 | DB | 11 | ONOFF |
 | 2 | BIPCT | 7 | SEMI | 12 | OCT |
 | 3 | TIME | 8 | ENUM | 13 | STEPS |
-| 4 | LFOHZ | 9 | BPM | | |
+| 4 | LFOHZ | 9 | BPM | 14 | MCUT |
+| | | | | 15 | MEMP |
+
+MCUT and MEMP (FMini-1 1.7.0, FMUG's CUT and EMPH) are the Minimoog's dials over 0..127: MCUT −5.0 .. +5.0 (0 at 63.5), MEMP 0.0 .. 10.0.
 
 The editor should show the value with the unit; formatting it exactly like the device does
 is not required.
@@ -1006,7 +1009,7 @@ knob turn picks a built-in palette. A preview by the slider is op 0 sent at most
 settings changes only with op 1. Example: `F0 7D 46 4C 51 01 01 02 05 03 04 0A 06 ...` is op 1 with BG = (r 1, g 2, b 5),
 SURF = (3, 4, 10), ...
 
-## FMUG patch (82-84; FMini-1 1.6.0, 1.6.1)
+## FMUG patch (82-84; FMini-1 1.6.0, 1.6.1; the filter 1.7.0)
 
 The FMUG engine's sound is the track's **patch**: 32 bytes (`FG_SIZE`, `eng_fmug.c`), every byte 0..127, of which 18 are
 used (the rest are 0): ranges, waves, the detune of OSC 2 / 3, the mixer levels, the two switch bytes, TUNE, MOD MIX, KBD
@@ -1039,6 +1042,12 @@ globals (`upreset.c`, UP_BPM_AT ..). The reply carries the stored bytes, each as
 then `G_RSIZE G_DRREV G_CRATE G_DRLVL` + 1 (1..128) and `G_RTYPE G_RDAMP G_DTIME G_DFDBK G_ENGGO G_CDEPTH G_INFO G_MIDI` + 1;
 0 = the preset has none (older). Saving a user preset from the editor is `UP_STORE` after setting the sound live (`SET` the
 parameters and globals, `FMUG_PUT` the patch and the octave): it stores exactly that, tempo, octave and FX included.
+
+**1.7.0 (no new command, INFO unchanged):** the filter is a model of the Minimoog's ladder (`tools/fmug_filter.py`, `eng_fmug.c`), and
+the two EDIT values that set it changed meaning. `P_E0` (CUT, fmt MCUT) is the cutoff dial -5 .. +5 (0..127, 0 at 63.5; the
+singing pitch at KBD 0 rises about an octave per mark near the middle), `P_E1` (EMPH, fmt MEMP) the emphasis dial 0 .. 10 (the
+ladder sings from 8). A patch, a user preset, a sound file or a library entry made before 1.7.0 keeps its raw numbers, so it sounds
+different on 1.7.0: set CUTOFF and EMPHASIS again. The factory bank was converted (`tools/fmug_retune.py`).
 
 The web editor for it is `web/editor_fmini.html` (published at `editor/` on the FMini-1 site).
 

@@ -250,10 +250,10 @@ int main(int argc, char **argv)
             if (song.octave != x->oct || (k >= 50u && k < 60u && x->oct != -1)) { printf("patch %u: octave %d\n", k, song.octave); bad++; }
             if (k >= 30u && k < 40u && song.octave != -1) { printf("patch %u: a bass comes in with OCT-1 (%d)\n", k, song.octave); bad++; }
             if ((k == 0u || k == 2u || k == 10u) && (fmug_patch[0][FG_SW1] & FS_MOSC)) { printf("patch %u: MOD OSC is off\n", k); bad++; }
-            if (k == 0u && (song.octave != 1 || TSEL->p[P_E0] != 83 || fmug_patch[0][FG_GLID] != 50)) {      /* CUTOFF 6.5 (+10 %), GLIDE 3.9 (-10 %), OCT+ */
+            if (k == 0u && (song.octave != 1 || TSEL->p[P_E0] != 61 || fmug_patch[0][FG_GLID] != 50)) {      /* CUTOFF -0.2 (the ladder's dial, 1.7.0), GLIDE 3.9 (-10 %), OCT+ */
                 printf("patch 0: octave %d cutoff %d glide %d\n", song.octave, TSEL->p[P_E0], fmug_patch[0][FG_GLID]); bad++;
             }
-            if (k == 3u && (TSEL->p[P_E0] != 105 || TSEL->p[P_REV] != 64 || song.g[G_RTYPE] != 1)) {          /* CUTOFF 8.2 (-0.2), REVERB 5.0, HALL */
+            if (k == 3u && (TSEL->p[P_E0] != 70 || TSEL->p[P_REV] != 64 || song.g[G_RTYPE] != 1)) {          /* CUTOFF +0.5 (the ladder's dial, 1.7.0), REVERB 5.0, HALL */
                 printf("patch 3: cutoff %d reverb %d type %d\n", TSEL->p[P_E0], TSEL->p[P_REV], song.g[G_RTYPE]); bad++;
             }
         }

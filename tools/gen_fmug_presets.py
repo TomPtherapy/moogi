@@ -8,10 +8,8 @@
 import math, os, pathlib, sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "firmware" / "engines" / "tools"))
-import gen_engine_tables as fe  # noqa: E402   (the filter's cutoff table: one source for the firmware and for this)
-
-CUTHZ = [int(round(f)) for f in fe.cutoff_hz()]
+sys.path.insert(0, str(HERE))
+import fmug_filter as FF  # noqa: E402   (the filter's laws: CUTOFF dial, EMPHASIS dial, keyboard zero; one source for the firmware and for this)
 
 R = {"LO": 0, "32": 1, "16": 2, "8": 3, "4": 4, "2": 5}
 W = {"TRI": 0, "SHK": 1, "SAW": 2, "SQR": 3, "PW": 4, "PN": 5}
@@ -42,9 +40,16 @@ def hz(f):
     return clamp(int(round(127 * math.log(f / 0.05) / math.log(800.0))), 0, 127)
 
 
-def cut(f):
-    """a cutoff in Hz -> 0..127"""
-    return min(range(128), key=lambda i: abs(math.log(CUTHZ[i]) - math.log(max(f, 1))))
+def cut(f, kbd=0):
+    """a cutoff -> CUTOFF 0..127. f is the filter's -3 dB corner in Hz when middle C is played (the keyboard's tracking
+    included: the keyboard's 0 V is F, 19 semitones lower, so a patch that tracks has its knob that much lower)"""
+    knob_hz = max(f, 1.0) / 2 ** (kbd / 127.0 * (60 - FF.NOTE0) / 12.0)
+    return min(range(128), key=lambda i: abs(math.log(FF.corner_hz(i / 127.0)) - math.log(knob_hz)))
+
+
+def emp(d):
+    """EMPHASIS on the Minimoog's dial (0 .. 10) -> 0..127"""
+    return clamp(int(round(d * 127 / 10.0)), 0, 127)
 
 
 def dly(t):
@@ -98,7 +103,7 @@ class Bank:
         self.p = []
 
     def add(self, name, cat, osc, noise=0, pink=False,
-            cutoff=1000, emph=30, cntr=0, kbd=64, fenv=(0, 200, 0), env=(5, 300, 100, 150), level_trim=0,
+            cutoff=1000, emph=3.0, cntr=0, kbd=64, fenv=(0, 200, 0), env=(5, 300, 100, 150), level_trim=0,
             vib=0, mosc=False, mflt=False, mmix=0, lfo=(5.0, "SIN", 0, "OFF"), pit=0, trem=0, penv=0,
             glide=0, tune=0, poly=False, sqr=False,
             send=(0, 0, 0, 0), rv=("HALL", 70, 67), dl=("ANALOG", 375, 50), ch=("STEREO", 60, 0.6), dr=("SOFT", 64, 64),
@@ -130,7 +135,7 @@ class Bank:
         g[15] = clamp(int(mmix), 0, 127)
         g[16] = clamp(int(kbd), 0, 127)
         g[17] = clamp(ms(glide) if glide else 0, 0, 127)
-        e = [clamp(cut(cutoff), 0, 127), clamp(int(emph), 0, 127), clamp(int(cntr), 0, 127),
+        e = [clamp(cut(cutoff, kbd), 0, 127), emp(emph), clamp(int(cntr), 0, 127),
              ms(fenv[0]), ms(fenv[1]), clamp(int(fenv[2]), 0, 127), clamp(int(vib), 0, 127), 0]
         a = [ms(env[0]), ms(env[1]), clamp(int(env[2]), 0, 127), ms(env[3])]
         rvT, rvD, rvTone = rv

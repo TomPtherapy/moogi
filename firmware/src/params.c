@@ -411,6 +411,34 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         }
         break;
     }
+    case F_MCUT: {                                  /* the dial -5.0 .. +5.0, 0 in the middle of the knob (63.5) */
+        int32_t t = ((int32_t)v * 200 - 12700) / 127;                /* tenths of a mark, twice */
+        char *o = val;
+        t = t >= 0 ? (t + 1) / 2 : -((-t + 1) / 2);
+        *o++ = t < 0 ? '-' : t > 0 ? '+' : '0';
+        if (t == 0) {
+            *o++ = '.';
+            *o++ = '0';
+        } else {
+            t = t < 0 ? -t : t;
+            *o++ = (char)('0' + t / 10);
+            *o++ = '.';
+            *o++ = (char)('0' + t % 10);
+        }
+        *o = 0;
+        break;
+    }
+    case F_MEMP: {                                  /* the dial 0.0 .. 10.0 */
+        int32_t t = ((int32_t)v * 100 + 63) / 127;
+        char *o = val;
+        if (t >= 100)
+            *o++ = '1';
+        *o++ = (char)('0' + t / 10 % 10);
+        *o++ = '.';
+        *o++ = (char)('0' + t % 10);
+        *o = 0;
+        break;
+    }
     case F_DB:
         if (v <= 0) {
             str_cpy(val, "OFF", 6);

@@ -261,6 +261,8 @@ if [ -f build/gen/felucca_tables.h ]; then
     mkdir -p "$OUT/fa"
     $CC -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmug_app_test" tests/fmug_app_test.c -lm
     run "FMini-1 app: the screen of every page, SAVE / PRESETS over 100 factory and the user patches, each patch its ARP, LFO, FX, LEVEL and octave, a new preset goes HOME" "$OUT/fmug_app_test" "$OUT/fa"
+    $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fmug_filter_test" tests/fmug_filter_test.c -lm
+    run "FMini-1 filter (Minimoog ladder): sings a sine from silence (pitch, THD, 1 V/oct over the keys, KBD 0), the CUTOFF dial's singing pitches, the EMPHASIS dial's passband loss and peak, no runaway" "$OUT/fmug_filter_test"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmug_fx_test" tests/fmug_fx_test.c -lm
     run "FMini-1 FX: five stereo reverbs (decay, level, corners, type changes), seven delays, three choruses, TUBE and OUTPUT, bypass at 0" "$OUT/fmug_fx_test"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/speaker_test" tests/speaker_test.c -lm

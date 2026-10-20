@@ -520,7 +520,7 @@ static int malformed_saves(void)
 static int fmug_patches(void)
 {
     int bad = 0;
-    uint8_t a[2 + FG_SIZE];
+    uint8_t a[3 + FG_SIZE];
     uint32_t n, i;
     reset();
     a[0] = ED_FMUG_FACTORY; a[1] = 3;

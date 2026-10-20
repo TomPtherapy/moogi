@@ -294,7 +294,12 @@ function range(c) {
 }
 const shown = (c, v) => {
   if (c.k === "sel") { const d = descOf(c); return (d.names && d.names[v]) || String(v); }
-  const [lo, hi] = range(c); return hi > lo ? (((v - lo) * 10) / (hi - lo)).toFixed(1) : String(v);
+  const [lo, hi] = range(c);
+  if (c.k === "par" && c.pe === 0 && hi > lo) {                  /* CUTOFF: the Minimoog's dial, -5 .. +5 */
+    const d = ((v - lo) * 10) / (hi - lo) - 5, t = (Math.abs(d) < 0.05 ? 0 : d).toFixed(1);
+    return d >= 0.05 ? "+" + t : t;
+  }
+  return hi > lo ? (((v - lo) * 10) / (hi - lo)).toFixed(1) : String(v);
 };
 
 /* writes: coalesced per control, flushed every 30 ms */

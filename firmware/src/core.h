@@ -42,6 +42,10 @@
 /* the engine interface (Felucca-Engines, MIT: engines/, a git submodule): param_desc_t and F_*, voice_t,
  * vmod_t, preset_t with FX() / PAT(), engine_t, NELEM */
 #include "../engines/src/felucca_engine.h"
+/* FMini-1's own value formats, numbered after the submodule's F_ enum (F_STEPS = 13): the Minimoog's CUTOFF dial -5.0 .. +5.0 and
+ * EMPHASIS dial 0.0 .. 10.0 over 0..127 (params.c param_format; web/EDITOR_PROTOCOL.md) */
+#define F_MCUT 14
+#define F_MEMP 15
 
 enum {                          /* per-track parameters */
     P_LEVEL,

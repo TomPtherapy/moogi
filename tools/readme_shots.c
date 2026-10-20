@@ -57,7 +57,7 @@ int main(int argc, char **argv)
     shot("splash");
     page(1, "osc");
     page(2, "mix");
-    page(3, "filter");
+    fa_page = 3; fmg_cur[3] = 1; redraw(); shot("filter");   /* the cursor on EMPHASIS */
     page(6, "fx");
     fmg_fx = 1; fmg_cur[7] = 0; redraw(); shot("fxrev");   /* EDIT: the reverb's pop-up, then FX again: the delay's */
     fmg_fx = 2; fmg_cur[8] = 0; redraw(); shot("fxdly");

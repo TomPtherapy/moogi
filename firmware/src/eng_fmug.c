@@ -3,9 +3,9 @@
  *
  * Signal path (per voice): three oscillators (TRI, SHARK, SAW, SQR, wide and narrow PULSE, band-limited by polyBLEP,
  * ranges LO 32' 16' 8' 4' 2') and a noise source (white or pink) -> the mixer (a level each, the sum saturates softly:
- * the "overload" of the original) -> a 24 dB/oct transistor-ladder low-pass (four one-pole stages, tanh at the input,
- * the resonance fed back around the whole ladder, so EMPHASIS ends in self-oscillation) with its own contour
- * (ATTACK DECAY SUSTAIN; the release takes the DECAY time) and keyboard tracking. The loudness contour is the host's
+ * the "overload" of the original) -> a 24 dB/oct transistor-ladder low-pass modelled on the Minimoog's (see below)
+ * with its own contour (ATTACK DECAY SUSTAIN; the release takes the DECAY time) and keyboard tracking at 1 V/oct. The
+ * loudness contour is the host's
  * ADSR (P_ATK .. P_REL). Modulation: the track's LFO (or noise, MOD MIX) to the pitch (MOD OSC) and the filter
  * (MOD FLT), its depth E7 MOD (the matrix's MODW source can drive it).
  *
@@ -13,7 +13,7 @@
  * FM6 patch: the track plays one engine at a time, project.c, up_fm6.c); the eight EDIT values are the ones to play
  * with (E0 CUT, E1 EMPH, E2 CNTR the contour's amount, E3 F.ATK, E4 F.DEC, E5 F.SUS, E6 MOD, E7 SLOT 1..100 / OWN).
  * The patch holds the rest (ranges, waves, tuning, mixer, switches, keyboard tracking, TUNE). Edited with the FMUG
- * pages (ui_fmug.c). State per voice: s[0..3] the ladder, s[4] its last output, s[7] the contour (stage << 24 |
+ * pages (ui_fmug.c). State per voice: s[0..3] the ladder, s[4] the feedback's lag pole (all Q8), s[7] the contour (stage << 24 |
  * level, Q23); the noise is the part's (fmug_nbuf: one source, made once a block). */
 #define ENGI_FMUG (13u + FELUCCA_SLICE)   /* engines.c ENGINES[] (append-only: after SLICE) */
 #if FELUCCA_FMUG_ONLY
@@ -22,9 +22,6 @@
 #define FMUG_POLY 4
 #endif
 #define FG_SIZE 32u
-#ifndef FMUG_KMAX
-#define FMUG_KMAX 18400
-#endif
 #define FMUG_NFACTORY 100u
 #define FMUG_OWN FMUG_NFACTORY
 #define FMUG_PACKED 128u          /* the slot of an FM6 patch in a project / a user preset (eng_fm6.c) */
@@ -89,6 +86,7 @@ typedef struct {
     int8_t mod[3], oct;
 } fmug_x_t;
 #include "eng_fmug_presets.h"          /* FMUG_FACTORY (the 100 patches) and FMUG_PRESETS: tools/gen_fmug_presets.py */
+#include "eng_fmug_filter.h"           /* the ladder's laws: FMUG_CUT FMUG_K FMUG_TRIM FMUG_G FMUG_GX (tools/fmug_filter.py) */
 
 /* --------------------------------------------------------------- the patch --- */
 /* track tr's patch = v (FG_SIZE bytes, sanitized). Main loop: the ISR takes it at its next block */
@@ -301,6 +299,8 @@ static void fmug_note_on(track_t *t, voice_t *v)
         v->s[0] = v->s[1] = v->s[2] = v->s[3] = 0;
         v->s[4] = 0;
         v->s[7] = 0;
+        if (t->p[P_E1] >= 96)                                         /* it will sing: a nudge to start from (the hardware has its own noise) */
+            v->s[0] = (noise32(&fmug_nst[(uint32_t)(t - trk) % NTRK]) & 0x80000000u) ? 700 * 256 : -700 * 256;
         v->s[5] = (int32_t)(noise32(&fmug_nst[(uint32_t)(t - trk) % NTRK]) >> 20) - 2048;   /* the VCOs start a little apart: drift, cents * 256 */
         v->s[6] = (int32_t)(noise32(&fmug_nst[(uint32_t)(t - trk) % NTRK]) >> 20) - 2048;
     }
@@ -338,16 +338,32 @@ static int32_t fmug_contour(const int16_t *p, voice_t *v)
     return e >> 8;                                          /* Q15 */
 }
 
+/* a * k / 65536 rounded to the nearest (mulq16 floors: four stages of it leave a bias that a quiet, low ladder cannot sing against) */
+static inline int32_t fmug_mulr(int32_t a, uint32_t k)
+{
+    return (int32_t)(((a >> 16) * (int32_t)k) + (int32_t)(((uint32_t)(a & 0xFFFF) * k + 32768u) >> 16));
+}
+
+/* The filter, after the Minimoog's (tools/fmug_filter.py has the laws and the reasoning, the CA-72 project's calibration the
+ * measurements): four equal one-pole stages, each a differential pair (tanh in front), the last stage's output fed back to
+ * the first through a lag pole (the emphasis network), solved without a delay in the loop (zero-delay feedback: each stage
+ * is a trapezoidal integrator, G = g / (1 + g), and the feedback is found from the stages' states before the sample is
+ * processed). The lag pole puts the loop's 180-degree point at 0.686 of the stage pole: the filter sings at 1.578 times
+ * its -3 dB corner, and it sings when the feedback k reaches 2.92. The knobs and the pitch work in 1/16 semitones of the
+ * singing pitch (MIDI x 16): CUTOFF is the dial -5 .. +5 (FMUG_CUT), the keyboard adds 1 V/oct from F (MIDI 41) at KBD 127,
+ * the contour up to 5 octaves; EMPHASIS is the dial 0 .. 10 (FMUG_K) with the hardware's passband loss (FMUG_TRIM). With
+ * the mixer silent and EMPHASIS past 8 the ladder sings a sine at the singing pitch, 1 V/oct over the keyboard.
+ * Q formats: signals +-32768 (tanh(1)); the states Q8 (a quiet ladder at a low cutoff moves less than a LSB a sample); G Q16; the prediction's coefficients c Q14; k Q12. */
 static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     const uint8_t *g = fmug_eff[(uint32_t)(t - trk) % NTRK].p;
     int32_t mix[CTL];
-    int32_t env15, mod, lfo, cut, p16, fine, k, G16, gain;
+    int32_t env15, mod, lfo, lc, p16, fine, k12, G16, gx16, c0, c1, c2, c3, inv14, kinv12, trim12;
     int32_t l1 = 0, l2 = 0, l3 = 0, ln = 0, dr1, dr2, dr3;
     uint32_t tr = (uint32_t)(t - trk) % NTRK, i, sw = g[FG_SW1];
     uint32_t inc1, inc2, inc3;
-    int32_t s0 = v->s[0], s1 = v->s[1], s2 = v->s[2], s3 = v->s[3], y4 = v->s[4];
+    int32_t s0 = v->s[0], s1 = v->s[1], s2 = v->s[2], s3 = v->s[3], sx = v->s[4];
     uint32_t ph0 = v->ph[0], ph1 = v->ph[1], ph2 = v->ph[2];
     if (n > CTL)
         n = CTL;
@@ -403,39 +419,67 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         for (i = 0; i < n; i++)
             mix[i] += mulq15(fmug_nbuf[tr][i], ln);
 
-    /* the cutoff: the knob, the contour, the keyboard, the modulation, the host's (LFO / matrix / ENV routings) */
-    cut = (fmug_sm[tr][0] >> 8) + m->cutoff;
-    cut += (int32_t)(((int64_t)env15 * fmug_sm[tr][2] / (127 * 65536)) * 70) >> 7;                          /* the contour: up to ~5 octaves */
-    cut += ((v->pitch_cur - 60 * 16) * 19 * (int32_t)g[FG_KBD]) >> 7;           /* keyboard tracking */
-    if (sw & FS_MFLT)
-        cut += (mod * 40) >> 7;
-    cut = clamp(cut, 0, 127 << 8);
-    {   /* ladder coefficient: g = tan(pi fc / FS) (Q12), the one-pole's G = g / (1 + g) (Q16) */
-        int32_t i0 = cut >> 8, gg = SVF_G[i0];
+    /* the singing pitch (MIDI x 16): the CUTOFF knob's dial, the contour, the keyboard, the modulation, the host's (LFO / matrix / ENV routings) */
+    {
+        int32_t kn = fmug_sm[tr][0], i0 = kn >> 16, fr = (kn >> 8) & 255;
+        lc = FMUG_CUT[i0];
         if (i0 < 127)
-            gg += ((SVF_G[i0 + 1] - gg) * (cut & 255)) >> 8;
-        G16 = (int32_t)(((uint32_t)gg << 16) / (uint32_t)(4096 + gg));
+            lc += ((FMUG_CUT[i0 + 1] - lc) * fr) >> 8;
     }
-    k = (int32_t)((int64_t)fmug_sm[tr][1] * FMUG_KMAX / (127 * 65536));                         /* the resonance, Q12 (4 * 4096 = the ladder's self-oscillation) */
-    k = mulq16(k, (uint32_t)(65536 - G16));                        /* the delayed feedback needs less as the cutoff rises */
-    gain = 4096 + (k >> 3);                                       /* the real ladder loses its bass as EMPHASIS rises: only an eighth is given back */
+    lc += (m->cutoff * 55) >> 10;                                                                           /* the host's steps (1/14 octave) in 1/16 semitones */
+    lc += (int32_t)(((int64_t)env15 * fmug_sm[tr][2] / (127 * 65536)) * 960) >> 15;                          /* the contour: up to 5 octaves */
+    lc += ((v->pitch_cur - FMUG_NOTE0 * 16) * (int32_t)g[FG_KBD] * 516) >> 16;                              /* the keyboard: 1 V/oct at 127, 0 V on F */
+    if (sw & FS_MFLT)
+        lc += (mod * 547) >> 15;                                                                            /* +-2.85 octaves at full depth */
+    lc = clamp(lc, FMUG_GM0 * 16, FMUG_FOSC_MAX16);
+    {   /* the stage pole G and the lag pole's from the tables (one entry a semitone, linear between), the feedback solved ahead */
+        uint32_t ix = (uint32_t)((lc >> 4) - FMUG_GM0), fr = (uint32_t)lc & 15u, gq, gxq, g2, g3, g4, om;
+        gq = FMUG_G[ix] + (uint32_t)(((int32_t)(FMUG_G[ix + 1] - FMUG_G[ix]) * (int32_t)fr) >> 4);
+        gxq = FMUG_GX[ix] + (uint32_t)(((int32_t)(FMUG_GX[ix + 1] - FMUG_GX[ix]) * (int32_t)fr) >> 4);
+        G16 = (int32_t)((gq + 128u) >> 8);
+        gx16 = (int32_t)((gxq + 128u) >> 8);
+        om = 65536u - (uint32_t)G16;
+        g2 = ((uint32_t)G16 * (uint32_t)G16) >> 16;
+        g3 = (g2 * (uint32_t)G16) >> 16;
+        g4 = (g3 * (uint32_t)G16) >> 16;
+        c3 = (int32_t)(om >> 2);                                   /* y4 = G^4 u + c0 s0 + c1 s1 + c2 s2 + c3 s3 */
+        c2 = (int32_t)(((uint32_t)G16 * om) >> 18);
+        c1 = (int32_t)((g2 * om) >> 18);
+        c0 = (int32_t)((g3 * om) >> 18);
+        {   /* EMPHASIS: the feedback gain k and the passband's loss, from the knob (Q16) */
+            int32_t kn = fmug_sm[tr][1], i0 = kn >> 16, fk = (kn >> 8) & 255, den;
+            k12 = FMUG_K[i0];
+            trim12 = FMUG_TRIM[i0];
+            if (i0 < 127) {
+                k12 += ((FMUG_K[i0 + 1] - k12) * fk) >> 8;
+                trim12 += ((FMUG_TRIM[i0 + 1] - trim12) * fk) >> 8;
+            }
+            den = 65536 + ((k12 * (int32_t)((((uint32_t)gxq >> 8) * g4) >> 16)) >> 12);        /* 1 + k Gx G^4: the loop around the whole sample */
+            inv14 = (int32_t)((1u << 30) / (uint32_t)den);
+            kinv12 = (k12 * inv14) >> 14;
+        }
+    }
 
     for (i = 0; i < n; i++) {
-        int32_t x = softclip(mix[i]), u, v1, v2, v3, v4;           /* the mixer overloads softly */
-        u = softclip(x - ((k * y4) >> 12));                       /* the ladder's input, the feedback around it */
-        v1 = mulq16(softclip(u) - s0, (uint32_t)G16);     /* each stage is a differential pair: tanh in front of it */
-        u = v1 + s0;
-        s0 = u + v1;
-        v2 = mulq16(softclip(u) - s1, (uint32_t)G16);
-        u = v2 + s1;
-        s1 = u + v2;
-        v3 = mulq16(softclip(u) - s2, (uint32_t)G16);
-        u = v3 + s2;
-        s2 = u + v3;
-        v4 = mulq16(softclip(u) - s3, (uint32_t)G16);
+        int32_t x = softclip(mix[i]), S, fbc, u, v1, v2, v3, v4, y1, y2, y3, y4, w;      /* the mixer overloads softly */
+        S = (c0 * ((s0 + 128) >> 8) + c1 * ((s1 + 128) >> 8) + c2 * ((s2 + 128) >> 8) + c3 * ((s3 + 128) >> 8)) >> 14;   /* what the stages already hold */
+        fbc = sx + fmug_mulr((S << 8) - sx, (uint32_t)gx16);              /* through the lag pole (Q8) */
+        u = ((x * inv14) >> 14) - ((kinv12 * ((fbc + 128) >> 8)) >> 12);  /* the input less the feedback, the loop solved */
+        v1 = fmug_mulr((softclip(u) << 8) - s0, (uint32_t)G16);           /* each stage is a differential pair: tanh in front of it */
+        y1 = v1 + s0;
+        s0 = y1 + v1;
+        v2 = fmug_mulr((softclip((y1 + 128) >> 8) << 8) - s1, (uint32_t)G16);
+        y2 = v2 + s1;
+        s1 = y2 + v2;
+        v3 = fmug_mulr((softclip((y2 + 128) >> 8) << 8) - s2, (uint32_t)G16);
+        y3 = v3 + s2;
+        s2 = y3 + v3;
+        v4 = fmug_mulr((softclip((y3 + 128) >> 8) << 8) - s3, (uint32_t)G16);
         y4 = v4 + s3;
         s3 = y4 + v4;
-        out[i] += voice_amp((y4 * gain) >> 12, m, i) << 1;
+        w = fmug_mulr(y4 - sx, (uint32_t)gx16);                           /* the lag pole follows the output */
+        sx += w + w;
+        out[i] += voice_amp((((y4 + 128) >> 8) * trim12) >> 12, m, i) << 1;
     }
     v->ph[0] = ph0;
     v->ph[1] = ph1;
@@ -444,7 +488,7 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     v->s[1] = s1;
     v->s[2] = s2;
     v->s[3] = s3;
-    v->s[4] = y4;
+    v->s[4] = sx;
 }
 
 /* --------------------------------------------------------------- the engine --- */
@@ -452,8 +496,8 @@ static const engine_t ENG_FMUG = {
     .name = "FMUG",
     .page_title = {"FILTER", "PATCH"},
     .edit = {
-        {"CUT", F_CUTOFF, 0, 127, 64, 0, 0},
-        {"EMPH", F_PCT, 0, 127, 40, 0, 0},
+        {"CUT", F_MCUT, 0, 127, 64, 0, 0},
+        {"EMPH", F_MEMP, 0, 127, 40, 0, 0},
         {"CNTR", F_PCT, 0, 127, 64, 0, 0},
         {"F.ATK", F_TIME, 0, 127, 0, 0, 0},
         {"F.DEC", F_TIME, 0, 127, 64, 0, 0},

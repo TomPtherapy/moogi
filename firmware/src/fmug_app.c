@@ -174,6 +174,15 @@ static void fa_num(char *s, int32_t ratio)               /* 0..1000 -> "0.0" .. 
     *s = 0;
 }
 
+/* a knob's number: its ratio as 0.0 .. 10.0, except the FILTER's CUTOFF and EMPHASIS, which keep their dial text (param_format:
+ * the cutoff -5.0 .. +5.0, 0 in the middle; the emphasis 0.0 .. 10.0) */
+static void fa_val(char *s, int32_t ratio, const fmgf_t *f)
+{
+    if (f->kind == FK_PAR && (f->a == P_E0 || f->a == P_E1))
+        return;
+    fa_num(s, ratio);
+}
+
 static void fa_knob_col(uint32_t pg, uint32_t i, int32_t cx, int hot)
 {
     const char *lb, *un;
@@ -191,7 +200,10 @@ static void fa_knob_col(uint32_t pg, uint32_t i, int32_t cx, int hot)
             char t[8];
             if (n == 6)
                 str_cpy(t, FMG_RANGE[k], 8);
-            else
+            else if (f->kind == FK_PAR && f->a == P_E0) {       /* the cutoff's dial: -5 0 +5 */
+                t[0] = k == 10 ? '+' : 0;
+                fmt_int(t + (k == 10), k - 5);
+            } else
                 fmt_int(t, k);
             fa_ctext(cx + sn * 31 / 32768, cy - cs * 31 / 32768 - 3, &AF_X, t, FA_MU);
         }
@@ -209,7 +221,7 @@ static void fa_knob_col(uint32_t pg, uint32_t i, int32_t cx, int hot)
     if (f->kind == FK_NAME && f->b == FN_RANGE) {
         str_cpy(val, FMG_RANGE[clamp((int32_t)fmg_byte(f->a), 0, 5)], 16);
     } else {
-        fa_num(val, ratio);
+        fa_val(val, ratio, f);
     }
     fa_ctext(cx, 112, &AF_S, val, FA_OR);
     {
@@ -265,20 +277,27 @@ static void fa_graph(uint32_t pg)
     }
     cv_rect(14, 146, 212, 46, FA_LINE);
     cv_rect(15, 147, 210, 44, FA_BOX);
-    if (pg == 3u) {                                         /* the ladder's low-pass: cutoff, emphasis */
-        int32_t fc = 12 * 256 + 36 * 256 * k[0] / 1000, pk = k[1] * 18 / 1000, py = 0, px = 0;
-        for (i = 0; i <= 60; i++) {
-            int32_t d = (i * 256 - fc), u = d * 256 / (3 * 256), g = 65536 / (1 + (int32_t)((int64_t)u * u / 65536)), db;
-            db = (d > 0 ? -d * 220 / (60 * 256) : 0) + pk * g / 65536;
-            db = clamp(db, -40, 20);
-            x = 17 + i * 206 / 60;
-            {
-                int32_t y = 190 - (db + 40 + 0) * 40 / 60;
-                if (i)
-                    cv_line_t(px, py, x, y, FA_OR, 2);
-                px = x;
-                py = y;
-            }
+    if (pg == 3u) {                                         /* the ladder's response: FMUG_GRAPH, the cutoff's singing pitch moving across it */
+        int32_t fo = FMUG_CUT[clamp((int32_t)TSEL->p[P_E0], 0, 127)], e = clamp((int32_t)TSEL->p[P_E1], 0, 127), er, ef, px = 0, py = 0, xs;
+        er = e >= 120 ? 15 : e >> 3;                        /* between two of the table's 17 emphasis rows (0, 8 .. 120, 127) */
+        ef = e >= 120 ? (e - 120) * 256 / 7 : (e & 7) * 32;
+        xs = 17 + (fo - 24 * 16) * 206 / (112 * 16);        /* the singing pitch: a dotted line (the screen: MIDI 24 .. 136) */
+        for (i = 0; i < 44; i += 4)
+            cv_pset(xs, 148 + i, FA_MU);
+        for (i = 0; i <= 206; i += 2) {
+            int32_t c = (((24 * 16 + i * (112 * 16) / 206) - fo) * 256 / 24) + 48 * 256, ix, fr, a, b, db, y;
+            c = clamp(c, 0, 71 * 256);
+            ix = c >> 8;
+            fr = c & 255;
+            a = FMUG_GRAPH[er][ix] + (((FMUG_GRAPH[er][ix + 1] - FMUG_GRAPH[er][ix]) * fr) >> 8);
+            b = FMUG_GRAPH[er + 1][ix] + (((FMUG_GRAPH[er + 1][ix + 1] - FMUG_GRAPH[er + 1][ix]) * fr) >> 8);
+            db = (a + (((b - a) * ef) >> 8)) / 8;
+            y = 190 - (clamp(db, -50, 30) + 50) / 2;        /* -50 .. +30 dB over the 40 rows */
+            x = 17 + i;
+            if (i)
+                cv_line_t(px, py, x, y, FA_OR, 2);
+            px = x;
+            py = y;
         }
         fa_ltext(18, 198, &AF_X, "24 DB/OCT LADDER LOW PASS", FA_MU);
     } else {                                                /* a contour: attack, decay, sustain, release */
@@ -317,7 +336,7 @@ static void fa_knob_mini(uint32_t pg, uint32_t i, int32_t cx, int32_t cy, int ho
     }
     fa_ctext(cx, 138, &AF_X, lb, hot ? FA_OR : FA_CR);
     if (f->kind != FK_NAME && (f->kind != FK_GLB || GP[f->a].fmt == F_PCT))
-        fa_num(val, ratio);
+        fa_val(val, ratio, f);
     fa_ctext(cx, 201, &AF_S, val, FA_OR);
 }
 
@@ -396,7 +415,7 @@ static void fa_fader(uint32_t pg, uint32_t i, int32_t cx, int hot)
     cv_rect(x + 1 + fw - (fw > 1 ? 1 : 0), y - 1, 2, 9, FA_RGB(0xF6, 0xF1, 0xE3));     /* the cap */
     fa_tiny_text(cx, 152, lb, hot ? FA_OR : FA_RGB(0xA6, 0x9C, 0x88));
     if (f->kind != FK_NAME && (f->kind != FK_GLB || GP[f->a].fmt == F_PCT))
-        fa_num(val, ratio);
+        fa_val(val, ratio, f);
     else if (f->a == G_CRATE)                              /* RATE in Hz */
         str_cpy(val + str_len(val), "Hz", 4);
     fa_ctext(cx, 186, &AF_S, val, FA_OR);
@@ -438,7 +457,7 @@ static void fa_pop_knob(uint32_t pg, uint32_t i, int32_t cx, int32_t cy, int hot
     }
     fa_ctext(cx, cy - 42, &AF_X, f->lb, hot ? FA_OR : FA_CR);
     if (f->kind == FK_PAR || (f->kind == FK_GLB && GP[f->a].fmt == F_PCT))
-        fa_num(val, ratio);
+        fa_val(val, ratio, f);
     fa_ctext(cx, cy + 32, &AF_S, val, FA_OR);
     {
         char kn[4] = {'K', (char)('1' + i), 0, 0};
@@ -742,7 +761,7 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.6.1"
+#define FMINI_VERSION "v1.7.0"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
