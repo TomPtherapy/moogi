@@ -194,7 +194,7 @@ at 1..3 and hides 6 5 8: what it sets still plays the right kit, and the device 
 | 7 STEP_SET | index, n, note0..3, time, flags, vel [, hits (3 bytes, v5) [, chance 0..100 (v7) [, ratchet 1..4 [, nudge + 8, 0..15 (1.2) [, condition 0..11 (1.5.5)]]]]] | same as STEP_GET (after the write). Without the hits the step keeps its own; without the chance, the ratchet or the nudge it keeps its own. The chance can only follow the hits, the ratchet the chance, the nudge the ratchet, the condition the nudge; a nudge byte above 15 or a condition above 11: no reply, nothing written. Without the condition byte a chance of 100 keeps the step's condition (below) |
 | 8 PRESET | engine, preset | engine, preset (applies the preset's sound to the selected track and sends; the steps and the track's own parameters stay, see "Sound loads and undo"). For another track, select it with `TRACK` first |
 | 9 PROJECT | op (0 load, 1 save, 2 query), slot 0..3 | op, slot, used (1/0). Save writes flash: allow ~2 s; it stops the transport first (see "Saves while playing") |
-| 10 NAMES | engine | engine, count, count preset-name strings, then the two edit-page titles |
+| 10 NAMES | engine | engine, count, count preset-name strings (each up to 12 characters), then the two edit-page titles. FMINI has 100 names (a reply of 1326 bytes): firmware up to 1.7.1 had a 664-byte reply buffer and cut the list at the 72nd name without an error (the count still said 100); from 1.7.2 the buffer holds 1408 bytes, and `tests/editor_test.c` checks every engine's reply whole |
 | 11 SMP_BEGIN | slot 0..2 | slot, rc (0 ok). Erases the slot's header sector: the slot is empty from now on |
 | 12 SMP_WRITE | slot, offset (3 × 7 bit, LSB first), pack7 data (≤ 256 bytes) | slot, offset, rc: 0 ok, 1 arguments, 2 erase, 3 write, 4 slot in use (send SMP_BEGIN first). Offset ≥ 512 and a multiple of 256; writes go in increasing order (a write at a 4 KiB boundary erases that sector) |
 | 13 SMP_END | slot, pack7 header (480 bytes) | slot, rc: 0 ok, 1 size, 2 header, 3 data CRC, 4 flash, 5 zones |
@@ -1052,6 +1052,12 @@ the two EDIT values that set it changed meaning. `P_E0` (CUT, fmt MCUT) is the c
 singing pitch at KBD 0 rises about an octave per mark near the middle), `P_E1` (EMPH, fmt MEMP) the emphasis dial 0 .. 10 (the
 ladder sings from 8). A patch, a user preset, a sound file or a library entry made before 1.7.0 keeps its raw numbers, so it sounds
 different on 1.7.0: set CUTOFF and EMPHASIS again. The factory bank was converted (`tools/fmini_retune.py`).
+
+**1.7.2 (no new command, INFO unchanged):** `NAMES` of FMINI is now whole (all 100 names; see the command's row). The web editor
+tells when a firmware cut the list ("update available"). It also writes one round at a time: a drag made one request per change,
+the device takes requests between its screen redraws, and the queue behind it kept the device following old positions for
+seconds after the mouse stopped; now a round carries every control changed so far with its latest value
+(`web/test_editor_fmini.py` drags for 2 s against a device that answers in 70 ms: the last value arrives in about one round trip).
 
 The web editor for it is `web/editor_fmini.html` (published at `editor/` on the FMini-1 site).
 

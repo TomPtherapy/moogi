@@ -28,9 +28,12 @@ def fa(cmd, args=()):
     r = fw(cmd, args)
     return r[5:-1] if r else None
 
+CUT = [False]                                    # True: a firmware that cuts the NAMES reply at 664 bytes (up to 1.7.1)
 def on_tx(data):
     log.append(list(data))
     r = fw(data[4], data[5:-1])
+    if CUT[0] and data[4] == 10 and r and len(r) > 664:
+        r = r[:663] + [0xF7]
     if data[4] == 19 and r and r[6] == 2:        # UP_STORE: the host build has no flash ("kept in RAM"): a real device answers 0
         r[6] = 0
     return r
@@ -45,7 +48,8 @@ MOCK = """
 (() => {
   const mk = (kind) => ({ name: 'FM-1 Midi', state: 'connected', type: kind, open: async () => {}, onmidimessage: null });
   const inp = mk('input'), out = mk('output');
-  out.send = (d) => { window.__tx(Array.from(d)).then((r) => { if (r && inp.onmidimessage) inp.onmidimessage({ data: new Uint8Array(r) }); }); };
+  window.__delay = 0; window.__sent = 0;                    /* a slow device: it answers __delay ms after the request */
+  out.send = (d) => { window.__sent++; setTimeout(() => window.__tx(Array.from(d)).then((r) => { if (r && inp.onmidimessage) inp.onmidimessage({ data: new Uint8Array(r) }); }), window.__delay); };
   const acc = { inputs: new Map([['i', inp]]), outputs: new Map([['o', out]]), onstatechange: null };
   window.__acc = acc; window.__inp = inp;
   navigator.requestMIDIAccess = async () => acc;
@@ -68,6 +72,8 @@ with sync_playwright() as pw:
     check("Connect: handshake, descriptors, names; status shows connected", "FMini-1" in pg.inner_text("#stxt") and not errs)
     check("INFO told the page the patch commands exist", pg.evaluate("__fmini.S.canPatch") is True)
     check("the preset list has the 100 factory patches", pg.evaluate("document.querySelectorAll('#preset option').length") >= 100)
+    nm = pg.evaluate("__fmini.S.names")
+    check("  .. and every one of them has its name (the last: " + (nm[99] if len(nm) > 99 else "?") + ")", len(nm) == 100 and all(len(x) > 0 for x in nm))
     pg.wait_for_timeout(300)
 
     # a track parameter through a knob (FILT > CUTOFF = P_E0)
@@ -94,6 +100,34 @@ with sync_playwright() as pw:
     pg.wait_for_timeout(400)
     after = fa(31, [0, pe0]); d3 = (after[2] | after[3] << 7) - 8192
     check("dragging a knob up raises it on the device", d3 > d2)
+
+    # a long drag with a slow device (it answers 70 ms after a request): the page keeps at most one write in flight and the
+    # device holds the final value soon after the mouse is released, however long the drag lasted
+    import math
+    knob.dblclick(); pg.wait_for_timeout(300)                   # (the default, mid-range: room to move both ways)
+    kb = knob.bounding_box(); cx = kb["x"] + kb["width"] / 2
+    pg.evaluate("window.__delay = 70; window.__sent = 0")
+    pg.mouse.move(cx, kb["y"] + 60); pg.mouse.down()
+    t_drag = time.monotonic(); n_move = 0
+    while time.monotonic() - t_drag < 2.0:                       # 2 s of dragging, one move every ~16 ms (a 60 Hz pointer)
+        n_move += 1                                              # (it swings up and down: every move is a new value)
+        pg.mouse.move(cx, kb["y"] + 60 - 10 * (1 + math.sin(n_move * 0.35)))
+        pg.wait_for_timeout(16)
+    pg.mouse.move(cx, kb["y"] + 60 - 50)                         # the last position: a value the swing never had
+    final = pg.evaluate("__fmini.S.p[__fmini.S.pe0]")
+    pg.mouse.up(); t_up = time.monotonic(); settled = None
+    dev_val = lambda: (lambda r: (r[2] | r[3] << 7) - 8192)(fa(31, [0, pe0]))
+    while time.monotonic() - t_up < 6.0:
+        if dev_val() == final:
+            settled = time.monotonic() - t_up; break
+        pg.wait_for_timeout(10)
+    sent = pg.evaluate("window.__sent")
+    pg.wait_for_timeout(300)
+    stays = dev_val() == final                                   # (no older value arrives after it)
+    pg.evaluate("window.__delay = 0")
+    check(f"slow device, 2 s drag ({n_move} moves): the last value reaches it {'in %.0f ms' % (settled * 1000) if settled is not None else 'NEVER'} after the release (<= 400 ms)", settled is not None and settled <= 0.4)
+    check(f"  .. and stays: no older value arrives after it ({sent} writes sent in all; the drag made {n_move} moves)", stays)
+    pg.wait_for_timeout(300)
 
     # patch bytes: OSC > OSC 1 WAVE = PLS N, MOD OSC switch, GLIDE
     pg.click("#tabs button:has-text('OSC')")
@@ -237,6 +271,19 @@ with sync_playwright() as pw:
     pg.wait_for_timeout(1200)
     check("  .. the sound that was playing is restored", fa(82, [0, 0])[3:35] == after)
     check("  .. and the page is usable again (not busy)", not pg.evaluate("document.body.classList.contains('busy')"))
+
+    # firmware up to 1.7.1 cut the NAMES reply at 664 bytes: the page says an update is available and still works
+    CUT[0] = True
+    pg.click("#connect"); pg.wait_for_timeout(300)                # (disconnect)
+    pg.click("#connect")
+    pg.wait_for_function("!document.body.classList.contains('off')", timeout=15000)
+    note = pg.inner_text("#msg"); got = pg.evaluate("__fmini.S.names.filter(Boolean).length")
+    check(f"a firmware that cuts NAMES at 664 bytes ({got} of 100 names): the page says an update is available", 60 < got < 100 and ("Update" in note or "Atualiz" in note) and str(got) in note)
+    CUT[0] = False
+    pg.click("#connect"); pg.wait_for_timeout(300)
+    pg.click("#connect")
+    pg.wait_for_function("!document.body.classList.contains('off')", timeout=15000)
+    check("  .. and the 1.7.2 firmware gives all 100 again, with no notice", pg.evaluate("__fmini.S.names.filter(Boolean).length") == 100 and "Update" not in pg.inner_text("#msg") and "Atualiz" not in pg.inner_text("#msg"))
 
     if SHOTS:
         SHOTS.mkdir(parents=True, exist_ok=True)

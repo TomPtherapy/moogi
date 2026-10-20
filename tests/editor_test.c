@@ -1430,12 +1430,50 @@ static int custom_palette(void)
     return bad;
 }
 
+/* NAMES (10): every engine's reply carries all of its preset names (as ed_str cuts them, 12 characters) and the two page
+ * titles, whole, and ends with F7. FMINI has 100 names: the reply buffer once held 72 of them and the editor showed the
+ * rest without a name */
+static int names_complete(void)
+{
+    int bad = 0, all = 1;
+    uint32_t e, k, worst = 0;
+    reset();
+    for (e = 0; e < NENGINES; e++) {
+        uint8_t a = (uint8_t)e;
+        uint32_t n = request(ED_NAMES, &a, 1), j = 7, np = ENGINES[e]->npresets, ok = n > 8u && host_wire[5] == e && host_wire[6] == np;
+        for (k = 0; ok && k < np; k++) {
+            const char *s = ENGINES[e]->presets[k].name;
+            uint32_t len = (uint32_t)strlen(s), i;
+            if (len > 12u) len = 12u;                                       /* (ed_str's limit) */
+            ok = j + len < n;
+            for (i = 0; ok && i < len; i++) ok = host_wire[j + i] == ((uint8_t)s[i] & 0x7Fu);
+            ok = ok && host_wire[j + len] == 0;
+            j += len + 1u;
+        }
+        for (k = 0; ok && k < 2u; k++) {                                   /* the two edit-page titles */
+            while (j < n && host_wire[j]) j++;
+            ok = j < n;
+            j++;
+        }
+        ok = ok && j == n - 1u && host_wire[n - 1u] == 0xF7;
+        if (!ok) {
+            all = 0;
+            printf("  NAMES of engine %u (%s): %u presets, reply of %u bytes is not whole\n", e, ENGINES[e]->name, np, n);
+        }
+        if (n > worst) worst = n;
+    }
+    bad += check("NAMES: every engine's reply has all its preset names and both titles, whole", all);
+    bad += check("  .. FMINI lists 100 of them", ENGINES[ENGI_FMINI]->npresets == 100u);
+    bad += check("  .. and the largest reply fits the reply buffer with room to spare", worst + 16u < sizeof ed_out);
+    return bad;
+}
+
 #ifndef EDITOR_TEST_NO_MAIN                              /* (robust_test.c, fuzz_*.c: this file is their base) */
 int main(void)
 {
     int bad = preferences() + motion_locks() + framing() + uart_recovery() + steps() + samples() + song_protocol() + malformed_saves() +
               fm6_patches() + fmini_patches() + user_preset_roundtrip() + live_sync() + usb_burst() + menu_protocol() + drum_kit_retired() +
-              learn_protocol() + custom_palette();
+              learn_protocol() + custom_palette() + names_complete();
     printf("%s\n", bad ? "EDITOR TEST FAILED" : "editor test passed");
     return bad != 0;
 }

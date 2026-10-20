@@ -60,9 +60,9 @@ BUILDING.md has the SDK clone). If a download is refused by the network allowlis
   build/felucca.dis tests/target_budget.txt`; for goldens run `build/host/regress` against a scratch copy with `GOLDEN_UPDATE=1`
   and merge only the lines you mean to change.
 
-## The test suite today (1.7.1): what fails and is not yours
+## The test suite today (1.7.2): what fails and is not yours
 
-Seven sections fail at 1.7.1, the same seven as at 1.7.0 (the 1.7.1 rename changed no render hash and no instruction). Four were
+Seven sections fail at 1.7.2, the same seven as at 1.7.0 (the 1.7.1 rename changed no render hash and no instruction; 1.7.2 touched the editor only). Four were
 confirmed on the untouched v1.6.1 with identical output: `fm4` (the DIGITAL conversion) and the three `regress` sections (the golden
 hashes of Felucca's other engines: 76 differ; in the default build the 100 FMINI hashes are current). The second `regress` section,
 the `FELUCCA_CPU2=0` build, reports 117 changed: the same 76 plus 41 FMINI patches (pads, brass, drones) whose render differs from

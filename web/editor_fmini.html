@@ -162,6 +162,7 @@ const TX = {
     noedit: "Este firmware não parece ser o FMini-1. O editor é só para o FMini-1.",
     noext: "Atualização disponível: instale o FMini-1 v1.6.1 ou mais novo para editar a oitava e guardar tempo, oitava e efeitos na biblioteca.",
     noenv: "Atualização necessária: este firmware não tem o editor de osciladores e chaves. Instale a versão mais nova pelo site para editar tudo.",
+    nonames: "Atualização disponível: este firmware envia só os nomes dos %n primeiros presets. Instale o FMini-1 v1.7.2 ou mais novo para ver todos.",
     noeng: "A trilha 1 não está com o motor FMINI.", lost: "A conexão com o aparelho foi perdida.", timeout: "O aparelho não respondeu.",
     badfile: "Arquivo de som inválido.", rnd: "Aleatorizar", amt: "Variação", abcopy: "Copiar A → B", abcopyb: "Copiar B → A", abtip: "Alterna entre dois ajustes para comparar",
     lib: "BIBLIOTECA", libname: "Nome para salvar", libsave: "Salvar aqui", libload: "Carregar", libexp: "Exportar", liberase: "Apagar", libempty: "— vazio —",
@@ -180,6 +181,7 @@ const TX = {
     noedit: "This firmware does not look like the FMini-1. The editor is for the FMini-1 only.",
     noext: "Update available: install FMini-1 v1.6.1 or newer to edit the octave and keep tempo, octave and effects in the library.",
     noenv: "Update needed: this firmware has no oscillator / switch editing. Install the newest version from the site to edit everything.",
+    nonames: "Update available: this firmware sends only the names of the first %n presets. Install FMini-1 v1.7.2 or newer to see them all.",
     noeng: "Track 1 is not on the FMINI engine.", lost: "The connection to the device was lost.", timeout: "The device did not answer.",
     badfile: "Invalid sound file.", rnd: "Randomize", amt: "Amount", abcopy: "Copy A → B", abcopyb: "Copy B → A", abtip: "Switch between two settings to compare",
     lib: "LIBRARY", libname: "Name to save", libsave: "Save here", libload: "Load", libexp: "Export", liberase: "Erase", libempty: "— empty —",
@@ -302,15 +304,25 @@ const shown = (c, v) => {
   return hi > lo ? (((v - lo) * 10) / (hi - lo)).toFixed(1) : String(v);
 };
 
-/* writes: coalesced per control, flushed every 30 ms */
+/* writes: coalesced per control, and only one round in flight. A drag makes far more changes than the device takes (it
+ * takes requests between its screen redraws, one per pass of its main loop): a request per change piled up behind the
+ * device and it kept following old positions for seconds after the mouse stopped. Now a round writes every control
+ * changed so far with its value at that moment; what changes meanwhile waits for the next round, so the lag is one
+ * round trip, however long the drag */
 const pending = new Map();
-let flushT = 0;
-function queue(key, fn) { pending.set(key, fn); touch.until = Date.now() + 500; if (!flushT) flushT = setTimeout(flush, 30); }
+let flushT = 0, flushing = false;
+function queue(key, fn) { pending.set(key, fn); touch.until = Date.now() + 500; if (!flushT && !flushing) flushT = setTimeout(flush, 30); }
 async function flush() {
   flushT = 0;
-  const jobs = [...pending.values()]; pending.clear();
-  for (const j of jobs) { try { await j(); } catch (e) { fail(e); return; } }
-  touch.until = Date.now() + 400;
+  if (flushing) return;
+  flushing = true;
+  try {
+    while (pending.size) {
+      const jobs = [...pending.values()]; pending.clear();
+      for (const j of jobs) await j();
+    }
+  } catch (e) { pending.clear(); fail(e); }
+  finally { flushing = false; touch.until = Date.now() + 400; }
 }
 function putPatch() { return () => req(CMD.FMINI_PUT, [0, 0, ...S.patch, ...(S.extras ? [S.oct + 4] : [])]); }
 function setPar(id) { return () => req(CMD.SET, [0, id, ...v14(S.p[id])]); }
@@ -504,7 +516,9 @@ async function handshake() {
     S.desc[key] = { fmt, min, max, def, label: lab, names: fmt === 8 ? names : null };
   }
   const nm = await req(CMD.NAMES, [S.fmini]);
-  S.names = []; { let j = 1; const n = nm[j++]; for (let k = 0; k < n; k++) { let s; [s, j] = cstr(nm, j); S.names.push(s); } }
+  S.names = []; { let j = 1; const n = nm[j++]; for (let k = 0; k < n; k++) { let s; [s, j] = cstr(nm, j); S.names.push(s); }
+    const got = S.names.filter(Boolean).length;            /* (firmware up to 1.7.1 cut the reply at 664 bytes: about 72 of the 100 names) */
+    if (got < n) msg(T("nonames", { n: got })); }
   fillPreset(); tabs(); build();
   await pull(true);
 }
@@ -536,7 +550,7 @@ async function pull(force) {
 function startPoll() {
   stopPoll();
   pollTimer = setInterval(async () => {
-    if (polling || !dev.open || Date.now() < touch.until || touch.dragging || pending.size || document.hidden) return;
+    if (polling || !dev.open || Date.now() < touch.until || touch.dragging || pending.size || flushing || document.hidden) return;
     polling = true;
     try { await pull(false); } catch (e) { if (dev.open) fail(e); } finally { polling = false; }
   }, 700);

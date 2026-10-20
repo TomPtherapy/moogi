@@ -184,7 +184,7 @@ of meaning matters to users, add a marker byte there and convert on load.
 | `regress.c` + `golden.txt`, `cpu_baseline.txt`, `target_budget.*` | render hashes of every engine and preset (the 100 FMINI ones are current in the default build; the `FELUCCA_CPU2=0` build differs for 41, see CLAUDE.md); level, DC, voices; CPU: the host's instruction counter may be missing (it was, in the sandbox: the budget is then not checked), the **static loop-instruction count** of the render functions in the chip's disassembly is always checked (+10 %) |
 | the rest | storage, projects, MIDI, USB, update loader, FX, other engines (Felucca's) |
 
-Seven sections fail at 1.7.1 (as at 1.7.0); CLAUDE.md lists them and says which were confirmed on the untouched v1.6.1. `tests/hostsim.c`
+Seven sections fail at 1.7.2 (as at 1.7.0); CLAUDE.md lists them and says which were confirmed on the untouched v1.6.1. `tests/hostsim.c`
 renders any engine and preset to a WAV (`build/host/hostsim ENGINE PRESET MONO OUT.wav`, with `SECS`, `CHORD`, `NOTE`,
 `PSET=id:v`, `BENCH=1` and more: its header) and is the quickest way to listen to a change. For sound work, write the measurement
 first (a test with the number to hit), then the code.
@@ -265,4 +265,11 @@ was written: verify before reusing anything beyond ideas.
 - The firmware is integer-only by design; the wasm build adds `-ffp-contract=off` so the emulator matches the host renders.
 - The sandbox for Claude sessions is reclaimed after a while: files in `/tmp` and the toolchain directories disappear. Keep
   scratch work in the session's scratchpad directory and commit what matters.
+- The editor's reply buffer (`ed_out` in `editor.c`, 1408 bytes) cuts a longer reply silently: `ed_b` drops what does not fit
+  and the frame still ends with F7. Up to 1.7.1 it held 664 bytes and the NAMES reply of FMINI (100 names) lost everything past
+  the 72nd. A command whose reply can grow needs a check in `tests/editor_test.c` (`names_complete` is the pattern).
+- The web editor must not send one request per change: the device takes a request per pass of its main loop, between redraws of
+  the panel (`ui.force` redraws it all). A drag then queues up and the device follows old positions for seconds. `queue` /
+  `flush` in `web/editor_fmini.html` keep one round in flight with the latest values; `web/test_editor_fmini.py` has a slow
+  device (70 ms) and a 2 s drag to hold it to that.
 - The GitHub token of a session cannot create Releases (403). The owner does it.

@@ -20,7 +20,9 @@ enum { ED_INFO = 1, ED_GET, ED_SET, ED_DUMP, ED_DESC, ED_STEP_GET, ED_STEP_SET, 
        ED_UI_STATE, ED_UI_SET, ED_UI_PALETTES, ED_FAV_GET, ED_FAV_SET,
        ED_MOTION = 64, ED_BACKUP_LIST, ED_BACKUP_GET, ED_BACKUP_PUT };                              /* v6: song chain */
 
-static uint8_t ed_out[664] __attribute__((section(".pool")));   /* (MOTION op 8: 128 records and their kinds, 653 bytes) */
+static uint8_t ed_out[1408] __attribute__((section(".pool")));  /* (NAMES of FMINI: 100 names of up to 12 characters, 1326 bytes; before 1.7.2 the
+                                                                 * buffer held 664 (MOTION op 8: 128 records and their kinds, 653 bytes) and cut
+                                                                 * that reply at the 72nd name without saying so: tests/editor_test.c names_complete) */
 static uint32_t ed_n;
 
 static void ed_begin(uint32_t cmd)
