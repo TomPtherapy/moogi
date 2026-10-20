@@ -82,6 +82,25 @@
   .sel .t { font-size: 11.5px; letter-spacing: .08em; color: var(--dim); font-weight: 600; }
   .sel select { background: #0f0e0d; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; }
 
+  .tools { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin: 0 0 12px; color: var(--dim); font-size: 13px; }
+  .tools label { display: inline-flex; align-items: center; gap: 8px; }
+  .tools input[type=range] { width: 110px; accent-color: var(--or); }
+  #ab { min-width: 74px; font-weight: 700; }
+  #ab b { color: var(--or2); }
+  .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 10px; }
+  .slot { background: #0f0e0d; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+  .slot .sn { font: 700 11.5px var(--mono); color: var(--or2); letter-spacing: .06em; }
+  .slot .nm { font: 600 14px var(--mono); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 21px; }
+  .slot.empty .nm, .slot.other .nm { color: var(--mute); font-weight: 400; }
+  .slot .act { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+  .mini { background: var(--surface2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; cursor: pointer; font-size: 12px; }
+  .mini:hover { border-color: var(--mute); }
+  .mini.warn:hover { border-color: var(--bad); color: var(--bad); }
+  .libname { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .libname input { background: #0f0e0d; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; color: var(--fg); font: 600 14px var(--mono); width: 180px; text-transform: uppercase; }
+  #busy { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--or); color: #1a0e05; font-weight: 700; padding: 10px 18px; border-radius: 10px; box-shadow: 0 6px 28px #000a; z-index: 9; max-width: 92vw; text-align: center; }
+  #busy[hidden] { display: none; }
+  .busy .bar, .busy nav.tabs, .busy main.panel, .busy .tools { pointer-events: none; opacity: .5; }
   footer { color: var(--mute); font-size: 12.5px; padding: 0 0 30px; }
   footer .wrap > * { margin: 4px 0; }
   .off main.panel, .off .bar, .off nav.tabs { opacity: .35; pointer-events: none; }
@@ -111,9 +130,18 @@
     <button class="btn" id="load" data-t="open"></button>
     <input type="file" id="file" accept=".json,application/json" hidden>
   </div>
+  <div class="tools">
+    <button class="btn" id="rnd"></button>
+    <label><span data-t="amt"></span><input type="range" id="amt" min="5" max="100" value="35" aria-label="amount"><b id="amtv">35%</b></label>
+    <span class="grow"></span>
+    <button class="btn" id="ab" title="A/B"></button>
+    <button class="btn" id="abcopy"></button>
+  </div>
   <nav class="tabs" id="tabs" role="tablist"></nav>
   <main class="panel" id="panel"></main>
 </div>
+
+<div id="busy" hidden role="status"></div>
 
 <footer><div class="wrap">
   <div data-t="foot1"></div>
@@ -131,10 +159,17 @@ const TX = {
     denied: "O navegador negou o acesso MIDI. Libere “MIDI” nas permissões do site e tente de novo.",
     none: "Nenhum FM-1 encontrado. Conecte o cabo USB, feche outros programas que usam a porta MIDI e toque em Conectar.",
     pick: "Escolha a porta MIDI do FM-1 na lista ao lado e toque em Conectar.",
-    noedit: "Este firmware não é o FMini-1 (ou é anterior à v1.6.0). O editor só funciona com o FMini-1 v1.6.0 ou mais novo.",
+    noedit: "Este firmware não parece ser o FMini-1. O editor é só para o FMini-1.",
+    noext: "Atualização disponível: instale o FMini-1 v1.6.1 ou mais novo para editar a oitava e guardar tempo, oitava e efeitos na biblioteca.",
     noenv: "Atualização necessária: este firmware não tem o editor de osciladores e chaves. Instale a versão mais nova pelo site para editar tudo.",
     noeng: "A trilha 1 não está com o motor FMUG.", lost: "A conexão com o aparelho foi perdida.", timeout: "O aparelho não respondeu.",
-    badfile: "Arquivo de som inválido.", loaded: "Som carregado no aparelho.", saved: "Som salvo em arquivo." },
+    badfile: "Arquivo de som inválido.", rnd: "Aleatorizar", amt: "Variação", abcopy: "Copiar A → B", abcopyb: "Copiar B → A", abtip: "Alterna entre dois ajustes para comparar",
+    lib: "BIBLIOTECA", libname: "Nome para salvar", libsave: "Salvar aqui", libload: "Carregar", libexp: "Exportar", liberase: "Apagar", libempty: "— vazio —",
+    libother: "outro motor", libtitle: "Meus presets (U01–U32)", libexpall: "Exportar biblioteca", libimpall: "Importar biblioteca", factexp: "Exportar banco de fábrica",
+    libhint: "“Salvar aqui” grava no aparelho o som que está tocando: o patch, os knobs, o andamento, a oitava e os ajustes de efeitos.",
+    busysave: "Gravando no aparelho… não desconecte o USB.", busyimp: "Importando… não desconecte o USB.", busyfact: "Lendo o banco de fábrica…", busyread: "Lendo…",
+    askover: "Esse slot já tem um preset (%n). Substituir?", askerase: "Apagar o preset %n?", askimp: "Gravar %c presets da biblioteca nos slots do aparelho? Os presets desses slots serão substituídos e o som que está tocando será trocado.",
+    imported: "Biblioteca importada.", exported: "Arquivo salvo.", factdone: "Banco de fábrica exportado.", libfail: "O aparelho recusou a gravação.", loaded: "Som carregado no aparelho.", saved: "Som salvo em arquivo." },
   en: { editor: "Editor", connect: "Connect", disconnect: "Disconnect", connecting: "Connecting…", disc: "Disconnected",
     conn: "Connected — FMini-1", save: "Save sound", open: "Open sound", home: "FMini-1 site",
     foot1: "Works in Chrome, Edge and Android (Web MIDI with SysEx). Edits change the sound that is playing; to keep it, use the device's own SAVE.",
@@ -142,17 +177,24 @@ const TX = {
     denied: "The browser denied MIDI access. Allow “MIDI” in the site permissions and try again.",
     none: "No FM-1 found. Plug in the USB cable, close other programs using the MIDI port and press Connect.",
     pick: "Pick the FM-1's MIDI port in the list and press Connect.",
-    noedit: "This firmware is not the FMini-1 (or older than v1.6.0). The editor needs FMini-1 v1.6.0 or newer.",
+    noedit: "This firmware does not look like the FMini-1. The editor is for the FMini-1 only.",
+    noext: "Update available: install FMini-1 v1.6.1 or newer to edit the octave and keep tempo, octave and effects in the library.",
     noenv: "Update needed: this firmware has no oscillator / switch editing. Install the newest version from the site to edit everything.",
     noeng: "Track 1 is not on the FMUG engine.", lost: "The connection to the device was lost.", timeout: "The device did not answer.",
-    badfile: "Invalid sound file.", loaded: "Sound loaded into the device.", saved: "Sound saved to a file." },
+    badfile: "Invalid sound file.", rnd: "Randomize", amt: "Amount", abcopy: "Copy A → B", abcopyb: "Copy B → A", abtip: "Switch between two settings to compare",
+    lib: "LIBRARY", libname: "Name to save", libsave: "Save here", libload: "Load", libexp: "Export", liberase: "Erase", libempty: "— empty —",
+    libother: "other engine", libtitle: "My presets (U01–U32)", libexpall: "Export library", libimpall: "Import library", factexp: "Export factory bank",
+    libhint: "“Save here” stores the sound that is playing in the device: the patch, the knobs, the tempo, the octave and the effect settings.",
+    busysave: "Writing to the device… do not unplug USB.", busyimp: "Importing… do not unplug USB.", busyfact: "Reading the factory bank…", busyread: "Reading…",
+    askover: "This slot already holds a preset (%n). Replace it?", askerase: "Erase preset %n?", askimp: "Write %c presets of the library into the device's slots? Those slots will be replaced and the sound that is playing will change.",
+    imported: "Library imported.", exported: "File saved.", factdone: "Factory bank exported.", libfail: "The device refused the write.", loaded: "Sound loaded into the device.", saved: "Sound saved to a file." },
 };
 const LANG = /^pt/i.test(navigator.language || "") ? "pt" : "en";
-const T = (k) => TX[LANG][k] || k;
+const T = (k, o) => { let t = TX[LANG][k] || k; for (const x in o || {}) t = t.replace("%" + x, o[x]); return t; };
 document.documentElement.lang = LANG === "pt" ? "pt-BR" : "en";
 
 /* ---------------------------------------------------------------- protocol --- */
-const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, PRESET: 8, NAMES: 10, TRACK: 27, FMUG_GET: 82, FMUG_PUT: 83 };
+const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, PRESET: 8, NAMES: 10, TRACK: 27, UP_LIST: 16, UP_GET: 17, UP_STORE: 19, UP_LOAD: 20, UP_ERASE: 21, FMUG_GET: 82, FMUG_PUT: 83, FMUG_PRESET: 84 };
 const FG = { R1: 0, R2: 1, R3: 2, W1: 3, W2: 4, W3: 5, F2: 6, F3: 7, L1: 8, L2: 9, L3: 10, LN: 11, SW1: 12, SW2: 13, TUNE: 14, MMIX: 15, KBD: 16, GLID: 17, SIZE: 32 };
 const FS = { O1: 1, O2: 2, O3: 4, NZ: 8, PINK: 16, MOSC: 32, MFLT: 64 }, FT = { GLIDE: 1, SQR: 2 };
 /* track parameters (core.h; all but E0..E7 are fixed ids) and globals */
@@ -186,7 +228,7 @@ function req(cmd, args = [], ms = 900) {
 /* ------------------------------------------------------------------ state --- */
 const S = {
   pe0: 103, patch: new Array(FG.SIZE).fill(0), p: [], g: [], slot: 0, engine: 0, fmug: -1, desc: {},
-  names: [], canPatch: false, page: 0,
+  names: [], canPatch: false, extras: false, oct: 0, page: 0,
 };
 const touch = { until: 0, dragging: 0 };
 let pollTimer = 0, polling = false;
@@ -199,7 +241,8 @@ const PAGES = [
   { id: "CTRL", groups: [
     { t: "Controllers", c: [
       { k: "byte", b: FG.TUNE, lb: "TUNE", def: 64 }, { k: "glide", lb: "GLIDE" }, { k: "byte", b: FG.MMIX, lb: "MOD MIX", def: 0 },
-      { k: "par", p: P.LRATE, lb: "LFO RATE" }, { k: "sel", p: P.VOICE, lb: "VOICES" } ] },
+      { k: "par", p: P.LRATE, lb: "LFO RATE" }, { k: "sel", p: P.VOICE, lb: "VOICES" },
+      { k: "seg", oct: 1, names: ["-3", "-2", "-1", "0", "+1", "+2", "+3"], lb: "OCTAVE" } ] },
     { t: "Modulation", c: [
       { k: "sw", b: FG.SW1, bit: FS.MOSC, lb: "MOD OSC", cls: "red" }, { k: "sw", b: FG.SW1, bit: FS.MFLT, lb: "MOD FLT", cls: "red" },
       { k: "sw", b: FG.SW2, bit: FT.GLIDE, lb: "GLIDE", cls: "red", glide: 1 }, { k: "sw", b: FG.SW2, bit: FT.SQR, lb: "LFO SQR", cls: "red" } ] } ] },
@@ -232,6 +275,7 @@ const PAGES = [
     { t: "Drive", c: [ { k: "par", p: P.DIST, lb: "GAIN" }, { k: "sel", g: G.INFO, lb: "TYPE" }, { k: "glb", g: G.DRLVL, lb: "TONE" }, { k: "glb", g: G.MIDI, lb: "OUTPUT" } ] } ] },
   { id: "ARP", groups: [
     { t: "Arpeggiator", c: [ { k: "sel", p: P.AMODE, lb: "MODE" }, { k: "par", p: P.ARATE, lb: "RATE" }, { k: "par", p: P.AOCT, lb: "OCTAVES" }, { k: "par", p: P.AGATE, lb: "GATE" }, { k: "glb", g: G.BPM, lb: "BPM" } ] } ] },
+  { id: "LIB", lib: true, groups: [] },
 ];
 
 const pid = (c) => (c.pe !== undefined ? S.pe0 + c.pe : c.p);
@@ -239,7 +283,7 @@ const descOf = (c) => (c.g !== undefined ? S.desc["1:" + c.g] : S.desc["0:" + pi
 function getv(c) {
   if (c.k === "byte") return S.patch[c.b];
   if (c.k === "glide") return S.patch[FG.GLID];
-  if (c.k === "seg") return S.patch[c.b];
+  if (c.k === "seg") return c.oct ? S.oct + 3 : S.patch[c.b];
   if (c.k === "sw") return (S.patch[c.b] & c.bit) ? 1 : 0;
   if (c.g !== undefined) return S.g[c.g] ?? 0;
   return S.p[pid(c)] ?? 0;
@@ -263,13 +307,14 @@ async function flush() {
   for (const j of jobs) { try { await j(); } catch (e) { fail(e); return; } }
   touch.until = Date.now() + 400;
 }
-function putPatch() { return () => req(CMD.FMUG_PUT, [0, 0, ...S.patch]); }
+function putPatch() { return () => req(CMD.FMUG_PUT, [0, 0, ...S.patch, ...(S.extras ? [S.oct + 4] : [])]); }
 function setPar(id) { return () => req(CMD.SET, [0, id, ...v14(S.p[id])]); }
 function setGlb(id) { return () => req(CMD.SET, [1, id, ...v14(S.g[id])]); }
 function commit(c, v) {
   const [lo, hi] = range(c);
   v = Math.max(lo, Math.min(hi, Math.round(v)));
-  if (c.k === "byte" || c.k === "seg") { S.patch[c.b] = v; queue("patch", putPatch()); }
+  if (c.oct) { S.oct = v - 3; queue("patch", putPatch()); }
+  else if (c.k === "byte" || c.k === "seg") { S.patch[c.b] = v; queue("patch", putPatch()); }
   else if (c.k === "glide") {
     S.patch[FG.GLID] = v; queue("patch", putPatch());
     if (S.patch[FG.SW2] & FT.GLIDE) { S.p[P.GLIDE] = v; queue("p" + P.GLIDE, setPar(P.GLIDE)); }
@@ -344,11 +389,13 @@ function mkSel(c) {
 }
 function build() {
   const panel = document.getElementById("panel"); panel.textContent = ""; ctl.length = 0;
+  if (PAGES[S.page].lib) { buildLib(); return; }
   for (const g of PAGES[S.page].groups) {
     const grp = document.createElement("section"); grp.className = "grp";
     const h = document.createElement("h2"); h.textContent = g.t; grp.append(h);
     const row = document.createElement("div"); row.className = "row"; grp.append(row);
     for (const c of g.c) {
+      if (c.oct && !S.extras) continue;
       const w = c.k === "sw" ? mkSwitch(c) : c.k === "seg" ? mkSeg(c) : c.k === "sel" ? mkSel(c) : mkKnob(c);
       row.append(w.el); ctl.push({ c, el: w.el, upd: w.upd }); w.upd();
     }
@@ -364,7 +411,7 @@ function refreshAll() {
 function tabs() {
   const nav = document.getElementById("tabs"); nav.textContent = "";
   PAGES.forEach((p, i) => {
-    const b = document.createElement("button"); b.role = "tab"; b.textContent = p.id; b.setAttribute("aria-selected", i === S.page);
+    const b = document.createElement("button"); b.role = "tab"; b.textContent = p.lib ? T("lib") : p.id; b.setAttribute("aria-selected", i === S.page);
     b.addEventListener("click", () => { S.page = i; tabs(); build(); }); nav.append(b);
   });
 }
@@ -375,7 +422,7 @@ let msgT = 0;
 const msg = (t, bad) => {
   clearTimeout(msgT);
   $("msg").innerHTML = t ? `<div class="notice${bad ? " bad" : ""}"></div>` : ""; if (t) $("msg").firstChild.textContent = t;
-  if (t && !bad && !/^(Update|Atualiza)/.test(t)) msgT = setTimeout(() => { $("msg").textContent = ""; }, 3500);   /* (a confirmation fades; errors and the update notice stay) */
+  if (t && !bad && !/^(Update|Atualiz)/.test(t)) msgT = setTimeout(() => { $("msg").textContent = ""; }, 3500);   /* (a confirmation fades; errors and the update notice stay) */
 };
 function setStatus(on, text) { $("dot").className = "dot" + (on ? " on" : ""); $("stxt").textContent = text; document.body.classList.toggle("off", !on); }
 function fail(e) {
@@ -433,9 +480,10 @@ async function handshake() {
   const eng = []; for (let k = 0; k < nEng; k++) { let s; [s, i] = cstr(a, i); eng.push(s); }
   S.fmug = eng.indexOf("FMUG");
   if (S.fmug < 0) throw bad("noedit");
-  S.canPatch = a.length >= 3 && a[a.length - 3] === 0x47 && a[a.length - 2] === 1 && a[a.length - 1] === FG.SIZE;
+  S.canPatch = a.length >= 6 && [3, 6].some((k) => a[a.length - k] === 0x47 && a[a.length - k + 1] === 1 && a[a.length - k + 2] === FG.SIZE);
   S.pCount = pCount; S.gCount = gCount;
-  if (!S.canPatch) msg(T("noenv"));
+  S.extras = S.canPatch && a.length >= 6 && a[a.length - 3] === 0x48 && a[a.length - 2] === 1 && a[a.length - 1] === 1;
+  if (!S.canPatch) msg(T("noenv")); else if (!S.extras) msg(T("noext"));
   await req(CMD.TRACK, [0]);
   /* descriptors of what the page edits (labels come from the page; ranges and enum names from the device) */
   S.desc = {};
@@ -474,8 +522,9 @@ async function pull(force) {
   if (S.slot < S.names.length && !pending.size) cur = S.slot;
   if (S.canPatch) {
     const r = await req(CMD.FMUG_GET, [0, 0]);
-    if (r[2] === 0) S.patch = r.slice(3, 3 + FG.SIZE);
+    if (r[2] === 0) { S.patch = r.slice(3, 3 + FG.SIZE); if (S.extras && r.length > 36) S.oct = r[36] - 4; }
   }
+  if (force) abReset();
   refreshAll();
 }
 function startPoll() {
@@ -501,35 +550,241 @@ $("next").addEventListener("click", () => loadPreset((cur + 1) % S.names.length)
 $("connect").addEventListener("click", () => { if (dev.open) { stopPoll(); closePorts(); setStatus(false, T("disc")); $("connect").textContent = T("connect"); } else connect(); });
 $("port").addEventListener("change", () => { $("port").dataset.user = "1"; });
 
-/* sound files: the patch bytes and the parameters the page edits */
-$("save").addEventListener("click", () => {
-  const obj = { fmini1: 1, patch: S.patch, params: {}, globals: {} };
+/* ------------------------------------------------- sounds: snapshots, files, A/B, randomize --- */
+function editable() {
+  const ps = new Set([P.GLIDE]), gs = new Set();
   for (const p of PAGES) for (const g of p.groups) for (const c of g.c) {
-    if (c.k === "par") obj.params[c.pe !== undefined ? "E" + c.pe : String(c.p)] = S.p[pid(c)];
-    else if (c.k === "glb" || (c.k === "sel" && c.g !== undefined)) obj.globals[String(c.g)] = S.g[c.g];
-    else if (c.k === "sel") obj.params[String(c.p)] = S.p[c.p];
+    if (c.g !== undefined) gs.add(c.g); else if (c.k === "par" || c.k === "sel") ps.add(pid(c));
   }
-  const a = document.createElement("a"), name = (S.names[S.slot] || "fmini-sound").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 1)], { type: "application/json" })); a.download = name + ".json"; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000); msg(T("saved"));
-});
+  return { p: [...ps], g: [...gs] };
+}
+function snapshot() {
+  const e = editable(), sn = { patch: S.patch.slice(), oct: S.oct, p: {}, g: {} };
+  for (const i of e.p) sn.p[i] = S.p[i];
+  for (const i of e.g) sn.g[i] = S.g[i];
+  return sn;
+}
+function applySnap(sn) {                                  /* what differs goes to the device */
+  const octD = S.extras && sn.oct !== undefined && sn.oct !== S.oct;
+  if (octD) S.oct = sn.oct;
+  if (S.canPatch && sn.patch && (octD || sn.patch.some((x, i) => x !== S.patch[i]))) { S.patch = sn.patch.slice(); queue("patch", putPatch()); }
+  for (const [k, v] of Object.entries(sn.p || {})) { const id = +k; if (id >= 0 && id < S.pCount && S.p[id] !== v) { S.p[id] = v; queue("p" + id, setPar(id)); } }
+  for (const [k, v] of Object.entries(sn.g || {})) { const id = +k; if (id >= 0 && id < S.gCount && S.g[id] !== v) { S.g[id] = v; queue("g" + id, setGlb(id)); } }
+  refreshAll();
+}
+/* the whole sound as a file object: the patch and every track parameter (kept by P_COUNT: the last 8 are E1..E8, as in user presets) */
+function soundObject(name, patch, p, g, oct) { return { fmini1: 1, name: name || "", patch: patch.slice(), p: p.slice(), g: g || {}, oct: oct || 0 }; }
+function currentSound(name) { const g = {}; for (const i of editable().g) g[i] = S.g[i]; return soundObject(name, S.patch, S.p, g, S.oct); }
+function objectToSnap(o) {
+  const sn = { patch: o.patch.map((x) => x & 127), oct: Math.max(-3, Math.min(3, o.oct | 0)), p: {}, g: o.g || {} };
+  if (Array.isArray(o.p)) {
+    const n = o.p.length, pc = S.pCount;
+    for (let id = 0; id < pc; id++) {
+      if (id === S.pe0 + 7) continue;                                   /* SLOT: the patch decides it */
+      const v = id >= S.pe0 ? (n >= 8 ? o.p[n - 8 + (id - S.pe0)] : undefined) : id < n - 8 ? o.p[id] : undefined;
+      if (v !== undefined) sn.p[id] = v | 0;
+    }
+  } else {                                                                /* (the first file format: only what the page edits) */
+    for (const [k, v] of Object.entries(o.params || {})) sn.p[k[0] === "E" ? S.pe0 + +k.slice(1) : +k] = v | 0;
+  }
+  return sn;
+}
+const validSound = (o) => o && o.fmini1 === 1 && Array.isArray(o.patch) && o.patch.length === FG.SIZE && (Array.isArray(o.p) || typeof o.params === "object");
+function download(obj, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(obj)], { type: "application/json" })); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+const slug = (n) => (n || "fmini-sound").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "fmini-sound";
+const curName = () => (S.slot < S.names.length ? S.names[S.slot] : "") || "MY SOUND";
+
+$("save").addEventListener("click", () => { download(currentSound(curName()), slug(curName()) + ".json"); msg(T("saved")); });
 $("load").addEventListener("click", () => $("file").click());
 $("file").addEventListener("change", async (e) => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try {
     const o = JSON.parse(await f.text());
-    if (o.fmini1 !== 1 || !Array.isArray(o.patch) || o.patch.length !== FG.SIZE) throw 0;
-    for (const [k, v] of Object.entries(o.params || {})) { const id = k[0] === "E" ? S.pe0 + +k.slice(1) : +k; if (id >= 0 && id < S.pCount) { S.p[id] = v | 0; queue("p" + id, setPar(id)); } }
-    for (const [k, v] of Object.entries(o.globals || {})) { const id = +k; if (id >= 0 && id < S.gCount) { S.g[id] = v | 0; queue("g" + id, setGlb(id)); } }
-    if (S.canPatch) { S.patch = o.patch.map((x) => x & 127); queue("patch", putPatch()); }
-    refreshAll(); msg(T("loaded"));
+    if (o.fmini1lib === 1) { await importLibrary(o); return; }
+    if (!validSound(o)) throw 0;
+    if (!S.canPatch) throw 0;
+    applySnap(objectToSnap(o)); msg(T("loaded"));
   } catch (_) { msg(T("badfile"), true); }
 });
 
+/* A/B: two settings, one on the device; edits go to the one that is showing */
+const ab = { cur: "A", A: null, B: null };
+function abShow() {
+  $("ab").innerHTML = "A / B  <b></b>"; $("ab").querySelector("b").textContent = ab.cur;
+  $("abcopy").textContent = T(ab.cur === "A" ? "abcopy" : "abcopyb");
+}
+function abReset() { ab.cur = "A"; ab.A = snapshot(); ab.B = snapshot(); abShow(); }
+$("ab").addEventListener("click", () => {
+  if (!ab.A) return;
+  ab[ab.cur] = snapshot(); ab.cur = ab.cur === "A" ? "B" : "A"; applySnap(ab[ab.cur]); abShow();
+});
+$("abcopy").addEventListener("click", () => { if (!ab.A) return; ab[ab.cur === "A" ? "B" : "A"] = snapshot(); });
+$("ab").title = T("abtip");
+
+/* randomize: a fraction (the slider) of the way from the current sound to a random one, kept playable */
+function randomize(amt) {
+  const R = Math.random, f = amt / 100, p = S.patch.slice();
+  const jit = (cur, lo, hi) => { const v = f >= 0.95 ? lo + R() * (hi - lo) : cur + (R() * 2 - 1) * f * (hi - lo) * 0.6; return Math.round(Math.max(lo, Math.min(hi, v))); };
+  const pick = (cur, lo, hi) => (R() < f ? lo + Math.floor(R() * (hi - lo + 1)) : cur);
+  for (const b of [FG.R1, FG.R2, FG.R3]) p[b] = pick(p[b], 1, 4);
+  for (const b of [FG.W1, FG.W2, FG.W3]) p[b] = pick(p[b], 0, 5);
+  p[FG.F2] = jit(p[FG.F2], 44, 84); p[FG.F3] = jit(p[FG.F3], 44, 84);
+  p[FG.L1] = jit(p[FG.L1], 70, 127); p[FG.L2] = jit(p[FG.L2], 0, 127); p[FG.L3] = jit(p[FG.L3], 0, 127); p[FG.LN] = jit(p[FG.LN], 0, 60);
+  p[FG.KBD] = jit(p[FG.KBD], 0, 127);
+  let sw = p[FG.SW1];
+  const flip = (bit, on) => { if (R() < f) sw = on ? sw | bit : sw & ~bit; };
+  flip(FS.O2, R() < 0.8); flip(FS.O3, R() < 0.7); flip(FS.NZ, R() < 0.15); flip(FS.MOSC, R() < 0.2); flip(FS.MFLT, R() < 0.3);
+  p[FG.SW1] = sw | FS.O1;                                                  /* (always something to hear) */
+  const par = (id, lo, hi) => { const d = S.desc["0:" + id]; if (!d) return; const span = d.max - d.min; S.p[id] = jit(S.p[id], Math.round(d.min + lo * span), Math.round(d.min + hi * span)); queue("p" + id, setPar(id)); };
+  par(S.pe0, 0.25, 1); par(S.pe0 + 1, 0, 0.7); par(S.pe0 + 2, 0, 1);
+  par(S.pe0 + 3, 0, 0.5); par(S.pe0 + 4, 0.1, 1); par(S.pe0 + 5, 0, 1);
+  par(P.ATK, 0, 0.45); par(P.DEC, 0.1, 1); par(P.SUS, 0.35, 1);
+  S.patch = p;
+  if (S.canPatch) queue("patch", putPatch());
+  refreshAll();
+}
+$("amt").addEventListener("input", () => { $("amtv").textContent = $("amt").value + "%"; });
+$("rnd").addEventListener("click", () => randomize(+$("amt").value));
+
+/* ------------------------------------------------------------------------ library --- */
+function busy(text) { document.body.classList.toggle("busy", !!text); $("busy").hidden = !text; $("busy").textContent = text || ""; }
+async function withBusy(text, fn) {
+  busy(text); const keep = touch.until; touch.until = Date.now() + 3600e3;
+  try { return await fn(); } finally { touch.until = Date.now() + 600; busy(""); void keep; }
+}
+async function libList() {
+  const out = [];
+  for (const s0 of [0, 16]) {
+    const r = await req(CMD.UP_LIST, [s0, 16], 1500);
+    let j = 3;
+    for (let k = 0; k < r[1]; k++) { const used = r[j++], eng = r[j++]; let nm; [nm, j] = cstr(r, j); out[s0 + k] = { used, eng, name: nm }; }
+  }
+  return out;
+}
+const slotName = (i) => "U" + String(i + 1).padStart(2, "0");
+async function libRead(slot) {                                    /* a stored preset as a sound object, without loading it */
+  const r = await req(CMD.UP_GET, [slot], 1500);
+  let j = 2; j++; /* engine */
+  let nm; [nm, j] = cstr(r, j);
+  const p = []; for (let k = 0; k < S.pCount; k++) p.push(rv(r, j + 2 * k));
+  const q = await req(CMD.FMUG_GET, [3, slot], 1500);
+  if (q[2] !== 0) throw new Error("lost");
+  const g = {}; let oct = 0;
+  if (S.extras) {                                                   /* the tempo, the octave and the FX globals the preset kept */
+    const x = await req(CMD.FMUG_PRESET, [slot], 1500), v = []; for (let k = 0; k < 14; k++) v.push(rv(x, 2 + 2 * k));
+    if (x[1] === 0) {
+      if (v[1] > 0) oct = v[1] - 4;
+      if (v[0] >= 40) g[G.BPM] = v[0];
+      [G.RSIZE, G.DRREV, G.CRATE, G.DRLVL].forEach((id, k) => { if (v[2 + k] > 0) g[id] = v[2 + k] - 1; });
+      [G.RTYPE, G.RDAMP, G.DTIME, G.DFDBK, G.ENGGO, G.CDEPTH, G.INFO, G.MIDI].forEach((id, k) => { if (v[6 + k] > 0) g[id] = v[6 + k] - 1; });
+    }
+  }
+  return soundObject(nm, q.slice(3, 3 + FG.SIZE), p, g, oct);
+}
+async function libStore(slot, name) {
+  const nm = [...name.toUpperCase().slice(0, 12)].map((c) => c.charCodeAt(0)).filter((c) => c >= 32 && c <= 126);
+  const r = await req(CMD.UP_STORE, [slot, ...nm, 0], 8000);
+  return r[1] === 0;
+}
+async function buildLib() {
+  const panel = $("panel"); panel.textContent = "";
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const btn = (text, fn, cls) => { const b = mk("button", cls || "btn", text); b.addEventListener("click", fn); return b; };
+  const g1 = mk("section", "grp"), row = mk("div", "libname");
+  g1.append(mk("h2", "", T("libname")));
+  const inp = mk("input"); inp.id = "libname"; inp.maxLength = 12; inp.value = curName().slice(0, 12); inp.setAttribute("aria-label", T("libname")); row.append(inp);
+  row.append(btn(T("libexpall"), exportLibrary), btn(T("libimpall"), () => { $("file").click(); }), btn(T("factexp"), exportFactory));
+  g1.append(row); const hint = mk("div", "", T("libhint")); hint.style.cssText = "margin-top:10px;color:var(--mute);font-size:13px"; g1.append(hint);
+  const g2 = mk("section", "grp"); g2.append(mk("h2", "", T("libtitle")));
+  const grid = mk("div", "slots"); g2.append(grid); panel.append(g1, g2);
+  let list;
+  try { list = await libList(); } catch (e) { fail(e); return; }
+  if (!PAGES[S.page].lib) return;
+  list.forEach((it, i) => {
+    const used = it.used === 1, mine = used && it.eng === S.fmug;
+    const c = mk("div", "slot" + (!used ? " empty" : mine ? "" : " other"));
+    c.append(mk("div", "sn", slotName(i)), mk("div", "nm", !used ? T("libempty") : mine ? it.name : it.name + " · " + T("libother")));
+    const act = mk("div", "act");
+    act.append(btn(T("libsave"), () => saveSlot(i, it, inp.value), "mini"));
+    if (mine) { act.append(btn(T("libload"), () => loadSlot(i), "mini"), btn(T("libexp"), () => exportSlot(i), "mini")); }
+    if (used) act.append(btn(T("liberase"), () => eraseSlot(i, it), "mini warn"));
+    c.append(act); grid.append(c);
+  });
+}
+const libRefresh = () => { if (PAGES[S.page].lib) buildLib(); };
+async function saveSlot(i, it, name) {
+  name = (name.trim() || curName()).toUpperCase();
+  if (it.used === 1 && !confirm(T("askover", { n: slotName(i) + " " + it.name }))) return;
+  try {
+    const ok = await withBusy(T("busysave"), () => libStore(i, name));
+    msg(ok ? T("saved") : T("libfail"), !ok);
+  } catch (e) { fail(e); return; }
+  libRefresh();
+}
+async function loadSlot(i) {
+  try { await withBusy(T("busyread"), async () => { await req(CMD.UP_LOAD, [i], 1500); await sleep(80); await pull(true); }); } catch (e) { fail(e); }
+}
+async function eraseSlot(i, it) {
+  if (!confirm(T("askerase", { n: slotName(i) + " " + it.name }))) return;
+  try { await withBusy(T("busysave"), () => req(CMD.UP_ERASE, [i], 8000)); } catch (e) { fail(e); return; }
+  libRefresh();
+}
+async function exportSlot(i) {
+  try { const o = await withBusy(T("busyread"), () => libRead(i)); download(o, slug(o.name) + ".json"); msg(T("exported")); } catch (e) { fail(e); }
+}
+async function exportLibrary() {
+  try {
+    const slots = await withBusy(T("busyread"), async () => {
+      const list = await libList(), out = [];
+      for (let i = 0; i < list.length; i++) if (list[i].used === 1 && list[i].eng === S.fmug) out.push({ slot: i, sound: await libRead(i) });
+      return out;
+    });
+    download({ fmini1lib: 1, slots }, "fmini-1-library.json"); msg(T("exported"));
+  } catch (e) { fail(e); }
+}
+async function flushNow() { clearTimeout(flushT); flushT = 0; await flush(); }
+async function importLibrary(o) {
+  const items = (o.slots || []).filter((x) => x && x.slot >= 0 && x.slot < 32 && validSound(x.sound));
+  if (!items.length || !S.canPatch) throw 0;
+  if (!confirm(T("askimp", { c: items.length }))) return;
+  try {
+    await withBusy(T("busyimp"), async () => {
+      for (const it of items) {
+        applySnap(objectToSnap(it.sound)); await flushNow();
+        if (!(await libStore(it.slot, it.sound.name || slotName(it.slot)))) throw bad("libfail");
+      }
+      await pull(true);
+    });
+    msg(T("imported"));
+  } catch (e) { if (e && e.code === "libfail") msg(T("libfail"), true); else fail(e); }
+  libRefresh();
+}
+async function exportFactory() {
+  const before = currentSound("");
+  try {
+    const slots = await withBusy(T("busyfact"), async () => {
+      const out = [];
+      for (let k = 0; k < S.names.length; k++) {
+        await req(CMD.PRESET, [S.fmug, k], 1500); await sleep(30);
+        const d = await req(CMD.DUMP, [], 1500), q = await req(CMD.FMUG_GET, [0, 0], 1500);
+        const p = []; for (let i = 0; i < S.pCount; i++) p.push(rv(d, 2 + 2 * i));
+        out.push({ slot: k, sound: soundObject(S.names[k], q.slice(3, 3 + FG.SIZE), p) });
+      }
+      return out;
+    });
+    download({ fmini1lib: 1, factory: 1, slots }, "fmini-1-factory-bank.json"); msg(T("factdone"));
+  } catch (e) { fail(e); return; }
+  try { await pull(true); applySnap(objectToSnap(before)); } catch (e) { fail(e); }   /* (the sound that was playing comes back) */
+}
+
 for (const el of document.querySelectorAll("[data-t]")) el.textContent = T(el.dataset.t);
-$("connect").textContent = T("connect"); setStatus(false, T("disc"));
+$("connect").textContent = T("connect"); setStatus(false, T("disc")); $("rnd").textContent = T("rnd"); abShow();
 tabs(); build();
-window.__fmini = { S, req, connect, commit, PAGES, pull };   /* (the tests drive the page through this) */
+window.__fmini = { S, req, connect, commit, PAGES, pull, ab };   /* (the tests drive the page through this) */
 </script>
 </body>
 </html>

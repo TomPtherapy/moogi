@@ -171,7 +171,7 @@ static int preferences(void)
     uint8_t a[4] = {0, 7, 0, 0};
     reset();
     uint32_t n = request(ED_INFO, a, 0);
-    uint32_t e = n - 9u;                                  /* (1.5.5: 4B 01 NCOND, 1.6: 45 01 5, FMini-1: 47 01 32 last, below) */
+    uint32_t e = n - 12u;                                  /* (1.5.5: 4B 01 NCOND, 1.6: 45 01 5, FMini-1: 47 01 32 last, below) */
     bad += check("INFO explicitly tags display capabilities after SONG without changing command 33",
         ED_SONG == 33 && ED_UI_STATE == 34 && ED_FAV_SET == 38 &&
         host_wire[e - 47] == CHAIN_ROWS && host_wire[e - 46] == 0x55 &&
@@ -192,11 +192,12 @@ static int preferences(void)
         host_wire[e - 7] == 0x56 && host_wire[e - 6] == 1 && host_wire[e - 5] == 32 &&   /* 1.4.1: FM6 voice bank */
         host_wire[e - 4] == 0x43 && host_wire[e - 3] == 1 && host_wire[e - 2] == ML_N);   /* 1.5: MIDI LEARN */
     bad += check("INFO 1.5.5: 4B 01 11, a step's condition after its nudge",
-        host_wire[n - 10] == 0x4B && host_wire[n - 9] == 1 && host_wire[n - 8] == NCOND);
+        host_wire[n - 13] == 0x4B && host_wire[n - 12] == 1 && host_wire[n - 11] == NCOND);
     bad += check("INFO 1.6: 45 01 5, CUSTOM's colours",
-        host_wire[n - 7] == 0x45 && host_wire[n - 6] == 1 && host_wire[n - 5] == 5);
-    bad += check("INFO FMini-1: 47 01 32, the FMUG patch's size, last",
-        host_wire[n - 4] == 0x47 && host_wire[n - 3] == 1 && host_wire[n - 2] == FG_SIZE);
+        host_wire[n - 10] == 0x45 && host_wire[n - 9] == 1 && host_wire[n - 8] == 5);
+    bad += check("INFO FMini-1: 47 01 32 (the FMUG patch's size), then 48 01 01 (octave, cmd 84), last",
+        host_wire[n - 7] == 0x47 && host_wire[n - 6] == 1 && host_wire[n - 5] == FG_SIZE &&
+        host_wire[n - 4] == 0x48 && host_wire[n - 3] == 1 && host_wire[n - 2] == 1);
     request(ED_UI_SET, a, 2);
     bad += check("UI_SET updates the actual palette and reports RAM-only saving",
         host_wire[5] == 3 && settings.palette == 7 && T_BG == UI_PALETTES[7].bg);
@@ -537,7 +538,7 @@ static int fmug_patches(void)
     fmug_poll();
     bad += check("  .. the main loop keeps it", fmug_patch[1][FG_L1] == 77);
     n = request(ED_FMUG_GET, a, 2);
-    bad += check("FMUG_GET track 2: as put, then SLOT", n == 5u + 3u + FG_SIZE + 2u && host_wire[7] == 0 &&
+    bad += check("FMUG_GET track 2: as put, then SLOT", n == 5u + 3u + FG_SIZE + 3u && host_wire[7] == 0 &&
                  host_wire[8 + FG_L1] == 77 && host_wire[8 + FG_SIZE] == FMUG_OWN);
     memcpy(a + 2, FMUG_FACTORY[5], FG_SIZE);
     request(ED_FMUG_PUT, a, sizeof a);
@@ -558,6 +559,53 @@ static int fmug_patches(void)
     a[0] = ED_FMUG_FACTORY; a[1] = FMUG_NFACTORY;
     request(ED_FMUG_GET, a, 2);
     bad += check("FMUG_GET of factory patch 101: rc 1", host_wire[7] == 1u);
+    /* a user preset: stored from an FMUG track, read without loading it */
+    reset();
+    trk[0].eng_req = ENGI_FMUG; trk[0].engine = ENGI_FMUG;
+    memcpy(a + 2, FMUG_FACTORY[9], FG_SIZE); a[2 + FG_L2] = 33;
+    a[0] = ED_FMUG_TRACK; a[1] = 0;
+    request(ED_FMUG_PUT, a, sizeof a);
+    song.sel = 0;
+    up_store(5, "MY PAT");                               /* track 1 (the patch just put) -> slot 6 */
+    a[0] = ED_FMUG_USER; a[1] = 5;
+    n = request(ED_FMUG_GET, a, 2);
+    bad += check("FMUG_GET user 6: the patch stored with the preset", n == 5u + 3u + FG_SIZE + 1u && host_wire[7] == 0 &&
+                 host_wire[8 + FG_L2] == 33 && !memcmp(host_wire + 8, fmug_patch[0], FG_SIZE));
+    a[1] = 6;
+    request(ED_FMUG_GET, a, 2);
+    bad += check("FMUG_GET of an empty user slot: rc 2", host_wire[7] == 2u);
+    a[1] = UP_SLOTS;
+    request(ED_FMUG_GET, a, 2);
+    bad += check("FMUG_GET of user slot 33: rc 1", host_wire[7] == 1u);
+    /* the extras: the octave on GET / PUT, and what the preset kept (cmd 84) */
+    reset();
+    trk[0].eng_req = ENGI_FMUG; trk[0].engine = ENGI_FMUG;
+    memcpy(a + 2, FMUG_FACTORY[2], FG_SIZE);
+    a[0] = ED_FMUG_TRACK; a[1] = 0; a[2 + FG_SIZE] = 3;            /* octave 3 - 4 = -1 */
+    n = request(ED_FMUG_PUT, a, 3u + FG_SIZE);
+    bad += check("FMUG_PUT with the octave byte: rc 0, song.octave -1", host_wire[7] == 0 && song.octave == -1);
+    n = request(ED_FMUG_GET, a, 2);
+    bad += check("FMUG_GET track 1 ends with the octave + 4", n == 5u + 3u + FG_SIZE + 3u && host_wire[8 + FG_SIZE + 1] == 3);
+    song.octave = 2; song.g[G_BPM] = 99; song.g[G_RSIZE] = 50; song.g[G_RTYPE] = 3;
+    up_store(9, "KEPT");
+    {   /* (the host build is not FMUG-only: its records keep no tempo / octave / FX, so put them in as the FMini-1 stores them) */
+        up_rec_t *rr = (up_rec_t *)up_rec(9);
+        rr->packed[UP_BPM_AT] = 99; rr->packed[UP_OCT_AT] = 6; rr->packed[UP_FX_AT] = 51; rr->packed[UP_FX2_AT + 0] = 4;
+    }
+    a[0] = 9;
+    n = request(ED_FMUG_PRESET, a, 1);
+    {
+        uint32_t v[14], k;
+        for (k = 0; k < 14u; k++) v[k] = (uint32_t)((host_wire[7 + 2 * k] | host_wire[8 + 2 * k] << 7) - 8192);
+        bad += check("FMUG_PRESET 10: BPM, octave + 4, the FX globals + 1 as stored", n == 5u + 2u + 28u + 1u && host_wire[6] == 0 &&
+                     v[0] == 99 && v[1] == 6 && v[2] == 51 && v[6] == 4 && v[13] == 0);
+    }
+    a[0] = 11;
+    request(ED_FMUG_PRESET, a, 1);
+    bad += check("FMUG_PRESET of an empty slot: rc 2", host_wire[6] == 2u);
+    a[0] = UP_SLOTS;
+    request(ED_FMUG_PRESET, a, 1);
+    bad += check("FMUG_PRESET of slot 33: rc 1", host_wire[6] == 1u);
     for (i = 0; i < 3u; i++)
         a[i] = 0;
     bad += check("FMUG_GET with a wrong length: rc 1", request(ED_FMUG_GET, a, 3) > 0 && host_wire[7] == 1u);

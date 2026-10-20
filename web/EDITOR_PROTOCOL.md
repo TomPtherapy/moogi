@@ -1006,7 +1006,7 @@ knob turn picks a built-in palette. A preview by the slider is op 0 sent at most
 settings changes only with op 1. Example: `F0 7D 46 4C 51 01 01 02 05 03 04 0A 06 ...` is op 1 with BG = (r 1, g 2, b 5),
 SURF = (3, 4, 10), ...
 
-## FMUG patch (82-83; FMini-1 1.6.0)
+## FMUG patch (82-84; FMini-1 1.6.0, 1.6.1)
 
 The FMUG engine's sound is the track's **patch**: 32 bytes (`FG_SIZE`, `eng_fmug.c`), every byte 0..127, of which 18 are
 used (the rest are 0): ranges, waves, the detune of OSC 2 / 3, the mixer levels, the two switch bytes, TUNE, MOD MIX, KBD
@@ -1018,9 +1018,12 @@ tests `tests/editor_test.c` (fmug_patches) and `web/test_editor_fmini.py` (the p
 | cmd | Request args | Reply args |
 | --- | --- | --- |
 | 82 FMUG_GET | target, index | target, index, rc, then (rc 0) the 32 patch bytes, and for target 0 the track's SLOT (`P_E7`: 0..99 = F1..F100, 100 = OWN) |
-| 83 FMUG_PUT | 0, track, 32 patch bytes | target, index, rc |
+| 83 FMUG_PUT | 0, track, 32 patch bytes [, octave + 4] | target, index, rc |
+| 84 FMUG_PRESET (1.6.1) | slot 0..31 | slot, rc, then 14 x v14 (below) |
 
-Targets: 0 a track's own patch (index 0..3), 2 a factory patch (index 0..99, read only; `PUT` answers rc 1). rc: 0 ok,
+Targets: 0 a track's own patch (index 0..3), 2 a factory patch (index 0..99, read only; `PUT` answers rc 1), 3 a user preset's
+patch (slot 0..31, read only; rc 2 when the slot is empty or holds another engine; a preset stored without its own patch gives
+the factory patch its SLOT names, as loading it does). rc: 0 ok,
 1 arguments (length, target, index), 2 the track is not on the FMUG engine. A `PUT` sanitizes every byte into its range, makes
 the patch the track's own (SLOT OWN, or the factory patch it equals unchanged), as an edit on the panel does, and does not
 write flash. The patch bytes: R1..R3 (0..2) range 0 LO .. 5 2'; W1..W3 (3..5) wave 0 TRI, SHARK, SAW, SQR, PLS W, PLS N;
@@ -1028,6 +1031,14 @@ F2, F3 (6, 7) 64 = 0, +-7 semitones; L1..L3, LN (8..11) levels; SW1 (12) bits 1 
 16 PINK, 32 MOD OSC, 64 MOD FLT; SW2 (13) bits 1 GLIDE, 2 LFO SQR; TUNE (14) 64 = A 440; MMIX (15) MOD MIX; KBD (16);
 GLID (17) the kept glide time. While the GLIDE switch is on `P_GLIDE` (38) holds the same time (a `PUT` does not copy it:
 set both, as the page does).
+
+**1.6.1 (INFO `48 01 01`, after `47 01 32`):** the keys' octave. `FMUG_GET` of target 0 ends with the octave + 4 (1..7) after the SLOT,
+and `FMUG_PUT` takes it as an optional byte after the 32 (outside 1..7 it is ignored). `FMUG_PRESET` reads what a user preset keeps
+besides the track's values (`UP_GET` has those): on the FMini-1 a preset stores the tempo, the octave and the FX pop-ups'
+globals (`upreset.c`, UP_BPM_AT ..). The reply carries the stored bytes, each as a v14: BPM (40..240), OCT (octave + 4, 1..7),
+then `G_RSIZE G_DRREV G_CRATE G_DRLVL` + 1 (1..128) and `G_RTYPE G_RDAMP G_DTIME G_DFDBK G_ENGGO G_CDEPTH G_INFO G_MIDI` + 1;
+0 = the preset has none (older). Saving a user preset from the editor is `UP_STORE` after setting the sound live (`SET` the
+parameters and globals, `FMUG_PUT` the patch and the octave): it stores exactly that, tempo, octave and FX included.
 
 The web editor for it is `web/editor_fmini.html` (published at `editor/` on the FMini-1 site).
 

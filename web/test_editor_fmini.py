@@ -30,7 +30,10 @@ def fa(cmd, args=()):
 
 def on_tx(data):
     log.append(list(data))
-    return fw(data[4], data[5:-1])
+    r = fw(data[4], data[5:-1])
+    if data[4] == 19 and r and r[6] == 2:        # UP_STORE: the host build has no flash ("kept in RAM"): a real device answers 0
+        r[6] = 0
+    return r
 
 bad = 0
 def check(name, ok):
@@ -115,6 +118,13 @@ with sync_playwright() as pw:
     g = fa(82, [0, 0])
     check("GLIDE switch on: SW2 bit set, P_GLIDE = the kept time", (g[3 + 13] & 1) and gl == g[3 + 17] and gl > 0)
 
+    # the keys' octave (extras: carried by FMUG_PUT, read back by FMUG_GET)
+    pg.locator(".seg", has_text="OCTAVE").locator("button", has_text="+1").click()
+    pg.wait_for_timeout(300)
+    g = fa(82, [0, 0])
+    check("OCTAVE +1: the device's octave (last byte of FMUG_GET) is 5 = +1 + 4", g[36] == 5 and pg.evaluate("__fmini.S.oct") == 1)
+    pg.locator(".seg", has_text="OCTAVE").locator("button", has_text="+1").click()   # (stays: it is a choice, not a toggle)
+
     # FX enum
     pg.click("#tabs button:has-text('FX')")
     sel = pg.locator(".sel", has_text="TYPE").first
@@ -150,9 +160,87 @@ with sync_playwright() as pw:
     pg.wait_for_timeout(700)
     check("Save / Open sound: the file puts the saved patch back on the device", fa(82, [0, 0])[3:35] == saved)
 
+    # ---- phase 3: library, files, A/B, randomize
+    pg.on("dialog", lambda d: d.accept())
+    pg.click("#tabs button:text-is('LIBRARY'), #tabs button:text-is('BIBLIOTECA')")
+    pg.wait_for_selector(".slot")
+    check("LIBRARY: 32 slots, all empty on a fresh device", pg.locator(".slot").count() == 32 and pg.locator(".slot.empty").count() == 32)
+    cur_patch = fa(82, [0, 0])[3:35]; cur_oct = fa(82, [0, 0])[36] - 4
+    pg.fill("#libname", "test one")
+    pg.locator(".slot").nth(2).locator("button", has_text="Save here").click()
+    pg.wait_for_selector(".slot:not(.empty)")
+    lst = fa(16, [0, 16])
+    check("Save here: the firmware has U03 'TEST ONE' (UP_STORE)", bytes(lst).find(b"TEST ONE") > 0)
+    check("  .. the card shows it with Load / Export / Erase", pg.locator(".slot").nth(2).locator(".nm").inner_text() == "TEST ONE" and pg.locator(".slot").nth(2).locator("button").count() == 4)
+    fa(83, [0, 0, *[1] * 32])
+    pg.locator(".slot").nth(2).locator("button", has_text="Load").click()
+    pg.wait_for_timeout(900)
+    check("Load: the stored patch is back on the track", fa(82, [0, 0])[3:35] == cur_patch)
+    with pg.expect_download() as dl:
+        pg.locator(".slot").nth(2).locator("button", has_text="Export").click()
+    import json
+    f1 = Path("/tmp/claude_fmini_slot.json"); dl.value.save_as(f1)
+    o = json.loads(f1.read_text())
+    check("  .. and an octave (the host build keeps none in a record; the FMini-1 build does: tests/editor_test.c)", isinstance(o["oct"], int))
+    check("Export: a sound file with the patch, all parameters and the name", o["fmini1"] == 1 and o["patch"] == cur_patch and len(o["p"]) == pg.evaluate("__fmini.S.pCount") and o["name"] == "TEST ONE")
+    # a second slot, then the whole library out and back in
+    pg.fill("#libname", "second")
+    fa(83, [0, 0, *[5] * 32])
+    p2 = fa(82, [0, 0])[3:35]
+    pg.wait_for_timeout(300)
+    pg.locator(".slot").nth(7).locator("button", has_text="Save here").click()
+    pg.wait_for_timeout(600)
+    with pg.expect_download() as dl:
+        pg.click("button:has-text('Export library')")
+    f2 = Path("/tmp/claude_fmini_lib.json"); dl.value.save_as(f2)
+    lib = json.loads(f2.read_text())
+    check("Export library: both presets, with their patches", lib["fmini1lib"] == 1 and [x["slot"] for x in lib["slots"]] == [2, 7] and lib["slots"][1]["sound"]["patch"] == p2)
+    for sl in (2, 7):
+        pg.locator(".slot").nth(sl).locator("button", has_text="Erase").click()
+        pg.wait_for_timeout(300)
+    check("Erase (confirmed): both slots empty on the device", pg.locator(".slot.empty").count() == 32)
+    pg.set_input_files("#file", str(f2))
+    pg.wait_for_selector(".slot:not(.empty)", timeout=20000)
+    pg.wait_for_timeout(500)
+    lst = bytes(fa(16, [0, 16]))
+    check("Import library: U03 and U08 are back", b"TEST ONE" in lst and b"second" in lst.replace(b"SECOND", b"second").lower().replace(b"second", b"second"))
+    fa(21, [2]); fa(21, [7])
+    pg.click("#tabs button:text-is('CTRL')")
+    # A/B
+    pg.click("#tabs button:text-is('FILT')")
+    kn = pg.locator(".knob", has_text="CUTOFF"); base = kn.get_attribute("aria-valuenow")
+    pg.select_option("#preset", "3"); pg.wait_for_timeout(800)
+    base = pg.evaluate("__fmini.S.p[__fmini.S.pe0]")
+    kn.focus()
+    for _ in range(4): pg.keyboard.press("ArrowDown")
+    pg.wait_for_timeout(400)
+    moved = pg.evaluate("__fmini.S.p[__fmini.S.pe0]")
+    pg.click("#ab"); pg.wait_for_timeout(500)
+    a_val = (lambda r: (r[2] | r[3] << 7) - 8192)(fa(31, [0, pe0]))
+    check("A/B: switching to B gives back the sound as the preset was loaded", moved != base and a_val == base)
+    pg.click("#ab"); pg.wait_for_timeout(500)
+    b_val = (lambda r: (r[2] | r[3] << 7) - 8192)(fa(31, [0, pe0]))
+    check("  .. and back to A: the edit is there again", b_val == moved)
+    # randomize
+    before = fa(82, [0, 0])[3:35]
+    pg.fill("#amt", "100") if False else pg.evaluate("document.getElementById('amt').value = 100; document.getElementById('amt').dispatchEvent(new Event('input'))")
+    pg.click("#rnd"); pg.wait_for_timeout(600)
+    after = fa(82, [0, 0])[3:35]
+    check("Randomize: the patch on the device changed and OSC 1 is still on", after != before and after[12] & 1 and all(0 <= x <= 127 for x in after))
+    # the factory bank
+    with pg.expect_download(timeout=60000) as dl:
+        pg.click("#tabs button:text-is('LIBRARY')"); pg.wait_for_selector(".slot")
+        pg.click("button:has-text('Export factory bank')")
+    f3 = Path("/tmp/claude_fmini_factory.json"); dl.value.save_as(f3)
+    fb = json.loads(f3.read_text())
+    check("Export factory bank: 100 patches, each with the factory patch bytes", len(fb["slots"]) == 100 and fb["slots"][9]["sound"]["patch"] == fa(82, [2, 9])[3:35])
+    pg.wait_for_timeout(1200)
+    check("  .. the sound that was playing is restored", fa(82, [0, 0])[3:35] == after)
+    check("  .. and the page is usable again (not busy)", not pg.evaluate("document.body.classList.contains('busy')"))
+
     if SHOTS:
         SHOTS.mkdir(parents=True, exist_ok=True)
-        for i, name in enumerate(["CTRL", "OSC", "MIX", "FILT", "F.ENV", "A.ENV", "FX", "ARP"]):
+        for i, name in enumerate(["CTRL", "OSC", "MIX", "FILT", "F.ENV", "A.ENV", "FX", "ARP", "LIBRARY"]):
             pg.click(f"#tabs button:text-is('{name}')"); pg.wait_for_timeout(200)
             pg.screenshot(path=str(SHOTS / f"ed_{i}_{name.replace('.', '')}.png"))
         pg.set_viewport_size({"width": 390, "height": 800}); pg.click("#tabs button:text-is('OSC')")
