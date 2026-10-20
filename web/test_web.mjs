@@ -1715,6 +1715,17 @@ async function updater() {
     ok(await new Updater(dr.access).resume(image) === true, `fm1ota.js: resume finds the loader named "${ota}"`);
   }
 
+  /* another custom firmware's USB name: not found by name, found when the player picks the port */
+  {
+    const dx = new FakeFM1(image, { run: "FM-1 Midi", ota: "FMini-1 Update" });
+    dx.boot("FM-1_015", "Acme Synth");
+    const e0 = await new Updater(dx.access).install(image, "FM-1_900").then(() => null, (x) => x);
+    ok(e0 && e0.code === "notfound", "fm1ota.js: another firmware's port name -> 'notfound'");
+    const up = new Updater(dx.access); up.portName = "Acme Synth";
+    const gx = await up.install(image, "FM-1_900").then((v) => v, (x) => x.code || String(x));
+    ok(gx === "FM-1_900", `fm1ota.js: ...found through the port the player picked (${gx})`);
+  }
+
   const dev2 = new FakeFM1(image, { unplugAfter: 3 });
   dev2.boot("ota-FM-1_900", "Felucca Update");
   const t0 = Date.now();
