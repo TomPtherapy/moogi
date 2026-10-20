@@ -6,7 +6,7 @@
 <title>FMini-1 Editor</title>
 <!-- SPDX-License-Identifier: GPL-3.0-only
      FMini-1 patch editor: one self-contained page, Web MIDI + SysEx (Chrome / Edge / Android).
-     Protocol: web/EDITOR_PROTOCOL.md (cmds 2 GET, 3 SET, 4 DUMP, 5 DESC, 8 PRESET, 10 NAMES, 27 TRACK, 82/83 FMUG_GET/PUT). -->
+     Protocol: web/EDITOR_PROTOCOL.md (cmds 2 GET, 3 SET, 4 DUMP, 5 DESC, 8 PRESET, 10 NAMES, 27 TRACK, 82/83 FMINI_GET/PUT). -->
 <style>
   :root {
     --bg: #0d0c10; --surface: #15131a; --surface2: #1c1922; --line: #2a2631; --fg: #f4f0ea; --dim: #a29cab; --mute: #6f6a78;
@@ -162,7 +162,7 @@ const TX = {
     noedit: "Este firmware não parece ser o FMini-1. O editor é só para o FMini-1.",
     noext: "Atualização disponível: instale o FMini-1 v1.6.1 ou mais novo para editar a oitava e guardar tempo, oitava e efeitos na biblioteca.",
     noenv: "Atualização necessária: este firmware não tem o editor de osciladores e chaves. Instale a versão mais nova pelo site para editar tudo.",
-    noeng: "A trilha 1 não está com o motor FMUG.", lost: "A conexão com o aparelho foi perdida.", timeout: "O aparelho não respondeu.",
+    noeng: "A trilha 1 não está com o motor FMINI.", lost: "A conexão com o aparelho foi perdida.", timeout: "O aparelho não respondeu.",
     badfile: "Arquivo de som inválido.", rnd: "Aleatorizar", amt: "Variação", abcopy: "Copiar A → B", abcopyb: "Copiar B → A", abtip: "Alterna entre dois ajustes para comparar",
     lib: "BIBLIOTECA", libname: "Nome para salvar", libsave: "Salvar aqui", libload: "Carregar", libexp: "Exportar", liberase: "Apagar", libempty: "— vazio —",
     libother: "outro motor", libtitle: "Meus presets (U01–U32)", libexpall: "Exportar biblioteca", libimpall: "Importar biblioteca", factexp: "Exportar banco de fábrica",
@@ -180,7 +180,7 @@ const TX = {
     noedit: "This firmware does not look like the FMini-1. The editor is for the FMini-1 only.",
     noext: "Update available: install FMini-1 v1.6.1 or newer to edit the octave and keep tempo, octave and effects in the library.",
     noenv: "Update needed: this firmware has no oscillator / switch editing. Install the newest version from the site to edit everything.",
-    noeng: "Track 1 is not on the FMUG engine.", lost: "The connection to the device was lost.", timeout: "The device did not answer.",
+    noeng: "Track 1 is not on the FMINI engine.", lost: "The connection to the device was lost.", timeout: "The device did not answer.",
     badfile: "Invalid sound file.", rnd: "Randomize", amt: "Amount", abcopy: "Copy A → B", abcopyb: "Copy B → A", abtip: "Switch between two settings to compare",
     lib: "LIBRARY", libname: "Name to save", libsave: "Save here", libload: "Load", libexp: "Export", liberase: "Erase", libempty: "— empty —",
     libother: "other engine", libtitle: "My presets (U01–U32)", libexpall: "Export library", libimpall: "Import library", factexp: "Export factory bank",
@@ -194,7 +194,7 @@ const T = (k, o) => { let t = TX[LANG][k] || k; for (const x in o || {}) t = t.r
 document.documentElement.lang = LANG === "pt" ? "pt-BR" : "en";
 
 /* ---------------------------------------------------------------- protocol --- */
-const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, PRESET: 8, NAMES: 10, TRACK: 27, UP_LIST: 16, UP_GET: 17, UP_STORE: 19, UP_LOAD: 20, UP_ERASE: 21, FMUG_GET: 82, FMUG_PUT: 83, FMUG_PRESET: 84 };
+const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, PRESET: 8, NAMES: 10, TRACK: 27, UP_LIST: 16, UP_GET: 17, UP_STORE: 19, UP_LOAD: 20, UP_ERASE: 21, FMINI_GET: 82, FMINI_PUT: 83, FMINI_PRESET: 84 };
 const FG = { R1: 0, R2: 1, R3: 2, W1: 3, W2: 4, W3: 5, F2: 6, F3: 7, L1: 8, L2: 9, L3: 10, LN: 11, SW1: 12, SW2: 13, TUNE: 14, MMIX: 15, KBD: 16, GLID: 17, SIZE: 32 };
 const FS = { O1: 1, O2: 2, O3: 4, NZ: 8, PINK: 16, MOSC: 32, MFLT: 64 }, FT = { GLIDE: 1, SQR: 2 };
 /* track parameters (core.h; all but E0..E7 are fixed ids) and globals */
@@ -227,7 +227,7 @@ function req(cmd, args = [], ms = 900) {
 
 /* ------------------------------------------------------------------ state --- */
 const S = {
-  pe0: 103, patch: new Array(FG.SIZE).fill(0), p: [], g: [], slot: 0, engine: 0, fmug: -1, desc: {},
+  pe0: 103, patch: new Array(FG.SIZE).fill(0), p: [], g: [], slot: 0, engine: 0, fmini: -1, desc: {},
   names: [], canPatch: false, extras: false, oct: 0, page: 0,
 };
 const touch = { until: 0, dragging: 0 };
@@ -312,7 +312,7 @@ async function flush() {
   for (const j of jobs) { try { await j(); } catch (e) { fail(e); return; } }
   touch.until = Date.now() + 400;
 }
-function putPatch() { return () => req(CMD.FMUG_PUT, [0, 0, ...S.patch, ...(S.extras ? [S.oct + 4] : [])]); }
+function putPatch() { return () => req(CMD.FMINI_PUT, [0, 0, ...S.patch, ...(S.extras ? [S.oct + 4] : [])]); }
 function setPar(id) { return () => req(CMD.SET, [0, id, ...v14(S.p[id])]); }
 function setGlb(id) { return () => req(CMD.SET, [1, id, ...v14(S.g[id])]); }
 function commit(c, v) {
@@ -483,8 +483,9 @@ async function handshake() {
   if (!/^FELUCCA/.test(ver)) throw bad("noedit");
   const nEng = a[i++]; const pCount = a[i++]; const gCount = a[i++]; i++; /* NSTEP */ S.pe0 = a[i++];
   const eng = []; for (let k = 0; k < nEng; k++) { let s; [s, i] = cstr(a, i); eng.push(s); }
-  S.fmug = eng.indexOf("FMUG");
-  if (S.fmug < 0) throw bad("noedit");
+  S.fmini = eng.indexOf("FMINI");
+  if (S.fmini < 0) S.fmini = eng.indexOf("FMUG");          /* firmware up to 1.7.0 named the engine FMUG */
+  if (S.fmini < 0) throw bad("noedit");
   S.canPatch = a.length >= 6 && [3, 6].some((k) => a[a.length - k] === 0x47 && a[a.length - k + 1] === 1 && a[a.length - k + 2] === FG.SIZE);
   S.pCount = pCount; S.gCount = gCount;
   S.extras = S.canPatch && a.length >= 6 && a[a.length - 3] === 0x48 && a[a.length - 2] === 1 && a[a.length - 1] === 1;
@@ -502,7 +503,7 @@ async function handshake() {
     const names = []; if (fmt === 8) while (j < r.length && names.length < 24) { let s; [s, j] = cstr(r, j); names.push(s); }
     S.desc[key] = { fmt, min, max, def, label: lab, names: fmt === 8 ? names : null };
   }
-  const nm = await req(CMD.NAMES, [S.fmug]);
+  const nm = await req(CMD.NAMES, [S.fmini]);
   S.names = []; { let j = 1; const n = nm[j++]; for (let k = 0; k < n; k++) { let s; [s, j] = cstr(nm, j); S.names.push(s); } }
   fillPreset(); tabs(); build();
   await pull(true);
@@ -517,7 +518,7 @@ function fillPreset() {
 async function pull(force) {
   if (!dev.open) return;
   const d = await req(CMD.DUMP, [], 1500);
-  if (d[0] !== S.fmug) { if (force) throw bad("noeng"); return; }
+  if (d[0] !== S.fmini) { if (force) throw bad("noeng"); return; }
   S.engine = d[0]; S.preset = d[1];
   const pc = S.pCount, gc = S.gCount;
   S.p = []; S.g = [];
@@ -526,7 +527,7 @@ async function pull(force) {
   S.slot = S.p[S.pe0 + 7];
   if (S.slot < S.names.length && !pending.size) cur = S.slot;
   if (S.canPatch) {
-    const r = await req(CMD.FMUG_GET, [0, 0]);
+    const r = await req(CMD.FMINI_GET, [0, 0]);
     if (r[2] === 0) { S.patch = r.slice(3, 3 + FG.SIZE); if (S.extras && r.length > 36) S.oct = r[36] - 4; }
   }
   if (force) abReset();
@@ -547,7 +548,7 @@ let cur = 0;                                   /* the patch the page last asked 
 async function loadPreset(k) {
   if (!(k >= 0 && k < S.names.length)) return;
   cur = k; touch.until = Date.now() + 800;
-  try { await req(CMD.PRESET, [S.fmug, k], 1500); await sleep(60); await pull(true); } catch (e) { fail(e); }
+  try { await req(CMD.PRESET, [S.fmini, k], 1500); await sleep(60); await pull(true); } catch (e) { fail(e); }
 }
 $("preset").addEventListener("change", (e) => loadPreset(+e.target.value));
 $("prev").addEventListener("click", () => loadPreset((cur + S.names.length - 1) % S.names.length));
@@ -676,11 +677,11 @@ async function libRead(slot) {                                    /* a stored pr
   let j = 2; j++; /* engine */
   let nm; [nm, j] = cstr(r, j);
   const p = []; for (let k = 0; k < S.pCount; k++) p.push(rv(r, j + 2 * k));
-  const q = await req(CMD.FMUG_GET, [3, slot], 1500);
+  const q = await req(CMD.FMINI_GET, [3, slot], 1500);
   if (q[2] !== 0) throw new Error("lost");
   const g = {}; let oct = 0;
   if (S.extras) {                                                   /* the tempo, the octave and the FX globals the preset kept */
-    const x = await req(CMD.FMUG_PRESET, [slot], 1500), v = []; for (let k = 0; k < 14; k++) v.push(rv(x, 2 + 2 * k));
+    const x = await req(CMD.FMINI_PRESET, [slot], 1500), v = []; for (let k = 0; k < 14; k++) v.push(rv(x, 2 + 2 * k));
     if (x[1] === 0) {
       if (v[1] > 0) oct = v[1] - 4;
       if (v[0] >= 40) g[G.BPM] = v[0];
@@ -710,7 +711,7 @@ async function buildLib() {
   try { list = await libList(); } catch (e) { fail(e); return; }
   if (!PAGES[S.page].lib) return;
   list.forEach((it, i) => {
-    const used = it.used === 1, mine = used && it.eng === S.fmug;
+    const used = it.used === 1, mine = used && it.eng === S.fmini;
     const c = mk("div", "slot" + (!used ? " empty" : mine ? "" : " other"));
     c.append(mk("div", "sn", slotName(i)), mk("div", "nm", !used ? T("libempty") : mine ? it.name : it.name + " · " + T("libother")));
     const act = mk("div", "act");
@@ -745,7 +746,7 @@ async function exportLibrary() {
   try {
     const slots = await withBusy(T("busyread"), async () => {
       const list = await libList(), out = [];
-      for (let i = 0; i < list.length; i++) if (list[i].used === 1 && list[i].eng === S.fmug) out.push({ slot: i, sound: await libRead(i) });
+      for (let i = 0; i < list.length; i++) if (list[i].used === 1 && list[i].eng === S.fmini) out.push({ slot: i, sound: await libRead(i) });
       return out;
     });
     download({ fmini1lib: 1, slots }, "fmini-1-library.json"); msg(T("exported"));
@@ -774,8 +775,8 @@ async function exportFactory() {
     const slots = await withBusy(T("busyfact"), async () => {
       const out = [];
       for (let k = 0; k < S.names.length; k++) {
-        await req(CMD.PRESET, [S.fmug, k], 1500); await sleep(30);
-        const d = await req(CMD.DUMP, [], 1500), q = await req(CMD.FMUG_GET, [0, 0], 1500);
+        await req(CMD.PRESET, [S.fmini, k], 1500); await sleep(30);
+        const d = await req(CMD.DUMP, [], 1500), q = await req(CMD.FMINI_GET, [0, 0], 1500);
         const p = []; for (let i = 0; i < S.pCount; i++) p.push(rv(d, 2 + 2 * i));
         out.push({ slot: k, sound: soundObject(S.names[k], q.slice(3, 3 + FG.SIZE), p) });
       }

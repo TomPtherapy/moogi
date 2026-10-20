@@ -805,7 +805,7 @@ static const char *const S_NAME[S_COUNT] = {"home", "home_idle", "message", "mes
     "layer_seq_euclid_64",
     "menu_select", "project_erase", "confirm_erase_project", "tools_clean", "confirm_clean",
     "menu_midi_track", "menu_midi_channels_unused", "menu_midi_auto_select", "home_tracks_midi", "mixer_midi", "edit_phase_fold",
-    "fmug_ctrl", "fmug_osc", "fmug_mix", "fmug_filt", "fmug_fenv", "fmug_aenv", "fmug_fx", "fmug_mix_sel"};
+    "fmini_ctrl", "fmini_osc", "fmini_mix", "fmini_filt", "fmini_fenv", "fmini_aenv", "fmini_fx", "fmini_mix_sel"};
 
 /* the STEP page's piano roll (ui_graph.c graph_roll) on track 1, stopped unless said: an empty pattern; ACID in
  * A minor; POLY chords (Am7 F C G, tied); a line with ties, slides and accents in C major; LEN 32 on its second
@@ -1226,15 +1226,15 @@ static void setup(int s)
     }
     case S_EDIT_GRAIN: eng(8); go_title("EDIT 2"); break;
     case S_EDIT_PHYS: eng(9); go_title("EDIT 1"); break;
-    /* FMUG's panel pages (ui_fmug.c); the cursor on a rocker / a wave box / a knob */
-    case S_FMG_CTRL: eng(ENGI_FMUG); fmg_cur[0] = 6; go_title("CTRL"); break;
-    case S_FMG_OSC: eng(ENGI_FMUG); fmg_cur[1] = 5; go_title("OSC"); break;
-    case S_FMG_MIX: eng(ENGI_FMUG); fmg_cur[2] = 0; go_title("MIX"); ui.hot_col = 0; ui.hot_t = 30; break;
-    case S_FMG_FILT: eng(ENGI_FMUG); fmg_cur[3] = 1; go_title("FILT"); ui.hot_col = 1; ui.hot_t = 30; break;
-    case S_FMG_FENV: eng(ENGI_FMUG); go_title("F.ENV"); break;
-    case S_FMG_AENV: eng(ENGI_FMUG); go_title("A.ENV"); break;
-    case S_FMG_FX: eng(ENGI_FMUG); go_title("FMUG FX"); break;
-    case S_FMG_MIX_SEL: eng(ENGI_FMUG); fmug_patch[song.sel][FG_SW1] = FS_O2 | FS_NZ | FS_PINK; fmug_pgen[song.sel]++; fmg_cur[2] = 8; go_title("MIX"); break;
+    /* FMINI's panel pages (ui_fmini.c); the cursor on a rocker / a wave box / a knob */
+    case S_FMG_CTRL: eng(ENGI_FMINI); fmg_cur[0] = 6; go_title("CTRL"); break;
+    case S_FMG_OSC: eng(ENGI_FMINI); fmg_cur[1] = 5; go_title("OSC"); break;
+    case S_FMG_MIX: eng(ENGI_FMINI); fmg_cur[2] = 0; go_title("MIX"); ui.hot_col = 0; ui.hot_t = 30; break;
+    case S_FMG_FILT: eng(ENGI_FMINI); fmg_cur[3] = 1; go_title("FILT"); ui.hot_col = 1; ui.hot_t = 30; break;
+    case S_FMG_FENV: eng(ENGI_FMINI); go_title("F.ENV"); break;
+    case S_FMG_AENV: eng(ENGI_FMINI); go_title("A.ENV"); break;
+    case S_FMG_FX: eng(ENGI_FMINI); go_title("FMINI FX"); break;
+    case S_FMG_MIX_SEL: eng(ENGI_FMINI); fmini_patch[song.sel][FG_SW1] = FS_O2 | FS_NZ | FS_PINK; fmini_pgen[song.sel]++; fmg_cur[2] = 8; go_title("MIX"); break;
     case S_EDIT_PHASE_FOLD: eng(2); TSEL->p[P_E7] = 80; go_title("EDIT 2"); ui.hot_col = 3; ui.hot_t = 30; break;   /* 1.5.5 FOLD (#104) */
     case S_ALG1: case S_ALG2: case S_ALG3: case S_ALG4: case S_ALG5: case S_ALG6: case S_ALG7: case S_ALG8:
         eng(1); TSEL->p[P_E0] = (int16_t)(s - S_ALG1);      /* the 8 DIGITAL charts; FB on the odd ones, IDX high .. 0 */

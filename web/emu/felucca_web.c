@@ -21,8 +21,8 @@
 #include <stdint.h>
 
 #define FELUCCA_WEB 1
-#ifndef FELUCCA_FMUG_ONLY
-#define FELUCCA_FMUG_ONLY 1                /* FMini-1 (fmug_app.c); 0 = Felucca's whole UI */
+#ifndef FELUCCA_FMINI_ONLY
+#define FELUCCA_FMINI_ONLY 1                /* FMini-1 (fmini_app.c); 0 = Felucca's whole UI */
 #endif
 #ifndef FELUCCA_CDC
 #define FELUCCA_CDC 1                    /* as src/felucca.c: MENU > USB SERIAL is there (nothing behind it) */
@@ -256,8 +256,8 @@ static void cdc_task(void) {}
 #define usb_retry(ms) ((void)(ms))
 #define usb_detach() ((void)0)
 #include "../../firmware/src/master.c"
-#if FELUCCA_FMUG_ONLY
-#include "../../firmware/src/fmug_app.c"
+#if FELUCCA_FMINI_ONLY
+#include "../../firmware/src/fmini_app.c"
 #endif
 #include "../../firmware/src/main.c"
 #undef usb_poll
@@ -275,7 +275,7 @@ static void web_power_on(void)
     settings_init();
     usb_serial_apply();
     lcd_init();
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     fa_splash();
 #else
     draw_splash();                        /* main.c: the splash (ui_draw.c) */
@@ -291,7 +291,7 @@ static void web_power_on(void)
     audio_init();
     boot_leds();                          /* main.c: the power-on LED sweep, from the scan's start */
     autosave_boot(boot_clean);            /* main.c: the last session's music (1.2, project.c) */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     fa_init();                            /* main.c: track 1 = the instrument */
     web_boot_ms = fm1_ms + 3030u;        /* main.c: 30 ms + the 3 s splash */
 #else

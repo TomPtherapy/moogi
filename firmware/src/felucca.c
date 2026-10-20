@@ -7,8 +7,8 @@
 /* build.py: FELUCCA_<NAME>=0 / 1 in the environment overrides these. Elsewhere: FELUCCA_SLICE, FELUCCA_FM4
  * (core.h: the SLICE engine, the DIGITAL engine), FELUCCA_ICONS (icons.c, the parameter icons; on by default),
  * FELUCCA_OTA_RAMONLY (ota.c). */
-#ifndef FELUCCA_FMUG_ONLY
-#define FELUCCA_FMUG_ONLY 1     /* FMini-1: only the synth's own screen and controls (fmug_app.c); 0 = Felucca's whole UI */
+#ifndef FELUCCA_FMINI_ONLY
+#define FELUCCA_FMINI_ONLY 1     /* FMini-1: only the synth's own screen and controls (fmini_app.c); 0 = Felucca's whole UI */
 #endif
 #ifndef FELUCCA_FLASH
 #define FELUCCA_FLASH 1          /* flash driver + storage.c: settings, projects, user presets */
@@ -119,5 +119,5 @@
 #include "console.c"
 #endif
 #include "master.c"              /* the MASTER pot (#137: read before the audio starts) */
-#include "fmug_app.c"
+#include "fmini_app.c"
 #include "main.c"

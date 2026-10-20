@@ -1,4 +1,4 @@
-/* the cases of fmug_fx_test.c */
+/* the cases of fmini_fx_test.c */
 static const char *const RN[5] = {"ROOM", "HALL", "PLATE", "SPRING", "CLOUD"};
 static double rev_level[5], rev_rt[5];
 static void reverb_cases(const char *dir)

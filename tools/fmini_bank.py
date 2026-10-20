@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # FMini-1: the factory bank. 00-09 a showcase, 10-19 hard leads, 20-29 soft leads, 30-39 basses, 40-49 pads and strings,
 # 50-59 synth brass (OCT-1), 60-69 plucks, 70-79 keys, 80-89 atmospheres and drones, 90-99 effects.
-# tools/gen_fmug_presets.py turns it into firmware/src/eng_fmug_presets.h; tools/preset_lab.py plays and measures it.
+# tools/gen_fmini_presets.py turns it into firmware/src/eng_fmini_presets.h; tools/preset_lab.py plays and measures it.
 #
 # Reading a patch: o(range, wave, level, cents) are the three oscillators; cutoff the filter's -3 dB corner in Hz when middle C is
 # played (keyboard tracking included), emph the Minimoog's EMPHASIS dial 0 .. 10 (sings from about 8), cntr the filter
 # contour's amount (co(octaves)), fenv (attack ms, decay ms, sustain 0..127) the filter contour, env (attack, decay, sustain,
 # release) the loudness contour; send = (drive, chorus, delay, reverb) levels; rv / dl / ch / dr the FX settings.
 import os
-from gen_fmug_presets import A, o, osc_off, co, st_pit, hz, ms, cut, dly, semi, det
+from gen_fmini_presets import A, o, osc_off, co, st_pit, hz, ms, cut, dly, semi, det
 
 
 def showcase(b):
@@ -431,7 +431,7 @@ def build(b):
     keys(b)
     atmospheres(b)
     sfx(b)
-    if os.environ.get("FMUG_PARTIAL"):
+    if os.environ.get("FMINI_PARTIAL"):
         while len(b.p) < 100:       # a development filler: the groups still to write
             i = len(b.p)
             b.add("TEMP %02d" % i, "lead", (o("8", "SAW", 100), o("8", "SAW", 100, 11), osc_off()), cutoff=1500, emph=3.0,

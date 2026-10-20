@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * FMini-1: the whole user interface of the FMUG-only firmware (FELUCCA_FMUG_ONLY=1). Felucca's menu, layers, sequencer
+ * FMini-1: the whole user interface of the FMINI-only firmware (FELUCCA_FMINI_ONLY=1). Felucca's menu, layers, sequencer
  * pages and the rest of its screens are not reachable: main.c calls fa_input / fa_leds / fa_draw instead of
  * ui_input / ui_leds / ui_draw, and fa_splash instead of draw_splash. The sound engine, the FX, MIDI, USB and the
  * storage are Felucca's.
@@ -16,7 +16,7 @@
  * A.ENV), LFO (CTRL), EDIT (OSC), SCL (MIX), GLO (FILT) open a page; OCT- / OCT+ the keys' octave. The keys, MIDI
  * and the MASTER pot play and sound as in Felucca. Track 1 is the instrument; the other tracks are muted.
  * Included by felucca.c before main.c. */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 #define FA_RGB(r, g, b) ((uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3)))
 #define FA_OR FA_RGB(0xE0, 0x75, 0x2B)                   /* orange: values, curves, the active tab */
 #define FA_CR FA_RGB(0xEC, 0xE4, 0xD0)                   /* cream: labels */
@@ -277,8 +277,8 @@ static void fa_graph(uint32_t pg)
     }
     cv_rect(14, 146, 212, 46, FA_LINE);
     cv_rect(15, 147, 210, 44, FA_BOX);
-    if (pg == 3u) {                                         /* the ladder's response: FMUG_GRAPH, the cutoff's singing pitch moving across it */
-        int32_t fo = FMUG_CUT[clamp((int32_t)TSEL->p[P_E0], 0, 127)], e = clamp((int32_t)TSEL->p[P_E1], 0, 127), er, ef, px = 0, py = 0, xs;
+    if (pg == 3u) {                                         /* the ladder's response: FMINI_GRAPH, the cutoff's singing pitch moving across it */
+        int32_t fo = FMINI_CUT[clamp((int32_t)TSEL->p[P_E0], 0, 127)], e = clamp((int32_t)TSEL->p[P_E1], 0, 127), er, ef, px = 0, py = 0, xs;
         er = e >= 120 ? 15 : e >> 3;                        /* between two of the table's 17 emphasis rows (0, 8 .. 120, 127) */
         ef = e >= 120 ? (e - 120) * 256 / 7 : (e & 7) * 32;
         xs = 17 + (fo - 24 * 16) * 206 / (112 * 16);        /* the singing pitch: a dotted line (the screen: MIDI 24 .. 136) */
@@ -289,8 +289,8 @@ static void fa_graph(uint32_t pg)
             c = clamp(c, 0, 71 * 256);
             ix = c >> 8;
             fr = c & 255;
-            a = FMUG_GRAPH[er][ix] + (((FMUG_GRAPH[er][ix + 1] - FMUG_GRAPH[er][ix]) * fr) >> 8);
-            b = FMUG_GRAPH[er + 1][ix] + (((FMUG_GRAPH[er + 1][ix + 1] - FMUG_GRAPH[er + 1][ix]) * fr) >> 8);
+            a = FMINI_GRAPH[er][ix] + (((FMINI_GRAPH[er][ix + 1] - FMINI_GRAPH[er][ix]) * fr) >> 8);
+            b = FMINI_GRAPH[er + 1][ix] + (((FMINI_GRAPH[er + 1][ix + 1] - FMINI_GRAPH[er + 1][ix]) * fr) >> 8);
             db = (a + (((b - a) * ef) >> 8)) / 8;
             y = 190 - (clamp(db, -50, 30) + 50) / 2;        /* -50 .. +30 dB over the 40 rows */
             x = 17 + i;
@@ -499,14 +499,14 @@ static uint32_t fa_nuser(void)
 {
     uint32_t k, n = 0;
     for (k = 0; k < UP_SLOTS; k++)
-        n += (uint32_t)(up_used(k) && up_engine(k) == ENGI_FMUG);
+        n += (uint32_t)(up_used(k) && up_engine(k) == ENGI_FMINI);
     return n;
 }
 static uint32_t fa_user_nth(uint32_t n)                   /* the slot of the n-th user preset */
 {
     uint32_t k;
     for (k = 0; k < UP_SLOTS; k++)
-        if (up_used(k) && up_engine(k) == ENGI_FMUG && !n--)
+        if (up_used(k) && up_engine(k) == ENGI_FMINI && !n--)
             return k;
     return 0;
 }
@@ -514,13 +514,13 @@ static uint32_t fa_user_rank(uint32_t slot)
 {
     uint32_t k, n = 0;
     for (k = 0; k < slot && k < UP_SLOTS; k++)
-        n += (uint32_t)(up_used(k) && up_engine(k) == ENGI_FMUG);
+        n += (uint32_t)(up_used(k) && up_engine(k) == ENGI_FMINI);
     return n;
 }
 static int fa_on_user(void)
 {
     const track_t *t = TSEL;
-    return t->user && up_used((uint32_t)t->user - 1u) && up_engine((uint32_t)t->user - 1u) == ENGI_FMUG;
+    return t->user && up_used((uint32_t)t->user - 1u) && up_engine((uint32_t)t->user - 1u) == ENGI_FMINI;
 }
 
 /* SAVE: a small dialog. PRESETS picks the slot U01..U32, SELECT moves along the name and ALGORITHM changes the letter,
@@ -535,12 +535,12 @@ static const char FA_CH[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-";
 static void fa_sv_fill(void)                              /* the slot's own name (overwrite) or the playing patch's */
 {
     uint32_t k = fa_sv_slot;
-    if (up_used(k) && up_engine(k) == ENGI_FMUG)
+    if (up_used(k) && up_engine(k) == ENGI_FMINI)
         up_name(k, fa_sv_name);
     else if (fa_on_user())
         up_name((uint32_t)TSEL->user - 1u, fa_sv_name);
     else
-        str_cpy(fa_sv_name, ENGINES[ENGI_FMUG]->presets[TSEL->p[P_E7] >= 0 && TSEL->p[P_E7] < (int32_t)FMUG_NFACTORY ? (uint32_t)TSEL->p[P_E7] : fa_base % FMUG_NFACTORY].name, 13);
+        str_cpy(fa_sv_name, ENGINES[ENGI_FMINI]->presets[TSEL->p[P_E7] >= 0 && TSEL->p[P_E7] < (int32_t)FMINI_NFACTORY ? (uint32_t)TSEL->p[P_E7] : fa_base % FMINI_NFACTORY].name, 13);
 }
 static void fa_sv_open(void)
 {
@@ -587,7 +587,7 @@ static void fa_dialog(void)
 {
     uint32_t k = fa_sv_slot, i;
     char l[4], hdr[20];
-    int used = up_used(k) && up_engine(k) == ENGI_FMUG;
+    int used = up_used(k) && up_engine(k) == ENGI_FMINI;
     const uint16_t bgd = FA_RGB(0x1B, 0x19, 0x17);
     cv_rect(16, 62, 208, 112, FA_OR);
     cv_rect(18, 64, 204, 108, bgd);
@@ -761,7 +761,7 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.7.0"
+#define FMINI_VERSION "v1.7.1"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -1023,11 +1023,11 @@ static void fa_preset_label(char *num, char *name)
         up_slot_label(num, (uint32_t)TSEL->user - 1u);
         up_name((uint32_t)TSEL->user - 1u, name);
     } else {
-        uint32_t k = fa_base % FMUG_NFACTORY;
+        uint32_t k = fa_base % FMINI_NFACTORY;
         num[0] = (char)('0' + k / 10u);
         num[1] = (char)('0' + k % 10u);
         num[2] = 0;
-        str_cpy(name, ENGINES[ENGI_FMUG]->presets[k].name, 16);
+        str_cpy(name, ENGINES[ENGI_FMINI]->presets[k].name, 16);
     }
 }
 static int fa_pp_on(void) { return fa_pp_until && (int32_t)(fm1_ms - fa_pp_until) < 0; }
@@ -1051,7 +1051,7 @@ static uint32_t fa_track_preset(void)
     const track_t *t = TSEL;
     int32_t sl = t->p[P_E7];
     uint32_t u = fa_on_user() ? t->user : 0u, ch = 0;
-    if (sl >= 0 && sl < (int32_t)FMUG_NFACTORY) {
+    if (sl >= 0 && sl < (int32_t)FMINI_NFACTORY) {
         if (sl != fa_last_sl) {
             fa_base = (uint8_t)sl;
             fa_last_sl = (int16_t)sl;
@@ -1181,7 +1181,7 @@ static uint32_t fa_signature(void)
     for (i = 0; i < FMG_NPG; i++)
         h = (h ^ fmg_cur[i]) * 16777619u;
     for (i = 0; i < FG_SIZE; i++)
-        h = (h ^ fmug_patch[0][i]) * 16777619u;
+        h = (h ^ fmini_patch[0][i]) * 16777619u;
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h = (h ^ fa_base ^ (uint32_t)fa_pp_on() << 8) * 16777619u;
@@ -1275,17 +1275,17 @@ static void fa_select(int32_t s)
     }
 }
 
-/* a factory patch n was just loaded into track t: what its preset_t does not carry (eng_fmug.c fmug_x_t): the arpeggiator
+/* a factory patch n was just loaded into track t: what its preset_t does not carry (eng_fmini.c fmini_x_t): the arpeggiator
  * (on or off, with the MODE the ARP button turns on), the LFO and the common modulation, the FX settings of the pop-ups and the keys' octave.
  * The tempo stays the player's. Also the Program Change's way in (ui.c midi_pc_load) */
 static const uint8_t FA_XG[12] = {G_RTYPE, G_RSIZE, G_RDAMP, G_DTIME, G_DRREV, G_DFDBK, G_ENGGO, G_CDEPTH, G_CRATE, G_INFO, G_DRLVL, G_MIDI};
 static void fa_factory_extras(track_t *t, uint32_t n)
 {
-    const fmug_x_t *x;
+    const fmini_x_t *x;
     uint32_t i;
-    if (n >= FMUG_NFACTORY)
+    if (n >= FMINI_NFACTORY)
         return;
-    x = &FMUG_X[n];
+    x = &FMINI_X[n];
     t->p[P_AMODE] = x->arp[0] ? x->arp[1] : 0;
     t->p[P_ARATE] = x->arp[2];
     t->p[P_AOCT] = x->arp[3];
@@ -1314,24 +1314,24 @@ static void fa_factory_extras(track_t *t, uint32_t n)
 static void fa_preset(int32_t s)
 {
     track_t *t = TSEL;
-    uint32_t nu = fa_nuser(), n = FMUG_NFACTORY + nu, cur, nx;
+    uint32_t nu = fa_nuser(), n = FMINI_NFACTORY + nu, cur, nx;
     if (fa_sv) {
         fa_sv_slot = (uint8_t)((fa_sv_slot + UP_SLOTS + (s > 0 ? 1u : UP_SLOTS - 1u)) % UP_SLOTS);
         fa_sv_fill();
         return;
     }
-    cur = fa_on_user() ? FMUG_NFACTORY + fa_user_rank((uint32_t)t->user - 1u)
-                       : (t->p[P_E7] >= 0 && t->p[P_E7] < (int32_t)FMUG_NFACTORY ? (uint32_t)t->p[P_E7] : fa_base % FMUG_NFACTORY);   /* (OWN: an edit of CTRL / OSC / MIX: on from the patch it came from) */
+    cur = fa_on_user() ? FMINI_NFACTORY + fa_user_rank((uint32_t)t->user - 1u)
+                       : (t->p[P_E7] >= 0 && t->p[P_E7] < (int32_t)FMINI_NFACTORY ? (uint32_t)t->p[P_E7] : fa_base % FMINI_NFACTORY);   /* (OWN: an edit of CTRL / OSC / MIX: on from the patch it came from) */
     nx = (cur + (s > 0 ? 1u : n - 1u)) % n;
-    if (nx < FMUG_NFACTORY) {
+    if (nx < FMINI_NFACTORY) {
         t->user = 0;
         apply_preset_to(t, nx);
         t->p[P_E7] = (int16_t)nx;
         fa_factory_extras(t, nx);                         /* its arpeggiator, LFO, FX settings and octave */
     } else {
-        up_load(fa_user_nth(nx - FMUG_NFACTORY));
+        up_load(fa_user_nth(nx - FMINI_NFACTORY));
     }
-    fmug_poll();
+    fmini_poll();
 }
 
 /* a page button: the tap opens it */
@@ -1493,12 +1493,12 @@ static void fa_input(void)
     (void)fm1_input_note_edges();
     midi_take();                                            /* MIDI IN notes */
     midi_pc_poll();                                         /* Program Change: a patch */
-    fmug_poll();                                            /* SLOT turned: its patch */
+    fmini_poll();                                            /* SLOT turned: its patch */
     settings_later_poll();
-    if (TSEL->eng_req != ENGI_FMUG) {                       /* an old autosave: the instrument is FMUG */
-        set_engine_of(TSEL, ENGI_FMUG);
+    if (TSEL->eng_req != ENGI_FMINI) {                       /* an old autosave: the instrument is FMINI */
+        set_engine_of(TSEL, ENGI_FMINI);
         apply_preset_to(TSEL, 0);
-        fmug_poll();
+        fmini_poll();
     }
     song.sel = 0;
     fa_mono();
@@ -1674,24 +1674,24 @@ static void fa_leds(void)
     }
 }
 
-/* power-on: track 1 is the instrument (the first factory patch), the others are muted FMUG parts */
+/* power-on: track 1 is the instrument (the first factory patch), the others are muted FMINI parts */
 static void fa_init(void)
 {
     uint32_t i;
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
-        if (t->eng_req != ENGI_FMUG || i) {              /* track 1 keeps its autosaved sound; the rest start fresh and muted */
-            set_engine_of(t, ENGI_FMUG);
+        if (t->eng_req != ENGI_FMINI || i) {              /* track 1 keeps its autosaved sound; the rest start fresh and muted */
+            set_engine_of(t, ENGI_FMINI);
             apply_preset_to(t, 0);
-            t->eng_req = ENGI_FMUG;
+            t->eng_req = ENGI_FMINI;
             t->engine = t->eng_req;
-            fmug_load_slot(i, 0);
-            fmug_adopt(i);
+            fmini_load_slot(i, 0);
+            fmini_adopt(i);
             if (!i)
                 fa_factory_extras(t, 0);                 /* the first patch's arpeggiator, LFO, FX settings and octave */
         }
-        else if (t->p[P_E7] >= 0 && t->p[P_E7] < (int32_t)FMUG_NFACTORY && !fa_on_user())
-            song.octave = FMUG_X[t->p[P_E7]].oct;        /* the autosaved factory patch (the octave is not autosaved): its own octave, as a PRESETS turn gives */
+        else if (t->p[P_E7] >= 0 && t->p[P_E7] < (int32_t)FMINI_NFACTORY && !fa_on_user())
+            song.octave = FMINI_X[t->p[P_E7]].oct;        /* the autosaved factory patch (the octave is not autosaved): its own octave, as a PRESETS turn gives */
         t->p[P_MUTE] = i ? 1 : 0;
     }
     song.sel = 0;
@@ -1706,4 +1706,4 @@ static void fa_init(void)
     fa_primed = 1;
     ui.force = 1;
 }
-#endif /* FELUCCA_FMUG_ONLY */
+#endif /* FELUCCA_FMINI_ONLY */

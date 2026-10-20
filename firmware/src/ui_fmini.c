@@ -1,21 +1,21 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * FMini-1: the FMUG engine's panel (EDIT family, an FMUG track only, after EDIT 2). Seven pages, in the order of a
+ * FMini-1: the FMINI engine's panel (EDIT family, an FMINI track only, after EDIT 2). Seven pages, in the order of a
  * synth panel's sections:  CTRL  OSC  MIX  FILT  F.ENV  A.ENV  FX
  * Each page has four knobs (KNOB 1..4 edit them directly) and, on CTRL, OSC and MIX, extra controls (switches,
  * waveforms) that no knob reaches. SELECT moves a cursor over every control of the page (the four knobs, then the
  * extras; a knob picked lights its card), ALGORITHM changes the control under the cursor (a switch: up = on,
  * down = off). The graph area draws the page as a panel: the side wood, the four knobs as fluted dials, the
  * switches as horizontal rockers (CTRL red, MIX blue, off or on), the waveform boxes.
- * Most controls are bytes of the track's FMUG patch (eng_fmug.c: FG_*), written with fmug_set_patch and made the
+ * Most controls are bytes of the track's FMINI patch (eng_fmini.c: FG_*), written with fmini_set_patch and made the
  * track's own (SLOT OWN) with one undo per gesture, as ui_fm6op.c does for FM6. The rest are the track's parameters:
  * the engine's E0..E5 (CUTOFF EMPHASIS CONTOUR, the contour's ATTACK DECAY SUSTAIN), the amplitude envelope, the common
  * LFO RATE and the FX sends. Included by ui_graph.c after ui_fm6op.c. */
-#ifndef FELUCCA_FMUG_ONLY
-#define FELUCCA_FMUG_ONLY 0                  /* (the host tests of Felucca's whole UI) */
+#ifndef FELUCCA_FMINI_ONLY
+#define FELUCCA_FMINI_ONLY 0                  /* (the host tests of Felucca's whole UI) */
 #endif
 static void ml_knob(const track_t *t, uint32_t id);              /* (midi_learn.c) */
-static uint8_t fmg_gdirty;                                        /* a global (FK_GLB) changed: fmug_app.c saves it */
+static uint8_t fmg_gdirty;                                        /* a global (FK_GLB) changed: fmini_app.c saves it */
 static uint8_t fmg_cur[11];                                        /* the cursor of each page: 0..3 the knobs, 4.. extras */
 
 enum { FK_BYTE, FK_PAR, FK_SW, FK_NAME, FK_GLIDE, FK_BYP, FK_INS, FK_GLB, FK_VOICE, FK_EDIT };   /* FK_BYP: a send's on / off (its value kept aside); FK_INS: the INSERT; FK_EDIT (FMini-1): a button that opens an FX pop-up (a = 0..3: REVERB DELAY CHORUS DRIVE) */
@@ -29,7 +29,7 @@ enum { FN_RANGE, FN_WAVE };
 static uint8_t fmg_fx;                                            /* FMini-1: the FX pop-up open (1..4: REVERB DELAY CHORUS DRIVE), 0 = none */
 #define FMG_NPG 11u                                               /* the seven pages, then the four FX pop-ups' (7 + fmg_fx - 1) */
 static const struct { const char *name; uint8_t n; fmgf_t f[FMG_NF]; } FMG_PAGE[FMG_NPG] = {
-    {"CONTROLLERS", FELUCCA_FMUG_ONLY ? 9 : 8, {{"TUNE", FK_BYTE, FG_TUNE, 0, ICON_TUNE}, {"GLIDE", FK_GLIDE, FG_GLID, 0, ICON_GLIDE},
+    {"CONTROLLERS", FELUCCA_FMINI_ONLY ? 9 : 8, {{"TUNE", FK_BYTE, FG_TUNE, 0, ICON_TUNE}, {"GLIDE", FK_GLIDE, FG_GLID, 0, ICON_GLIDE},
                         {"MOD MIX", FK_BYTE, FG_MMIX, 0, ICON_MOD}, {"LFO RATE", FK_PAR, P_LRATE, 0, ICON_RATE},
                         {"MOD OSC", FK_SW, FG_SW1, FS_MOSC, ICON_MOD}, {"MOD FLT", FK_SW, FG_SW1, FS_MFLT, ICON_MOD},
                         {"GLIDE", FK_SW, FG_SW2, FT_GLIDE, ICON_GLIDE}, {"LFO SQR", FK_SW, FG_SW2, FT_SQR, ICON_LFO_WAVE},
@@ -66,8 +66,8 @@ static const char *const FMG_RANGE[6] = {"LO", "32'", "16'", "8'", "4'", "2'"};
 static const char *const FMG_WAVE[6] = {"TRI", "SHARK", "SAW", "SQR", "PLS W", "PLS N"};
 
 static int fmg_page(uint32_t g) { return g >= GR_FMG0 && g <= GR_FMG6; }
-static int fmg_ok(void) { return TSEL->eng_req % NENGINES == ENGI_FMUG; }
-static int8_t fmg_force_page = -1;                               /* FELUCCA_FMUG_ONLY: fmug_app.c's page */
+static int fmg_ok(void) { return TSEL->eng_req % NENGINES == ENGI_FMINI; }
+static int8_t fmg_force_page = -1;                               /* FELUCCA_FMINI_ONLY: fmini_app.c's page */
 static uint32_t fmg_pg(void) { return fmg_force_page >= 0 ? (uint32_t)fmg_force_page % FMG_NPG : (cur_page()->graph - GR_FMG0) % 7u; }
 static uint32_t fmg_count(uint32_t pg) { return FMG_PAGE[pg % FMG_NPG].n; }
 static const fmgf_t *fmg_field(uint32_t pg, uint32_t i) { return &FMG_PAGE[pg % FMG_NPG].f[i % FMG_NF]; }
@@ -80,18 +80,18 @@ static void fmg_write(uint32_t b, uint32_t v)
     uint32_t tr = song.sel % NTRK;
     track_t *t = TSEL;
     uint8_t p[FG_SIZE];
-    if (b >= FG_NUM || fmug_patch[tr][b] == v)
+    if (b >= FG_NUM || fmini_patch[tr][b] == v)
         return;
     edit_undo_take(t, 0x2000u | b, UNDO_SOUND);
-    memcpy(p, fmug_patch[tr], FG_SIZE);
+    memcpy(p, fmini_patch[tr], FG_SIZE);
     p[b] = (uint8_t)v;
-    fmug_set_patch(tr, p);
-    fmug_own_ok &= (uint8_t)~(1u << tr);
-    fmug_slot[tr] = FMUG_OWN;
-    t->p[P_E7] = FMUG_OWN;
+    fmini_set_patch(tr, p);
+    fmini_own_ok &= (uint8_t)~(1u << tr);
+    fmini_slot[tr] = FMINI_OWN;
+    t->p[P_E7] = FMINI_OWN;
     motion_undo_done(t);
 }
-static uint32_t fmg_byte(uint32_t b) { return fmug_patch[song.sel % NTRK][b % FG_SIZE]; }
+static uint32_t fmg_byte(uint32_t b) { return fmini_patch[song.sel % NTRK][b % FG_SIZE]; }
 static uint8_t fmg_shadow[3];                                    /* a send's value while its switch is off (REV DLY CHO) */
 static int fmg_sw_on(const fmgf_t *f)
 {
@@ -205,7 +205,7 @@ static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
         break;
     }
 }
-/* KNOB slot (0..3) turned s steps on an FMUG page */
+/* KNOB slot (0..3) turned s steps on an FMINI page */
 static void fmg_knob(uint32_t slot, int32_t s) { fmg_turn(fmg_pg(), slot & 3u, s, EN_K1 + slot); }
 /* SELECT: the cursor goes s steps round the page's controls; ALGORITHM: the control under it */
 static void fmg_select(int32_t s)
@@ -384,7 +384,7 @@ static void fmg_ctext(int32_t x, int32_t w, int32_t y, const char *s, uint16_t c
     cv_text(x + (w - tw) / 2, y, &AF_S, s, c);
 }
 
-static void graph_fmug(const track_t *t, uint16_t c)
+static void graph_fmini(const track_t *t, uint16_t c)
 {
     uint32_t pg = fmg_pg(), n = fmg_count(pg), cur = fmg_curi(pg), i, ex = n > 4u ? n - 4u : 0u;
     int32_t x, w;
@@ -429,9 +429,9 @@ static void graph_fmug(const track_t *t, uint16_t c)
         }
     }
     {   /* the foot: the patch's place and name bottom left, the page "n/7" small bottom right */
-        const preset_t *ps = &ENGINES[ENGI_FMUG]->presets[t->preset % ENGINES[ENGI_FMUG]->npresets];
+        const preset_t *ps = &ENGINES[ENGI_FMINI]->presets[t->preset % ENGINES[ENGI_FMINI]->npresets];
         int32_t sl = t->p[P_E7];
-        if (sl >= 0 && sl < (int32_t)FMUG_NFACTORY) {
+        if (sl >= 0 && sl < (int32_t)FMINI_NFACTORY) {
             pn[0] = 'F';
             fmt_int(pn + 1, sl + 1);
             str_cpy(pn + str_len(pn), " ", 2);

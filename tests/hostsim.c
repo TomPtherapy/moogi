@@ -104,7 +104,7 @@ static void host_preset_values(track_t *t, uint32_t e, uint32_t pi, const preset
     for (i = 0; i < 4u; i++)
         t->p[P_DIST + i] = (int16_t)(p->fx[i] ? p->fx[i] - 1 : FX_DEF[i]);
     fm6_track_loaded(t);                          /* FM6: the preset's patch (ui.c apply_preset_to) */
-    fmug_track_loaded(t);
+    fmini_track_loaded(t);
 }
 static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
 {
@@ -854,7 +854,7 @@ int main(int argc, char **argv)
         inst.p[P_SUS] = p->env[2]; inst.p[P_REL] = p->env[3]; inst.p[P_ED_FLT] = p->fenv;
     }
     fm6_track_loaded(&inst);                            /* FM6: the preset's patch */
-    fmug_track_loaded(&inst);
+    fmini_track_loaded(&inst);
     inst.p[P_VOICE] = (int16_t)mono;
     inst.p[P_CHOR] = argc > 5 ? atoi(argv[5]) : 24;      /* as felucca_init */
     inst.p[P_DLY] = argc > 5 ? atoi(argv[5]) : 28;
@@ -876,11 +876,11 @@ int main(int argc, char **argv)
                 s++;
         }
     }
-    if (getenv("FMUG")) {                               /* FMUG=idx:value,...: the FMUG patch's bytes (FG_*), then SLOT OWN */
-        const char *s = getenv("FMUG");
+    if (getenv("FMINI")) {                               /* FMINI=idx:value,...: the FMINI patch's bytes (FG_*), then SLOT OWN */
+        const char *s = getenv("FMINI");
         uint8_t v[FG_SIZE];
         int id, val, k;
-        memcpy(v, fmug_patch[0], FG_SIZE);
+        memcpy(v, fmini_patch[0], FG_SIZE);
         while (sscanf(s, "%d:%d%n", &id, &val, &k) == 2) {
             if (id >= 0 && id < (int)FG_SIZE)
                 v[id] = (uint8_t)val;
@@ -888,8 +888,8 @@ int main(int argc, char **argv)
             if (*s == ',')
                 s++;
         }
-        fmug_set_patch(0, v);
-        fmug_adopt(0);
+        fmini_set_patch(0, v);
+        fmini_adopt(0);
     }
     if (getenv("STEPS")) {                              /* STEPS=n,n,...: a pattern (0 = rest) played by the sequencer */
         const char *s = getenv("STEPS");

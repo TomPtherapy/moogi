@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # FMini-1: the official site, one self-contained page (site_fmini.html: the Minimoog-styled site with the screens, the presets,
 # MIDI and the Felucca installer's logic; the firmware package and every picture are embedded).
-#   web/make_fmug_installer.py build/felucca.fwsc OUT.html [VERSION]
+#   web/make_fmini_installer.py build/felucca.fwsc OUT.html [VERSION]
 # Serve it over https or http://localhost (Web MIDI with SysEx needs a secure context), in Chrome / Edge.
 import base64
 import json
@@ -25,7 +25,7 @@ def main(pkg, out, version="1.4.2"):
     meta = json.dumps({"version": version, "product": product, "pkg": url})
     hero = "data:image/jpeg;base64," + base64.b64encode((HERE.parent / "assets" / "fmini-installer-hero.jpg").read_bytes()).decode()
     imgs = {p.stem: ("data:image/" + ("webp" if p.suffix == ".webp" else "png") + ";base64,") + base64.b64encode(p.read_bytes()).decode() for p in sorted((HERE.parent / "assets" / "site").glob("*.*"))}
-    names = re.findall(r'"([A-Z0-9 .\'/+&-]{2,12})"', (HERE.parent / "firmware" / "src" / "eng_fmug_presets.h").read_text())[:10]
+    names = re.findall(r'"([A-Z0-9 .\'/+&-]{2,12})"', (HERE.parent / "firmware" / "src" / "eng_fmini_presets.h").read_text())[:10]
     html = html.replace("/*IMGS*/{}", json.dumps(imgs)).replace("/*PRESETS*/[]", json.dumps(names))
     for mark in ("/*LIB*/", "/*META*/", "/*HERO*/"):
         if html.count(mark) != 1:

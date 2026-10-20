@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # FMini-1 1.7.0: the factory bank, moved from the old filter (a plain four-pole ladder with a one-sample feedback delay, CUTOFF
-# 30 Hz .. 16 kHz in the pole's frequency, EMPHASIS a feedback gain) to the Minimoog-style one (tools/fmug_filter.py).
+# 30 Hz .. 16 kHz in the pole's frequency, EMPHASIS a feedback gain) to the Minimoog-style one (tools/fmini_filter.py).
 # For each patch the old filter's response (CUTOFF, EMPHASIS, keyboard tracking as the patch had them, played at middle C) is
 # matched by the new filter's: CUTOFF and EMPHASIS are searched over the whole knob grid for the least weighted distance between
 # the two log-magnitude responses (weights: where the old patch had its energy, taking a sawtooth's 1/f spectrum through the
 # old filter), a free overall gain aside (the LEVEL is calibrated afterwards, tools/preset_lab.py --calibrate).
-#   git show <1.6.1>:firmware/src/eng_fmug_presets.h > old_presets.h
-#   python3 tools/fmug_retune.py old_presets.h [--write]     prints the table; --write rewrites cutoff= and emph= in tools/fmug_bank.py
+#   git show <1.6.1>:firmware/src/eng_fmini_presets.h > old_presets.h
+#   python3 tools/fmini_retune.py old_presets.h [--write]     prints the table; --write rewrites cutoff= and emph= in tools/fmini_bank.py
 # The bank then states its cutoffs as the filter's -3 dB corner in Hz at middle C (keyboard tracking included) and the EMPHASIS
-# on the Minimoog's 0 .. 10 dial; gen_fmug_presets.py turns them into the knob bytes (the keyboard's 0 V is F, so a patch
+# on the Minimoog's 0 .. 10 dial; gen_fmini_presets.py turns them into the knob bytes (the keyboard's 0 V is F, so a patch
 # with tracking has its knob that much lower).
 import math, pathlib, re, sys
 import numpy as np
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-import fmug_filter as F  # noqa: E402
+import fmini_filter as F  # noqa: E402
 
 FS = 44100.0
 KMAX_OLD = 18400 / 4096.0
@@ -99,7 +99,7 @@ def main():
         print("%-13s old CUT %3d (%6.0f Hz pole) EMPH %3d KBD %3d  ->  CUT %3d (dial %+.1f, corner@C4 %6.0f) EMPH %3d (dial %.1f)  rms %.1f dB, gain %+.1f dB" % (
             x["name"], x["e0"], old_cutoff_hz(x["e0"]), x["e1"], x["kbd"], e0, e0 * 10.0 / 127 - 5, corner_c4, e1, e1 * 10.0 / 127, math.sqrt(dist), c))
     if "--write" in sys.argv:
-        src = (HERE / "fmug_bank.py").read_text()
+        src = (HERE / "fmini_bank.py").read_text()
         end = src.index("def build(")
         cuts = [m for m in re.finditer(r"cutoff=([^,]+?),", src) if m.start() < end]
         ems = [m for m in re.finditer(r"emph=(\d+),", src) if m.start() < end]
@@ -116,8 +116,8 @@ def main():
                 out.append("%.1f" % r[7])
             last = b
         out.append(src[last:])
-        (HERE / "fmug_bank.py").write_text("".join(out))
-        print("rewrote tools/fmug_bank.py")
+        (HERE / "fmini_bank.py").write_text("".join(out))
+        print("rewrote tools/fmini_bank.py")
 
 
 if __name__ == "__main__":

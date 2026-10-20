@@ -195,7 +195,7 @@ static int preferences(void)
         host_wire[n - 13] == 0x4B && host_wire[n - 12] == 1 && host_wire[n - 11] == NCOND);
     bad += check("INFO 1.6: 45 01 5, CUSTOM's colours",
         host_wire[n - 10] == 0x45 && host_wire[n - 9] == 1 && host_wire[n - 8] == 5);
-    bad += check("INFO FMini-1: 47 01 32 (the FMUG patch's size), then 48 01 01 (octave, cmd 84), last",
+    bad += check("INFO FMini-1: 47 01 32 (the FMINI patch's size), then 48 01 01 (octave, cmd 84), last",
         host_wire[n - 7] == 0x47 && host_wire[n - 6] == 1 && host_wire[n - 5] == FG_SIZE &&
         host_wire[n - 4] == 0x48 && host_wire[n - 3] == 1 && host_wire[n - 2] == 1);
     request(ED_UI_SET, a, 2);
@@ -516,99 +516,99 @@ static int malformed_saves(void)
     return bad;
 }
 
-/* FMUG patches (FMini-1, cmds 82, 83): a track's own patch, a factory patch, malformed frames */
-static int fmug_patches(void)
+/* FMINI patches (FMini-1, cmds 82, 83): a track's own patch, a factory patch, malformed frames */
+static int fmini_patches(void)
 {
     int bad = 0;
     uint8_t a[3 + FG_SIZE];
     uint32_t n, i;
     reset();
-    a[0] = ED_FMUG_FACTORY; a[1] = 3;
-    n = request(ED_FMUG_GET, a, 2);
-    bad += check("FMUG_GET factory 4: the 32 bytes", n == 5u + 3u + FG_SIZE + 1u && host_wire[7] == 0 &&
-                 !memcmp(host_wire + 8, FMUG_FACTORY[3], FG_SIZE));
-    trk[1].eng_req = ENGI_FMUG;
+    a[0] = ED_FMINI_FACTORY; a[1] = 3;
+    n = request(ED_FMINI_GET, a, 2);
+    bad += check("FMINI_GET factory 4: the 32 bytes", n == 5u + 3u + FG_SIZE + 1u && host_wire[7] == 0 &&
+                 !memcmp(host_wire + 8, FMINI_FACTORY[3], FG_SIZE));
+    trk[1].eng_req = ENGI_FMINI;
     trk[1].p[P_E7] = 3;
-    memcpy(a + 2, FMUG_FACTORY[3], FG_SIZE);
-    a[0] = ED_FMUG_TRACK; a[1] = 1; a[2 + FG_L1] = 77; a[2 + FG_W2] = 4; a[2 + FG_W3] = 5; a[2 + FG_SW1] = 127;
-    n = request(ED_FMUG_PUT, a, sizeof a);
-    bad += check("FMUG_PUT track 2: rc 0, the patch (clamped into its ranges), SLOT OWN",
-                 host_wire[7] == 0 && fmug_patch[1][FG_L1] == 77 && fmug_patch[1][FG_W2] == 4 &&
-                 fmug_patch[1][FG_W3] == 5 && trk[1].p[P_E7] == FMUG_OWN && fmug_slot[1] == FMUG_OWN);
-    fmug_poll();
-    bad += check("  .. the main loop keeps it", fmug_patch[1][FG_L1] == 77);
-    n = request(ED_FMUG_GET, a, 2);
-    bad += check("FMUG_GET track 2: as put, then SLOT", n == 5u + 3u + FG_SIZE + 3u && host_wire[7] == 0 &&
-                 host_wire[8 + FG_L1] == 77 && host_wire[8 + FG_SIZE] == FMUG_OWN);
-    memcpy(a + 2, FMUG_FACTORY[5], FG_SIZE);
-    request(ED_FMUG_PUT, a, sizeof a);
-    bad += check("FMUG_PUT of a factory patch unchanged: SLOT shows it (F6)", trk[1].p[P_E7] == 5 && fmug_slot[1] == 5u);
+    memcpy(a + 2, FMINI_FACTORY[3], FG_SIZE);
+    a[0] = ED_FMINI_TRACK; a[1] = 1; a[2 + FG_L1] = 77; a[2 + FG_W2] = 4; a[2 + FG_W3] = 5; a[2 + FG_SW1] = 127;
+    n = request(ED_FMINI_PUT, a, sizeof a);
+    bad += check("FMINI_PUT track 2: rc 0, the patch (clamped into its ranges), SLOT OWN",
+                 host_wire[7] == 0 && fmini_patch[1][FG_L1] == 77 && fmini_patch[1][FG_W2] == 4 &&
+                 fmini_patch[1][FG_W3] == 5 && trk[1].p[P_E7] == FMINI_OWN && fmini_slot[1] == FMINI_OWN);
+    fmini_poll();
+    bad += check("  .. the main loop keeps it", fmini_patch[1][FG_L1] == 77);
+    n = request(ED_FMINI_GET, a, 2);
+    bad += check("FMINI_GET track 2: as put, then SLOT", n == 5u + 3u + FG_SIZE + 3u && host_wire[7] == 0 &&
+                 host_wire[8 + FG_L1] == 77 && host_wire[8 + FG_SIZE] == FMINI_OWN);
+    memcpy(a + 2, FMINI_FACTORY[5], FG_SIZE);
+    request(ED_FMINI_PUT, a, sizeof a);
+    bad += check("FMINI_PUT of a factory patch unchanged: SLOT shows it (F6)", trk[1].p[P_E7] == 5 && fmini_slot[1] == 5u);
     trk[2].eng_req = 0;
     a[1] = 2;
-    request(ED_FMUG_PUT, a, sizeof a);
-    bad += check("FMUG_PUT to a track that is not FMUG: rc 2", host_wire[7] == 2u);
-    a[0] = ED_FMUG_FACTORY; a[1] = 1;
-    request(ED_FMUG_PUT, a, sizeof a);
-    bad += check("FMUG_PUT to a factory patch: rc 1", host_wire[7] == 1u);
-    a[0] = ED_FMUG_TRACK; a[1] = NTRK;
-    request(ED_FMUG_GET, a, 2);
-    bad += check("FMUG_GET of track 5: rc 1", host_wire[7] == 1u);
+    request(ED_FMINI_PUT, a, sizeof a);
+    bad += check("FMINI_PUT to a track that is not FMINI: rc 2", host_wire[7] == 2u);
+    a[0] = ED_FMINI_FACTORY; a[1] = 1;
+    request(ED_FMINI_PUT, a, sizeof a);
+    bad += check("FMINI_PUT to a factory patch: rc 1", host_wire[7] == 1u);
+    a[0] = ED_FMINI_TRACK; a[1] = NTRK;
+    request(ED_FMINI_GET, a, 2);
+    bad += check("FMINI_GET of track 5: rc 1", host_wire[7] == 1u);
     a[0] = 1; a[1] = 0;
-    request(ED_FMUG_GET, a, 2);
-    bad += check("FMUG_GET of an unknown target: rc 1", host_wire[7] == 1u);
-    a[0] = ED_FMUG_FACTORY; a[1] = FMUG_NFACTORY;
-    request(ED_FMUG_GET, a, 2);
-    bad += check("FMUG_GET of factory patch 101: rc 1", host_wire[7] == 1u);
-    /* a user preset: stored from an FMUG track, read without loading it */
+    request(ED_FMINI_GET, a, 2);
+    bad += check("FMINI_GET of an unknown target: rc 1", host_wire[7] == 1u);
+    a[0] = ED_FMINI_FACTORY; a[1] = FMINI_NFACTORY;
+    request(ED_FMINI_GET, a, 2);
+    bad += check("FMINI_GET of factory patch 101: rc 1", host_wire[7] == 1u);
+    /* a user preset: stored from an FMINI track, read without loading it */
     reset();
-    trk[0].eng_req = ENGI_FMUG; trk[0].engine = ENGI_FMUG;
-    memcpy(a + 2, FMUG_FACTORY[9], FG_SIZE); a[2 + FG_L2] = 33;
-    a[0] = ED_FMUG_TRACK; a[1] = 0;
-    request(ED_FMUG_PUT, a, sizeof a);
+    trk[0].eng_req = ENGI_FMINI; trk[0].engine = ENGI_FMINI;
+    memcpy(a + 2, FMINI_FACTORY[9], FG_SIZE); a[2 + FG_L2] = 33;
+    a[0] = ED_FMINI_TRACK; a[1] = 0;
+    request(ED_FMINI_PUT, a, sizeof a);
     song.sel = 0;
     up_store(5, "MY PAT");                               /* track 1 (the patch just put) -> slot 6 */
-    a[0] = ED_FMUG_USER; a[1] = 5;
-    n = request(ED_FMUG_GET, a, 2);
-    bad += check("FMUG_GET user 6: the patch stored with the preset", n == 5u + 3u + FG_SIZE + 1u && host_wire[7] == 0 &&
-                 host_wire[8 + FG_L2] == 33 && !memcmp(host_wire + 8, fmug_patch[0], FG_SIZE));
+    a[0] = ED_FMINI_USER; a[1] = 5;
+    n = request(ED_FMINI_GET, a, 2);
+    bad += check("FMINI_GET user 6: the patch stored with the preset", n == 5u + 3u + FG_SIZE + 1u && host_wire[7] == 0 &&
+                 host_wire[8 + FG_L2] == 33 && !memcmp(host_wire + 8, fmini_patch[0], FG_SIZE));
     a[1] = 6;
-    request(ED_FMUG_GET, a, 2);
-    bad += check("FMUG_GET of an empty user slot: rc 2", host_wire[7] == 2u);
+    request(ED_FMINI_GET, a, 2);
+    bad += check("FMINI_GET of an empty user slot: rc 2", host_wire[7] == 2u);
     a[1] = UP_SLOTS;
-    request(ED_FMUG_GET, a, 2);
-    bad += check("FMUG_GET of user slot 33: rc 1", host_wire[7] == 1u);
+    request(ED_FMINI_GET, a, 2);
+    bad += check("FMINI_GET of user slot 33: rc 1", host_wire[7] == 1u);
     /* the extras: the octave on GET / PUT, and what the preset kept (cmd 84) */
     reset();
-    trk[0].eng_req = ENGI_FMUG; trk[0].engine = ENGI_FMUG;
-    memcpy(a + 2, FMUG_FACTORY[2], FG_SIZE);
-    a[0] = ED_FMUG_TRACK; a[1] = 0; a[2 + FG_SIZE] = 3;            /* octave 3 - 4 = -1 */
-    n = request(ED_FMUG_PUT, a, 3u + FG_SIZE);
-    bad += check("FMUG_PUT with the octave byte: rc 0, song.octave -1", host_wire[7] == 0 && song.octave == -1);
-    n = request(ED_FMUG_GET, a, 2);
-    bad += check("FMUG_GET track 1 ends with the octave + 4", n == 5u + 3u + FG_SIZE + 3u && host_wire[8 + FG_SIZE + 1] == 3);
+    trk[0].eng_req = ENGI_FMINI; trk[0].engine = ENGI_FMINI;
+    memcpy(a + 2, FMINI_FACTORY[2], FG_SIZE);
+    a[0] = ED_FMINI_TRACK; a[1] = 0; a[2 + FG_SIZE] = 3;            /* octave 3 - 4 = -1 */
+    n = request(ED_FMINI_PUT, a, 3u + FG_SIZE);
+    bad += check("FMINI_PUT with the octave byte: rc 0, song.octave -1", host_wire[7] == 0 && song.octave == -1);
+    n = request(ED_FMINI_GET, a, 2);
+    bad += check("FMINI_GET track 1 ends with the octave + 4", n == 5u + 3u + FG_SIZE + 3u && host_wire[8 + FG_SIZE + 1] == 3);
     song.octave = 2; song.g[G_BPM] = 99; song.g[G_RSIZE] = 50; song.g[G_RTYPE] = 3;
     up_store(9, "KEPT");
-    {   /* (the host build is not FMUG-only: its records keep no tempo / octave / FX, so put them in as the FMini-1 stores them) */
+    {   /* (the host build is not FMINI-only: its records keep no tempo / octave / FX, so put them in as the FMini-1 stores them) */
         up_rec_t *rr = (up_rec_t *)up_rec(9);
         rr->packed[UP_BPM_AT] = 99; rr->packed[UP_OCT_AT] = 6; rr->packed[UP_FX_AT] = 51; rr->packed[UP_FX2_AT + 0] = 4;
     }
     a[0] = 9;
-    n = request(ED_FMUG_PRESET, a, 1);
+    n = request(ED_FMINI_PRESET, a, 1);
     {
         uint32_t v[14], k;
         for (k = 0; k < 14u; k++) v[k] = (uint32_t)((host_wire[7 + 2 * k] | host_wire[8 + 2 * k] << 7) - 8192);
-        bad += check("FMUG_PRESET 10: BPM, octave + 4, the FX globals + 1 as stored", n == 5u + 2u + 28u + 1u && host_wire[6] == 0 &&
+        bad += check("FMINI_PRESET 10: BPM, octave + 4, the FX globals + 1 as stored", n == 5u + 2u + 28u + 1u && host_wire[6] == 0 &&
                      v[0] == 99 && v[1] == 6 && v[2] == 51 && v[6] == 4 && v[13] == 0);
     }
     a[0] = 11;
-    request(ED_FMUG_PRESET, a, 1);
-    bad += check("FMUG_PRESET of an empty slot: rc 2", host_wire[6] == 2u);
+    request(ED_FMINI_PRESET, a, 1);
+    bad += check("FMINI_PRESET of an empty slot: rc 2", host_wire[6] == 2u);
     a[0] = UP_SLOTS;
-    request(ED_FMUG_PRESET, a, 1);
-    bad += check("FMUG_PRESET of slot 33: rc 1", host_wire[6] == 1u);
+    request(ED_FMINI_PRESET, a, 1);
+    bad += check("FMINI_PRESET of slot 33: rc 1", host_wire[6] == 1u);
     for (i = 0; i < 3u; i++)
         a[i] = 0;
-    bad += check("FMUG_GET with a wrong length: rc 1", request(ED_FMUG_GET, a, 3) > 0 && host_wire[7] == 1u);
+    bad += check("FMINI_GET with a wrong length: rc 1", request(ED_FMINI_GET, a, 3) > 0 && host_wire[7] == 1u);
     return bad;
 }
 
@@ -1434,7 +1434,7 @@ static int custom_palette(void)
 int main(void)
 {
     int bad = preferences() + motion_locks() + framing() + uart_recovery() + steps() + samples() + song_protocol() + malformed_saves() +
-              fm6_patches() + fmug_patches() + user_preset_roundtrip() + live_sync() + usb_burst() + menu_protocol() + drum_kit_retired() +
+              fm6_patches() + fmini_patches() + user_preset_roundtrip() + live_sync() + usb_burst() + menu_protocol() + drum_kit_retired() +
               learn_protocol() + custom_palette();
     printf("%s\n", bad ? "EDITOR TEST FAILED" : "editor test passed");
     return bad != 0;

@@ -1037,7 +1037,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         fop_knob(slot, steps);
         return;
     }
-    if (fmg_page(pg->graph)) {                           /* FMUG's panel: the page's four controls (ui_fmug.c) */
+    if (fmg_page(pg->graph)) {                           /* FMINI's panel: the page's four controls (ui_fmini.c) */
         fmg_knob(slot, steps);
         return;
     }
@@ -1484,7 +1484,7 @@ static void ui_input(void)
     midi_take();                                        /* (MIDI IN notes: lights, SCREEN WAKE, AUTO SELECT's) */
     midi_pc_poll();                                     /* MIDI Program Change (before fm6_poll: a bank voice) */
     fm6_poll();                                         /* FM6: PTCH turned -> its patch */
-    fmug_poll();                                        /* FMUG: SLOT turned -> its patch */
+    fmini_poll();                                        /* FMINI: SLOT turned -> its patch */
 #if !FELUCCA_FM4
     for (k = 0; k < NTRK; k++)                          /* a DIGITAL sound any other way (the paths convert it */
         if (trk[k].eng_req == ENGI_DIGITAL)             /* already): FM6 (fm4_convert.c) */
@@ -1758,15 +1758,15 @@ static void ui_input(void)
     kq |= lay;
     if (!lay && (s = panel_enc(EN_PRESET)) != 0)
         presets_turn(s);
-    if (!lay && (s = panel_enc(EN_ALGO)) != 0) {   /* ALGORITHM: the selected track, on every page; on FMUG's panel pages the
-                                                     * control under SELECT's cursor (ui_fmug.c) */
+    if (!lay && (s = panel_enc(EN_ALGO)) != 0) {   /* ALGORITHM: the selected track, on every page; on FMINI's panel pages the
+                                                     * control under SELECT's cursor (ui_fmini.c) */
         if (!ui.home && fmg_page(cur_page()->graph) && fmg_ok())
             fmg_algo(s);
         else
             track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
     }
     if ((s = glo ? sel : panel_enc(EN_SELECT)) != 0) {   /* SELECT knob = global tempo; */
-        if (!glo && !lay && !ui.home && fmg_page(cur_page()->graph) && fmg_ok()) {   /* FMUG's panel: the cursor */
+        if (!glo && !lay && !ui.home && fmg_page(cur_page()->graph) && fmg_ok()) {   /* FMINI's panel: the cursor */
             fmg_select(s);
         } else if (!glo && sel_mode() >= SEL_MODW) {         /* MENU > SELECT MODW / VEL (1.5.6, #84): it plays */
             sel_play(sel_mode(), s);

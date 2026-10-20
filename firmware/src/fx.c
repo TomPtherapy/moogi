@@ -14,7 +14,7 @@ static union {                          /* ROOM's allpasses; SPRING's allpass ch
     int32_t sp[(556 + 441) / 2];
 } rev_u __attribute__((section(".pool")));
 #define rev_ap (rev_u.ap)
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 /* FMini-1: the reverb types' own memory, shared (only one runs; a change clears it all). ROOM's right channel: 4 combs + 2 allpasses (+23
  * samples each, Freeverb's stereo spread); SPRING's second spring (4096 loop + its allpass states); PLATE (Dattorro's, half rate);
  * CLOUD's two extra diffusers. 23 KB of the pool */
@@ -33,7 +33,7 @@ static struct {
     uint32_t sp_ph;                      /* .. the output tap's wobble */
     uint8_t cho_on, dly_on, rev_on;      /* FMini-1: the bus ran last block (a bus whose send is 0 and input silent does not run at all) */
     uint32_t dly_start;                  /* .. the delay's write index when it last started (older samples are silence) */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     int32_t cho_lp[2];                   /* the chorus's two sides' low-passes (the BBD chain's band) */
     int32_t dl_q;                        /* the delay time, Q8 samples, gliding to the TIME knob (a click-free tape-like bend) */
     int32_t dly_hp;                      /* TAPE's low cut in the loop */
@@ -48,7 +48,7 @@ static struct {
     uint32_t sp2_ph;
 #endif
 } fx;
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 #define RDAMP (127 - song.g[G_RDAMP])    /* FMini-1: the REVERB's TONE (open at 127) is the high cut the models call damping */
 #else
 #define RDAMP song.g[G_RDAMP]
@@ -98,7 +98,7 @@ _Static_assert(sizeof rev_comb / 2u >= SP_LEN && sizeof rev_u.sp / 4u >= 4u * (S
 #define HL_LOUD 32                       /* a line this loud (two samples' sum) rounds its gain to the nearest */
 #define HL_OUT 4                         /* the outputs' gain: the level of ROOM's tail */
 static const uint16_t HL_LEN[HL_NL] = {467, 509, 547, 593, 631, 673, 709, 743};   /* (+1 each: the mirror) */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 #define HL_NAPX 4u                       /* CLOUD: two more diffusers (in rev_x), denser */
 static const uint16_t HL_AP[HL_NAPX] = {131, 307, 89, 223};
 static const int16_t HL_APG[HL_NAPX] = {11469, 10240, 9830, 9011};  /* Q14: 0.7, 0.625, 0.6, 0.55 */
@@ -110,7 +110,7 @@ _Static_assert(467 + 509 + 547 + 593 + 631 + 673 + 709 + 743 + HL_NL <= sizeof r
                131 + 307 <= sizeof rev_u.ap / 2u, "HALL in ROOM's buffers");
 _Static_assert(CTL % 2u == 0u && HL_NC + 2u * HL_MOD + 2u < 467u && HL_NC <= 131u, "HALL: one wrap a block at most");
 static struct {                          /* HALL's state (in the pool: no .bss) */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     uint16_t i[HL_NL], d[HL_NAPX];       /* the lines' write indices, the diffusers' */
     uint8_t mode;                        /* 0 HALL, 1 CLOUD (longer, darker, 4 diffusers) */
 #else
@@ -127,7 +127,7 @@ static struct {                          /* HALL's state (in the pool: no .bss) 
     int16_t y[HL_NL][HL_NC];             /* the lines' ends, then what goes back into them */
 } hl __attribute__((section(".pool")));
 #define rev_side (hl.sd)
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 static int32_t dside[CTL];               /* the delay's / chorus's left minus right / 2 (mix_block: rev_side_mix adds it) */
 #endif
 
@@ -135,7 +135,7 @@ static int32_t dside[CTL];               /* the delay's / chorus's left minus ri
  * (a little bias = even harmonics) -> tone low-pass that closes with drive ->
  * make-up gain (straight into tanh over the full band, it would sound like a
  * broken digital fuzz). State per part (track_t dist_*). */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 static int32_t tube_cap[NTRK];                          /* TUBE's coupling capacitor, per part (track_t has no room: a multiple of 16 bytes) */
 #endif
 static void track_dist(track_t *t, int32_t *b, uint32_t n)
@@ -147,7 +147,7 @@ static void track_dist(track_t *t, int32_t *b, uint32_t n)
     k = 32000 - d * 95 + ((int32_t)song.g[G_DRLVL] - 64) * 150;   /* tone: transparent at low drive .. ~3 kHz, Q15; G_DRLVL (TONE) moves it */
     k = clamp(k, 2500, 32500);
     mk = 30000 - d * 120;                                /* make-up */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     mk = (int32_t)(((int64_t)mk * song.g[G_MIDI] * 512) >> 15);   /* OUTPUT: 64 = as before (x1), 127 = x1.98, 0 = silent */
     if (song.g[G_INFO] == 1) {
         /* TUBE: two triode stages with a coupling capacitor between them: the first biased (a grid bias: even harmonics, a soft, lopsided clip),
@@ -303,7 +303,7 @@ static uint32_t div_samples(uint32_t div)
 static const uint8_t DIV_DOT[3] = {2, 3, 1};           /* 3 quarters >> this */
 static uint32_t delay_samples(void)
 {
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     {   /* FMini-1: the time in ms (FX > TIME) */
         uint32_t m = (uint32_t)dly_ms(song.g[G_DRREV]) * (uint32_t)FS / 1000u;
         return m < 16u ? 16u : m >= DLY_LEN ? DLY_LEN - 1u : m;
@@ -314,7 +314,7 @@ static uint32_t delay_samples(void)
     return s < 16u ? 16u : s >= DLY_LEN ? DLY_LEN - 1u : s;
 }
 
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 static const uint16_t REV_COMB_R[4] = {1139, 1211, 1300, 1379};   /* ROOM's right channel: +23 samples (Freeverb's stereo spread) */
 static const uint16_t REV_AP_R[2] = {579, 464};
 _Static_assert(1139 + 1211 + 1300 + 1379 + 579 + 464 <= RX_LEN, "ROOM's right channel in rev_x");
@@ -397,7 +397,7 @@ static __attribute__((noinline)) void rev_room(const int32_t *rev_in, int32_t *o
 }
 #endif
 
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 /* SPRING (see the top), stereo: a tank has two springs: the left output is the first (the loop in rev_comb, as before), the right a second, 19 %
  * longer one (its loop in rev_x, its own wobble): the two sound apart. spring_one: one spring's block into dst (assigned) */
 static __attribute__((noinline)) void spring_one(int16_t *ln, int32_t *ap, uint16_t *spw, int32_t *splp, int32_t *sphp, int32_t *sphe,
@@ -517,7 +517,7 @@ static uint32_t exp2_neg(uint32_t x)
 /* the lines' gains for SIZE s: RT60 = 0.5 s * 2^(s / 30); a line of D samples (22.05 kHz) loses 60 dB in
  * RT60 * 22050 / D passes: g = 2^(-D * 3 log2(10) / (22050 * RT60)) = 2^(-D * 59.2 / 65536 * 2^(-s / 30)),
  * at most 0.99, over sqrt(7) (the matrix's rows have 7 entries of +-1: / sqrt(7) makes it orthogonal) */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 /* FMini-1: per mode: HALL RT60 0.5 s * 2^(s / 30) (0.5 .. 9.4 s); CLOUD 3 s * 2^(s / 42) (3 .. 24 s), its lines allowed up to 0.9985 */
 static __attribute__((noinline)) void hall_gains(int32_t s, uint32_t mode)
 {
@@ -622,7 +622,7 @@ static __attribute__((noinline)) void rev_hall(const int32_t *rev_in, int32_t *o
 {
     int16_t *b = rev_comb, *a = rev_ap;
     uint32_t i, k, s, m, d;
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     int32_t kd = HL_KD(hl.mode == 1u ? 30 + RDAMP * 97 / 127 : RDAMP);   /* (CLOUD: never wide open: a dark, soft tail) */
     uint32_t nap = hl.mode == 1u ? HL_NAPX : HL_NAP;
 #else
@@ -630,7 +630,7 @@ static __attribute__((noinline)) void rev_hall(const int32_t *rev_in, int32_t *o
 #endif
     int32_t mp = hl.m, sp = hl.s;
     (void)n;
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     if (hl.sz != song.g[G_RSIZE] + 1 + (int32_t)hl.mode * 256)
         hall_gains(song.g[G_RSIZE], hl.mode);
 #else
@@ -638,7 +638,7 @@ static __attribute__((noinline)) void rev_hall(const int32_t *rev_in, int32_t *o
         hall_gains(song.g[G_RSIZE]);
 #endif
     hall_send(rev_in);
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     for (k = 0; k < nap; k++) {                         /* the diffusers (CLOUD's extra two in rev_x) */
         int16_t *q = k < HL_NAP ? a : rev_x.s + (k == 2u ? 0u : HL_AP[2]);
         d = hl.d[k];
@@ -718,7 +718,7 @@ static __attribute__((noinline)) void rev_hall(const int32_t *rev_in, int32_t *o
     hl.side = 1;
 }
 
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 /* PLATE (type 2): Dattorro's plate (J. Audio Eng. Soc. 1997, "Effect Design" part 1), at half the rate and half his lengths (a smaller, denser
  * plate), in rev_x: the send (hall_send) -> 4 input diffusers -> a figure-eight tank: each side a modulated allpass, a delay, a low-pass
  * (TONE: the plate's damping), the decay gain (DECAY: the loop's gain 0.12 .. 0.7 a tank: ~0.8 .. 5 s), an allpass and a delay, its end feeding the other side; the
@@ -857,7 +857,7 @@ static void rev_clear(void)
         hl.lp[i] = hl.le[i] = 0;
     fx.sp_lp = fx.sp_hp = fx.sp_he = 0;
     hl.x = hl.m = hl.s = hl.hp = hl.he = 0;
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     for (i = 0; i < RX_LEN; i++)
         rev_x.s[i] = 0;
     for (i = 0; i < 4u; i++)
@@ -903,7 +903,7 @@ static int32_t part_buf[CTL];                            /* a part's block (mix_
  * Felucca's: 0 ROOM, 1 SPRING, 2 HALL */
 static void rev_run(uint32_t ty, const int32_t *rev_in, int32_t *out, uint32_t n)
 {
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     if (ty == 0u)
         rev_room(rev_in, out, n);
     else if (ty == 2u)
@@ -950,7 +950,7 @@ static int32_t fx_any(const int32_t *x, uint32_t n)      /* a bus with anything 
     return 0;
 }
 
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 /* FMini-1: the chorus's three TYPEs (params.c N_CHOTYPE), all stereo (wet: the mid in wet, left minus right in dside), on cho_buf, wet only (MIX
  * is the send): the delay swing is cdepth (the typical pitch swing, scaled by DEPTH and by RATE: see fx_buses), the LFO runs at RATE.
  *   STEREO after Boss's CE-2: a single BBD line's soft chorus: a triangle LFO about 6.8 ms, dark (the chain's ~4 kHz), the right side the same
@@ -1119,7 +1119,7 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     int32_t cdepth = song.g[G_CDEPTH] * 6, rt;
     uint32_t cinc = LFO_INC[song.g[G_CRATE] & 127] / CTL;
     uint32_t cho_act = 1, dly_act = 1, rev_act = 1;
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     {
         uint32_t sc = 0, sd = 0, sr = 0, k;
         for (k = 0; k < NTRK; k++) {
@@ -1153,7 +1153,7 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     if (pf.ew1 && fb < THR_FB)
         fb += mulq16(THR_FB - fb, (uint32_t)pf.ew1 << 1);   /* ECHO THROW (perform.c): more feedback while held, 0.7
                                                              * at most (the loop's gain below 1: it never runs away) */
-#if !FELUCCA_FMUG_ONLY
+#if !FELUCCA_FMINI_ONLY
     for (i = 0; i < n; i++) {
         int32_t y = 0, x, r;
         if (cho_act) {
@@ -1205,7 +1205,7 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
     (void)dmix, (void)col;
 #endif
     rt = song.g[G_RTYPE];
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     rt = rt < 0 ? 0 : rt > 4 ? 4 : rt;                    /* (a stored 5, CLOUD before SHIMMER went, is the last one too) */
     if (!rev_act) {                                       /* OFF: its buffers cleared once, nothing runs */
         if (fx.rev_on) {
@@ -1231,7 +1231,7 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
 static __attribute__((noinline)) void rev_side_mix(int32_t *l, int32_t *r, uint32_t n)
 {
     uint32_t i;
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     if (fx.ds_on)
         for (i = 0; i < n; i++) {
             l[i] += dside[i];
@@ -1503,7 +1503,7 @@ static const uint16_t ENG_VCOST[NENGINES] = {163, FELUCCA_FM4 ? 181 : 0, 162, 67
 #if FELUCCA_SLICE
                                              129,
 #endif
-                                             200};   /* FMUG: estimate, ~1.4x ANALOG per voice (host benchmark) */
+                                             200};   /* FMINI: estimate, ~1.4x ANALOG per voice (host benchmark) */
 #endif
 
 /* one synth part into the dry mix and the sends of sm (mx[0]; mx[1] on the second core); a part with no voice sounding costs
@@ -1700,7 +1700,7 @@ static void mix_block(int32_t *out, uint32_t n)
     if (perf)
         perf_pre(mix_l, mix_r, send_d, send_r, n);
     fx_buses(send_c, send_d, send_r, wet, n);
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     if (hl.side || fx.ds_on)
         rev_side_mix(mix_l, mix_r, n);                  /* the reverb's, the delay's / chorus's stereo */
 #else

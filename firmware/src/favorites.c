@@ -8,7 +8,7 @@ typedef struct {
 } favorites_t;
 static favorites_t favorites __attribute__((section(".pool")));
 /* rows 14 and 15 of factory[] are the MIDI LEARN map and the settings (midi_learn.c, below): the engines that have
- * favourites are 0..13. FMUG (14, 1.7) has none: a favourite of its is not taken (the stars stay off) */
+ * favourites are 0..13. FMINI (14, 1.7) has none: a favourite of its is not taken (the stars stay off) */
 #define FAV_ENGINES 14u
 static int favorite_has(uint32_t engine, uint32_t preset)
 {

@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * FMini-1's FX buses (fx.c, FELUCCA_FMUG_ONLY): the reverb types (stereo, decay, level, stability), the delay and chorus types.
- *   build/host/fmug_fx_test [WAVDIR]       (WAVDIR: demo renders) */
+ * FMini-1's FX buses (fx.c, FELUCCA_FMINI_ONLY): the reverb types (stereo, decay, level, stability), the delay and chorus types.
+ *   build/host/fmini_fx_test [WAVDIR]       (WAVDIR: demo renders) */
 #define UI_TEST_NO_MAIN 1
-#define FELUCCA_FMUG_ONLY 1
+#define FELUCCA_FMINI_ONLY 1
 #include "ui_test.c"
-#include "../firmware/src/fmug_app.c"
+#include "../firmware/src/fmini_app.c"
 #include <stdio.h>
 
 static int bad;
@@ -141,11 +141,11 @@ static void wav(const char *dir, const char *name, uint32_t n)
     fclose(f);
 }
 
-#include "fmug_fx_cases.h"
+#include "fmini_fx_cases.h"
 
 int main(int argc, char **argv)
 {
     fx_cases(argc > 1 ? argv[1] : 0);
-    printf(bad ? "fmug_fx_test: FAIL\n" : "fmug_fx_test: ok\n");
+    printf(bad ? "fmini_fx_test: FAIL\n" : "fmini_fx_test: ok\n");
     return bad != 0;
 }

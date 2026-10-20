@@ -16,7 +16,7 @@ SPLASH = ROOT / "assets" / "fmini-splash.png"
 FONTS = [pathlib.Path("/usr/share/fonts/truetype/google-fonts"), pathlib.Path.home() / "Library/Fonts",
          pathlib.Path("/Library/Fonts"), pathlib.Path("C:/Windows/Fonts")]
 BLACK = (0, 0, 0)               # the splash's background
-CREAM = (0xEC, 0xE4, 0xD0)      # fmug_app.c FA_CR
+CREAM = (0xEC, 0xE4, 0xD0)      # fmini_app.c FA_CR
 FRAME = (0x2B, 0x28, 0x25)
 SHOTS = [("splash", "Splash"), ("osc", "OSC"), ("mix", "MIX"), ("filter", "Filter"),
          ("fx", "FX"), ("preset", "Preset 00"), ("arp", "ARP"), ("seq", "SEQ")]

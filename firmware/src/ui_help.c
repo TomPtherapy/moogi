@@ -12,7 +12,7 @@
 
 static const char H_EDIT[] = "[K1-4]SOUND[EDIT]HOLD: ENGINES";
 static const char H_LANES[] = "[K1-4]LANE LEVELS[EDIT]HOLD: MUTES";
-static const char H_FMUG[] = "[SELECT]PICK[ALGO]CHANGE";   /* FMUG's panel pages (ui_fmug.c) */
+static const char H_FMINI[] = "[SELECT]PICK[ALGO]CHANGE";   /* FMINI's panel pages (ui_fmini.c) */
 static const char H_FMOP[] = "[K1]OPERATOR[SAVE]HOLD: UNDO";
 static const struct { const char *title, *hint; } HELP_PAGE[] = {
     {"ENV", "[K1-4]A D S R[ENV]ENV DEST"},
@@ -39,8 +39,8 @@ static const struct { const char *title, *hint; } HELP_PAGE[] = {
     {"OPERATOR", H_FMOP},
     {"OP ENV", H_FMOP},
     {"OPERATOR 2", H_FMOP},
-    {"CTRL", H_FMUG}, {"OSC", H_FMUG}, {"MIX", H_FMUG}, {"FILT", H_FMUG}, {"F.ENV", H_FMUG}, {"A.ENV", H_FMUG},
-    {"FMUG FX", H_FMUG},
+    {"CTRL", H_FMINI}, {"OSC", H_FMINI}, {"MIX", H_FMINI}, {"FILT", H_FMINI}, {"F.ENV", H_FMINI}, {"A.ENV", H_FMINI},
+    {"FMINI FX", H_FMINI},
     {"VOICE", "[K1]POLY, MONO[K2]GLIDE"},
     {"VOICE 2", "[K2]DETUNE[K3]PAN[K4]MUTE"},
     {"VOICE 3", "[K1]STEREO SPREAD[EDIT]EDIT 1"},

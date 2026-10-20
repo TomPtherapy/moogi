@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * FMini-1's Minimoog-style ladder filter (src/eng_fmug.c, tables: tools/fmug_filter.py), on the host through hostsim.c.
- *   build/host/fmug_filter_test
+ * FMini-1's Minimoog-style ladder filter (src/eng_fmini.c, tables: tools/fmini_filter.py), on the host through hostsim.c.
+ *   build/host/fmini_filter_test
  * 1. the filter sings: with the mixer silent, CUTOFF at the middle and EMPHASIS at the top, a sine comes out (THD under
  *    2 %), at the pitch the law gives (1073 Hz at the dial's 0 and the lowest key), and with the keyboard on it follows
  *    the keys at one volt an octave (within 12 cents over four octaves); with the keyboard off the pitch stays.
@@ -16,23 +16,23 @@
 static int bad;
 static void check(const char *what, int ok)
 {
-    printf("fmug filter: %-100s %s\n", what, ok ? "ok" : "FAIL");
+    printf("fmini filter: %-100s %s\n", what, ok ? "ok" : "FAIL");
     bad += !ok;
 }
 
 static uint8_t pv[FG_SIZE];
 
-/* track 0 = FMUG with patch pv, CUTOFF cut, EMPHASIS emph, CONTOUR 0, a held loudness contour */
+/* track 0 = FMINI with patch pv, CUTOFF cut, EMPHASIS emph, CONTOUR 0, a held loudness contour */
 static void setup(uint32_t cut, uint32_t emph, uint32_t kbd, uint32_t sw1)
 {
     uint32_t i;
     memset(trk, 0, sizeof trk);
     memset(eng_mem, 0, sizeof eng_mem);
-    memset(fmug_eff, 0, sizeof fmug_eff);
-    memset(fmug_sm, 0, sizeof fmug_sm);
-    fmug_sm_ok = 0;
+    memset(fmini_eff, 0, sizeof fmini_eff);
+    memset(fmini_sm, 0, sizeof fmini_sm);
+    fmini_sm_ok = 0;
     host_tracks_init();
-    host_preset(&trk[0], ENGI_FMUG, 0);
+    host_preset(&trk[0], ENGI_FMINI, 0);
     memset(pv, 0, sizeof pv);
     pv[FG_R1] = pv[FG_R2] = pv[FG_R3] = 3;
     pv[FG_W1] = 2;                                  /* SAW */
@@ -41,8 +41,8 @@ static void setup(uint32_t cut, uint32_t emph, uint32_t kbd, uint32_t sw1)
     pv[FG_TUNE] = 64;
     pv[FG_F2] = pv[FG_F3] = 64;
     pv[FG_KBD] = (uint8_t)kbd;
-    fmug_set_patch(0, pv);
-    fmug_slot[0] = FMUG_OWN;
+    fmini_set_patch(0, pv);
+    fmini_slot[0] = FMINI_OWN;
     for (i = 0; i < 8u; i++)
         trk[0].p[P_E0 + i] = 0;
     trk[0].p[P_E0] = (int16_t)cut;
@@ -51,7 +51,7 @@ static void setup(uint32_t cut, uint32_t emph, uint32_t kbd, uint32_t sw1)
     trk[0].p[P_E3] = 0;
     trk[0].p[P_E4] = 64;
     trk[0].p[P_E5] = 127;
-    trk[0].p[P_E7] = FMUG_OWN;
+    trk[0].p[P_E7] = FMINI_OWN;
     trk[0].p[P_ATK] = 0;
     trk[0].p[P_DEC] = 0;
     trk[0].p[P_SUS] = 127;
@@ -240,7 +240,7 @@ int main(int argc, char **argv)
                     setup(CU[a], EM[b], 127, FS_O1 | FS_O2 | FS_O3);
                     pv[FG_L1] = pv[FG_L2] = pv[FG_L3] = 127;
                     pv[FG_W1] = pv[FG_W2] = pv[FG_W3] = 2;
-                    fmug_set_patch(0, pv);
+                    fmini_set_patch(0, pv);
                     play(NT[c], y, FS / 2);
                     for (k = FS / 4; k < FS / 2; k++) {
                         mx = fmax(mx, fabs(y[k]));
@@ -266,7 +266,7 @@ int main(int argc, char **argv)
         setup(e0, 0, 0, FS_NZ);
         pv[FG_SW1] = FS_NZ;
         pv[FG_LN] = 24;
-        fmug_set_patch(0, pv);
+        fmini_set_patch(0, pv);
         play(41, y, nn);
         welch(y + FS, nn - FS, ps0);
         {   /* the open filter's passband level (the noise itself) */
@@ -280,7 +280,7 @@ int main(int argc, char **argv)
             setup(e0, emph, 0, FS_NZ);
             pv[FG_SW1] = FS_NZ;
             pv[FG_LN] = 24;
-            fmug_set_patch(0, pv);
+            fmini_set_patch(0, pv);
             play(41, y, nn);
             welch(y + FS, nn - FS, ps);
             for (k = kb - 2; k <= kb + 2; k++)

@@ -3,7 +3,7 @@
 # FMini-1: the preset lab. Renders the factory patches through the real firmware (the browser build) and measures them:
 # level, brightness, attack, decay, release, stereo width, the likeness of each patch to the others, and a picture of each group.
 #   python3 tools/preset_lab.py [--wasm felucca.wasm] [--out DIR] [--only 0-9,31]   (needs numpy, scipy, matplotlib, node)
-# The wasm: WASI_SDK=... OUT=DIR web/emu/build_wasi.sh after tools/gen_fmug_presets.py.
+# The wasm: WASI_SDK=... OUT=DIR web/emu/build_wasi.sh after tools/gen_fmini_presets.py.
 import argparse, json, os, pathlib, subprocess, sys
 import numpy as np
 from scipy.io import wavfile
@@ -11,8 +11,8 @@ from scipy import signal
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-import gen_fmug_presets as G  # noqa: E402
-import fmug_bank  # noqa: E402
+import gen_fmini_presets as G  # noqa: E402
+import fmini_bank  # noqa: E402
 
 FS = 44100
 CAT_TARGET = {"bass": -2.0, "atmo": -1.5, "pad": -1.0, "fx": -1.0}
@@ -190,15 +190,15 @@ def parse_only(s):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--wasm", default=None)
-    ap.add_argument("--out", default="/tmp/fmug_lab")
+    ap.add_argument("--out", default="/tmp/fmini_lab")
     ap.add_argument("--only", default="")
     ap.add_argument("--pics", action="store_true")
     ap.add_argument("--norender", action="store_true")
-    ap.add_argument("--calibrate", action="store_true", help="write tools/fmug_levels.json: the LEVEL that gives each patch the target loudness")
+    ap.add_argument("--calibrate", action="store_true", help="write tools/fmini_levels.json: the LEVEL that gives each patch the target loudness")
     ap.add_argument("--target", type=float, default=-21.0)
     a = ap.parse_args()
     only = parse_only(a.only)
-    bank = fmug_bank.build(G.Bank())
+    bank = fmini_bank.build(G.Bank())
     out = pathlib.Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     sc = scenarios(bank, only)
@@ -216,15 +216,15 @@ def main():
             s["id"], x["name"], x["cat"][:5], m["peak"], m["rms"], m["loud"], m["clip"], m["cen"], m["flat"], m["low"], m["att"] * 1000,
             m["d25"], m["d50"], m["d100"], m["d200"], m["rel"], m["side"], m["tail"]))
     if a.calibrate:
-        lv = json.loads((HERE / "fmug_levels.json").read_text()) if (HERE / "fmug_levels.json").exists() else {}
+        lv = json.loads((HERE / "fmini_levels.json").read_text()) if (HERE / "fmini_levels.json").exists() else {}
         for s in sc:
             x, m = bank.p[s["preset"]], M[s["id"]]
             tgt = a.target + CAT_TARGET.get(x["cat"], 0.0)            # (a bass counts for less than a lead: its fundamental is felt more than heard)
             new = x["level"] + 2.0 * (tgt - m["loud"])               # LEVEL is 0.5 dB a step
             new = min(new, x["level"] + 2.0 * (-3.0 - m["peak"]))     # and never past -3 dBFS peak
             lv[x["name"]] = int(max(1, min(127, round(new))))
-        (HERE / "fmug_levels.json").write_text(json.dumps(lv, indent=0, sort_keys=True))
-        print("levels ->", HERE / "fmug_levels.json")
+        (HERE / "fmini_levels.json").write_text(json.dumps(lv, indent=0, sort_keys=True))
+        print("levels ->", HERE / "fmini_levels.json")
     ids = [s["id"] for s in sc]
     F = np.array([feature(M[i]) for i in ids])
     if len(ids) > 3:

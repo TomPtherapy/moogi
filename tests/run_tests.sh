@@ -259,12 +259,12 @@ if [ -f build/gen/felucca_tables.h ]; then
     $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/chord_test" tests/chord_test.c -lm
     run "chord keys: diatonic and fixed chords, voicings, MONO root, releases, recording, ARP, MIDI IN, kits" "$OUT/chord_test"
     mkdir -p "$OUT/fa"
-    $CC -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmug_app_test" tests/fmug_app_test.c -lm
-    run "FMini-1 app: the screen of every page, SAVE / PRESETS over 100 factory and the user patches, each patch its ARP, LFO, FX, LEVEL and octave, a new preset goes HOME" "$OUT/fmug_app_test" "$OUT/fa"
-    $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fmug_filter_test" tests/fmug_filter_test.c -lm
-    run "FMini-1 filter (Minimoog ladder): sings a sine from silence (pitch, THD, 1 V/oct over the keys, KBD 0), the CUTOFF dial's singing pitches, the EMPHASIS dial's passband loss and peak, no runaway" "$OUT/fmug_filter_test"
-    $CC -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmug_fx_test" tests/fmug_fx_test.c -lm
-    run "FMini-1 FX: five stereo reverbs (decay, level, corners, type changes), seven delays, three choruses, TUBE and OUTPUT, bypass at 0" "$OUT/fmug_fx_test"
+    $CC -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmini_app_test" tests/fmini_app_test.c -lm
+    run "FMini-1 app: the screen of every page, SAVE / PRESETS over 100 factory and the user patches, each patch its ARP, LFO, FX, LEVEL and octave, a new preset goes HOME" "$OUT/fmini_app_test" "$OUT/fa"
+    $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fmini_filter_test" tests/fmini_filter_test.c -lm
+    run "FMini-1 filter (Minimoog ladder): sings a sine from silence (pitch, THD, 1 V/oct over the keys, KBD 0), the CUTOFF dial's singing pitches, the EMPHASIS dial's passband loss and peak, no runaway" "$OUT/fmini_filter_test"
+    $CC -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmini_fx_test" tests/fmini_fx_test.c -lm
+    run "FMini-1 FX: five stereo reverbs (decay, level, corners, type changes), seven delays, three choruses, TUBE and OUTPUT, bypass at 0" "$OUT/fmini_fx_test"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/speaker_test" tests/speaker_test.c -lm
     run "SPEAKER EQ: FLAT / LOWCUT / BASS+ responses, BASS+ harmonics of the bass, the sub cut, no offset after, headroom on a full-scale kick (#180)" "$OUT/speaker_test"
     run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
@@ -327,7 +327,7 @@ if [ -f build/gen/felucca_tables.h ]; then
     run "UI renders: layout lint (every screen and palette, every page, engine and column value), GREY gray, MONO neutral, alignment by ink (1 px fails), draw cost, LARGE one value size per knob (#251)" \
         "$OUT/ui_render" build/ui_new build/ui_slot
     if python3 -c "import PIL" 2>/dev/null; then python3 tests/ui_render.py build/ui_new build/ui_slot; fi
-    # (FMini-1: the retired DIGITAL build, FELUCCA_FM4=1, no longer fits the layer map with FMUG added (ui_layer.c LY_CLEAN): not run)
+    # (FMini-1: the retired DIGITAL build, FELUCCA_FM4=1, no longer fits the layer map with FMINI added (ui_layer.c LY_CLEAN): not run)
     # $CC -w -DFELUCCA_FM4=1 -Ibuild/gen -Ifirmware/src -o "$OUT/ui_test_fm4" tests/ui_test.c -lm
     # run "UI built with FELUCCA_FM4=1 (DIGITAL, kept in the tree): its OP pages, EDIT cycle, algorithm charts" "$OUT/ui_test_fm4"
     # $CC -O1 -w -DFELUCCA_FM4=1 "-DFELUCCA_VERSION=\"$FV\"" -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/ui_render_fm4" tests/ui_render.c -lm

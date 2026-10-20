@@ -99,7 +99,7 @@ static void fm1_fault(const fm1_crash_t *c)
 }
 
 /* power-on: the parts with their default sounds (TRK_DEF); the sequencers empty */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 #define UI_INPUT fa_input
 #define UI_LEDS fa_leds
 #define UI_DRAW fa_draw
@@ -116,7 +116,7 @@ static void felucca_init(void)
         song.g[i] = GP[i].def;
     undo_depth++;                             /* (no undo copy of the power-on loads) */
     fm6_init();                               /* every track's FM6 patch: the init voice */
-    fmug_init();                              /* every track's FMUG patch: F1 */
+    fmini_init();                              /* every track's FMINI patch: F1 */
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
         track_defaults(t);
@@ -175,7 +175,7 @@ static void fm1_main(void)
     settings_init();
     usb_serial_apply();                                 /* (#67: the saved USB SERIAL before usb_start) */
     lcd_init();
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     fa_splash();
 #else
     draw_splash();                                      /* ui_draw.c (1.1.5) */
@@ -225,10 +225,10 @@ static void fm1_main(void)
         settings_save();
     }
     autosave_boot(boot_clean);                /* (1.2) the last session's music, under the splash */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     fa_init();                                /* FMini-1: track 1 = the instrument, whatever the autosave held */
 #endif
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     for (ms = 0; ms < 3000u; ms += 10u) {     /* the splash: 3 s (since power-on's work above ran under it, the rest of it) */
 #else
     for (ms = 0; ms < 400u; ms += 10u) {      /* the splash; the pot followed (MIDI IN plays under it) */

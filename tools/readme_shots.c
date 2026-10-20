@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * FMini-1: the eight screens of the README, drawn by the real code of fmug_app.c (as tests/fmug_app_test.c does) into
+ * FMini-1: the eight screens of the README, drawn by the real code of fmini_app.c (as tests/fmini_app_test.c does) into
  * DIR/shot_<name>.ppm: splash, osc, mix, filter, fx, fxrev and fxdly (the FX EDIT pop-ups), preset (the pop-up of patch 00), arp, seq,
  * glo (the GLOBAL list: assets/site/glo.webp is this one, 960 x 960).
  *   cc -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o /tmp/shots tools/readme_shots.c -lm && /tmp/shots /tmp/fa
  *   python3 tools/gen_readme_art.py /tmp/fa
  * (after the generation step of tools/build.py has made build/gen) */
 #define UI_TEST_NO_MAIN 1
-#define FELUCCA_FMUG_ONLY 1
+#define FELUCCA_FMINI_ONLY 1
 #include "ui_test.c"
-#include "../firmware/src/fmug_app.c"
+#include "../firmware/src/fmini_app.c"
 #include <stdio.h>
 static const char *dir;
 static void shot(const char *name)
@@ -63,9 +63,9 @@ int main(int argc, char **argv)
     fmg_fx = 2; fmg_cur[8] = 0; redraw(); shot("fxdly");
     fmg_fx = 0; redraw();
     fa_page = 0;                                       /* PRESETS onto patch 00: its pop-up */
-    apply_preset_to(TSEL, 1); TSEL->p[P_E7] = 1; fmug_poll(); fa_track_preset();
+    apply_preset_to(TSEL, 1); TSEL->p[P_E7] = 1; fmini_poll(); fa_track_preset();
     fm1_ms += 2000; redraw();
-    apply_preset_to(TSEL, 0); TSEL->p[P_E7] = 0; fmug_poll(); fa_track_preset();
+    apply_preset_to(TSEL, 0); TSEL->p[P_E7] = 0; fmini_poll(); fa_track_preset();
     redraw();
     if (!fa_pp_on()) { printf("no preset pop-up\n"); return 1; }
     shot("preset");

@@ -271,7 +271,7 @@ static voice_t *voice_alloc(track_t *t, uint32_t note)
     return voice_reuse(t, &t->v[best == np ? 0 : best]);
 }
 
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 #define GLIDE_SLOW 12u                                  /* FMini-1: the glide moves every 12th block (12x slower than Felucca's) */
 static uint32_t glide_blk[NTRK];                        /* per part: the blocks rendered (track_render) */
 #endif
@@ -588,7 +588,7 @@ static int32_t env_tick(track_t *t, voice_t *v)
     int32_t sus = (int32_t)p[P_SUS] << 17;              /* Q24 */
     switch (v->stage) {
     case 1:
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
         {   /* the Minimoog's capacitor charges toward a level above full (a concave rise ending in a corner), like the filter's */
             int32_t d = (int32_t)(((int64_t)((5 << 22) - v->env) * (int32_t)(T_ESYNC(t)[0] >> 1) * 824) >> 32);
             v->env += d < 1 ? 1 : d;
@@ -602,14 +602,14 @@ static int32_t env_tick(track_t *t, voice_t *v)
         }
         break;
     case 2:
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
         v->env += mulq16(sus - v->env, T_ESYNC(t)[1]);  /* the Minimoog: the DECAY time is the drop from the peak to the SUSTAIN level, whatever it is */
 #else
         v->env += mulq16(sus - v->env, T_ESYNC(t)[1]);
 #endif
         break;
     case 3:
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
         v->env -= mulq16(v->env, T_ESYNC(t)[1]);        /* the DECAY knob is also the release time (no REL knob) */
 #else
         v->env -= mulq16(v->env, T_ESYNC(t)[2]);
@@ -718,7 +718,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     track_lfo_tick(t);
 #endif
     esync_coef(t);                                      /* this block's envelope steps for env_tick (ENV SYNC) */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     glide_blk[(uint32_t)(t - trk) % NTRK]++;
 #endif
     if (e->block)                                       /* the engine's per-part work (WHEEL: bars, rotor) */
@@ -752,7 +752,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             m.amp0 = v->env_out;
             v->env_out = m.amp1;
         }
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
         if (v->pitch_cur != v->pitch16 && glide_blk[(uint32_t)(t - trk) % NTRK] % GLIDE_SLOW == 0u) {   /* glide */
 #else
         if (v->pitch_cur != v->pitch16) {               /* glide */

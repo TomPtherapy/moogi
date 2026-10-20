@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# FMini-1: builds the firmware and publishes the web installer (web/make_fmug_installer.py: one page with the package
+# FMini-1: builds the firmware and publishes the web installer (web/make_fmini_installer.py: one page with the package
 # inside) on GitHub Pages, at https://ruppert.github.io/fmini-1/.
 # Once in the repository's Settings > Pages: Source = GitHub Actions.
 name: Installer
@@ -45,9 +45,9 @@ jobs:
 
       - name: Make the installer page
         run: |
-          VERSION=$(sed -n 's/^#define FMINI_VERSION "v\(.*\)"/\1/p' firmware/src/fmug_app.c)
+          VERSION=$(sed -n 's/^#define FMINI_VERSION "v\(.*\)"/\1/p' firmware/src/fmini_app.c)
           mkdir -p _site
-          python3 web/make_fmug_installer.py build/felucca.fwsc _site/index.html "$VERSION"
+          python3 web/make_fmini_installer.py build/felucca.fwsc _site/index.html "$VERSION"
           cp build/felucca.fwsc "_site/fmini-1-$VERSION.fwsc"
           cp docs/fmini-ad.mp4 docs/fmini-ad-poster.jpg _site/
           mkdir -p _site/editor && cp web/editor_fmini.html _site/editor/index.html   # the patch editor (web/test_editor_fmini.py)

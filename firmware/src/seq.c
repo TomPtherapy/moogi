@@ -619,12 +619,12 @@ static __attribute__((noinline)) void cin_keep(track_t *t, uint32_t note, uint32
     cin_up[i] &= (uint8_t)~(1u << k);
 }
 
-#if FELUCCA_FMUG_ONLY
-static void fa_seq_note(track_t *t, uint32_t note);      /* fmug_app.c: the SEQ pop-up's step recording */
+#if FELUCCA_FMINI_ONLY
+static void fa_seq_note(track_t *t, uint32_t note);      /* fmini_app.c: the SEQ pop-up's step recording */
 #endif
 static void input_on(track_t *t, uint32_t note, uint32_t vel)
 {
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     fa_seq_note(t, note);
 #endif
     last_note = (uint8_t)note;
@@ -1201,8 +1201,8 @@ static void seq_tick(track_t *t, uint32_t n)
 static uint8_t midi_route;                 /* the G_ROUTE events_block last saw (a change to a block: midi_route_block;
                                             * MIDI_ROUTE_AGAIN: TRACK's channels changed, the same again) */
 #define MIDI_ROUTE_AGAIN 0xFFu
-#if FELUCCA_FMUG_ONLY
-/* FMini-1 (fmug_app.c, GLO): the one instrument is track 1 on every channel the setting accepts; the sources are 1 USB,
+#if FELUCCA_FMINI_ONLY
+/* FMini-1 (fmini_app.c, GLO): the one instrument is track 1 on every channel the setting accepts; the sources are 1 USB,
  * 2 MIDI (TRS), 3 Bluetooth (no radio driver in this firmware yet: nothing arrives with that number). The CC map is the
  * app's own: the ISR only notes the last value of each CC (fm_cc_rx, bit cc of fm_cc_pend); the main loop applies it */
 static volatile uint8_t fm_midi_src = 3;                 /* 0 USB, 1 MIDI, 2 BLUETOOTH, 3 ALL */
@@ -1221,7 +1221,7 @@ static int fm_midi_ok(uint32_t source, uint32_t ch)
 static int32_t midi_slot(uint32_t ch)      /* the track channel ch plays, -1 none (and with SEL) */
 {
     int32_t b = midi_base(), omni = -1;
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     (void)b; (void)omni; (void)ch;
     return 0;
 #endif
@@ -1410,7 +1410,7 @@ static void events_block(uint32_t n)
                     midi_clock_transport(status, ms);
             }
         } else
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
         if (fm_midi_ok(source, ch))
 #endif
             midi_event(st, ch, d1, d2);

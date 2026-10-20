@@ -40,7 +40,7 @@ static void midi_expression(track_t *t, const midi_channel_t *c)
     int32_t range = ((int32_t)c->semis * 100 + c->cents) * 256 / 100;
     if (drum_track(t))
         return;
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     {   /* FMini-1: GLO > PITCH BEND (+-2, +-12, +2 -12, +2 -24 semitones); RPN 0 does not change it */
         static const uint8_t UP[4] = {2, 12, 2, 2}, DN[4] = {2, 12, 12, 24};
         int32_t r = (int32_t)(c->bend < 0 ? DN : UP)[fm_bend_mode & 3u] * 256;
@@ -234,7 +234,7 @@ static const uint8_t MIDI_CC_ENG[NENGINES] = {
 #if FELUCCA_SLICE
     0x80,                                             /* SLICE TONE */
 #endif
-    0x12,                                             /* FMUG CUT EMPH */
+    0x12,                                             /* FMINI CUT EMPH */
 };
 /* a CC sets parameter id of track t as a knob would: 0..127 over its range */
 static void midi_cc_set(track_t *t, uint32_t id, uint32_t value)
@@ -296,7 +296,7 @@ static int __attribute__((noinline)) midi_learned(uint32_t cc, uint32_t value)
 static void __attribute__((noinline)) midi_cc_map(track_t *t, uint32_t cc, uint32_t value)
 {
     uint32_t i, id = 0xFFFFu, e;
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     (void)t; (void)i; (void)id; (void)e;
     fm_cc_rx[cc & 127u] = (uint8_t)value;                /* FMini-1: GLO > MIDI CC's map, applied by the main loop */
     fm_cc_pend[(cc & 127u) >> 5] |= 1u << (cc & 31u);

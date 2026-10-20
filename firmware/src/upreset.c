@@ -416,7 +416,7 @@ static int up_store_cat(uint32_t k, const char *name, uint32_t cat)
         up_set_value(&r, i, motion_base_value(TSEL, i));
     up_pat_from(&r, TSEL->step);
     up_set_cat(&r, cat ? cat : track_cat(TSEL));
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     r.packed[UP_BPM_AT] = (uint8_t)clamp(song.g[G_BPM], 40, 240);   /* (np = P_COUNT < UP_BPM_AT: no value there) */
     r.packed[UP_OCT_AT] = (uint8_t)(clamp(song.octave, -3, 3) + 4);
     for (i = 0; i < 8u; i++)
@@ -438,7 +438,7 @@ static int up_store_cat(uint32_t k, const char *name, uint32_t cat)
     }
     {
         int rc = up_put(k, &r);                         /* the record first, then its FM6 patch (up_fm6.c) */
-        if ((rc == 0 || rc == 3) && (r.engine == ENGI_FM6 || r.engine == ENGI_FMUG)) {
+        if ((rc == 0 || rc == 3) && (r.engine == ENGI_FM6 || r.engine == ENGI_FMINI)) {
             int u = upf_store(k, (uint32_t)(TSEL - trk));
             if (u == 2)
                 rc = 2;
@@ -497,7 +497,7 @@ static int up_load(uint32_t k)
         upf_track_load(t, k);                           /* FM6: the preset's own patch (up_fm6.c) */
     }
     t->user = (uint8_t)(k + 1u);
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     if (r->ver >= 4u && r->np <= UP_BPM_AT && r->packed[UP_BPM_AT] >= 40u && r->packed[UP_BPM_AT] <= 240u)
         song.g[G_BPM] = r->packed[UP_BPM_AT];               /* the preset's tempo */
     if (r->ver >= 4u && r->np <= UP_OCT_AT && r->packed[UP_OCT_AT] >= 1u && r->packed[UP_OCT_AT] <= 7u)

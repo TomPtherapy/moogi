@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * FMUG (FMini-1): a monosynth in the style of the classic three-oscillator Moog instruments.
+ * FMINI (FMini-1): a monosynth in the style of the classic three-oscillator Moog instruments.
  *
  * Signal path (per voice): three oscillators (TRI, SHARK, SAW, SQR, wide and narrow PULSE, band-limited by polyBLEP,
  * ranges LO 32' 16' 8' 4' 2') and a noise source (white or pink) -> the mixer (a level each, the sum saturates softly:
@@ -9,22 +9,22 @@
  * ADSR (P_ATK .. P_REL). Modulation: the track's LFO (or noise, MOD MIX) to the pitch (MOD OSC) and the filter
  * (MOD FLT), its depth E7 MOD (the matrix's MODW source can drive it).
  *
- * The sound is the track's patch (fmug_patch, FG_SIZE bytes, stored in projects and user presets in the slot of the
+ * The sound is the track's patch (fmini_patch, FG_SIZE bytes, stored in projects and user presets in the slot of the
  * FM6 patch: the track plays one engine at a time, project.c, up_fm6.c); the eight EDIT values are the ones to play
  * with (E0 CUT, E1 EMPH, E2 CNTR the contour's amount, E3 F.ATK, E4 F.DEC, E5 F.SUS, E6 MOD, E7 SLOT 1..100 / OWN).
- * The patch holds the rest (ranges, waves, tuning, mixer, switches, keyboard tracking, TUNE). Edited with the FMUG
- * pages (ui_fmug.c). State per voice: s[0..3] the ladder, s[4] the feedback's lag pole (all Q8), s[7] the contour (stage << 24 |
- * level, Q23); the noise is the part's (fmug_nbuf: one source, made once a block). */
-#define ENGI_FMUG (13u + FELUCCA_SLICE)   /* engines.c ENGINES[] (append-only: after SLICE) */
-#if FELUCCA_FMUG_ONLY
-#define FMUG_POLY 12             /* FMini-1: POLY mode plays 12 voices */
+ * The patch holds the rest (ranges, waves, tuning, mixer, switches, keyboard tracking, TUNE). Edited with the FMINI
+ * pages (ui_fmini.c). State per voice: s[0..3] the ladder, s[4] the feedback's lag pole (all Q8), s[7] the contour (stage << 24 |
+ * level, Q23); the noise is the part's (fmini_nbuf: one source, made once a block). */
+#define ENGI_FMINI (13u + FELUCCA_SLICE)   /* engines.c ENGINES[] (append-only: after SLICE) */
+#if FELUCCA_FMINI_ONLY
+#define FMINI_POLY 12             /* FMini-1: POLY mode plays 12 voices */
 #else
-#define FMUG_POLY 4
+#define FMINI_POLY 4
 #endif
 #define FG_SIZE 32u
-#define FMUG_NFACTORY 100u
-#define FMUG_OWN FMUG_NFACTORY
-#define FMUG_PACKED 128u          /* the slot of an FM6 patch in a project / a user preset (eng_fm6.c) */
+#define FMINI_NFACTORY 100u
+#define FMINI_OWN FMINI_NFACTORY
+#define FMINI_PACKED 128u          /* the slot of an FM6 patch in a project / a user preset (eng_fm6.c) */
 
 enum {                           /* the patch's bytes */
     FG_R1, FG_R2, FG_R3,         /* range: 0 LO, 1 32', 2 16', 3 8', 4 4', 5 2' */
@@ -42,41 +42,41 @@ enum {                           /* the patch's bytes */
 enum { FS_O1 = 1, FS_O2 = 2, FS_O3 = 4, FS_NZ = 8, FS_PINK = 16, FS_MOSC = 32, FS_MFLT = 64 };   /* FG_SW1 */
 enum { FT_GLIDE = 1, FT_SQR = 2 };                                                                 /* FG_SW2 */
 
-static uint8_t fmug_patch[NTRK][FG_SIZE];        /* the tracks' patches (main loop writes, then fmug_pgen) */
-static volatile uint8_t fmug_pgen[NTRK];         /* +1 after each write of fmug_patch[t] */
-static uint8_t fmug_slot[NTRK];                  /* the SLOT value last loaded (main loop); 0xFF = none */
-static uint8_t fmug_own[NTRK][FG_SIZE];          /* the own patch while SLOT shows a factory one (fmug_poll) */
-static uint8_t fmug_own_ok;                      /* bit tr: fmug_own[tr] holds it */
+static uint8_t fmini_patch[NTRK][FG_SIZE];        /* the tracks' patches (main loop writes, then fmini_pgen) */
+static volatile uint8_t fmini_pgen[NTRK];         /* +1 after each write of fmini_patch[t] */
+static uint8_t fmini_slot[NTRK];                  /* the SLOT value last loaded (main loop); 0xFF = none */
+static uint8_t fmini_own[NTRK][FG_SIZE];          /* the own patch while SLOT shows a factory one (fmini_poll) */
+static uint8_t fmini_own_ok;                      /* bit tr: fmini_own[tr] holds it */
 static struct {                                  /* the patch as the audio ISR sees it (taken at a block's start) */
     uint8_t p[FG_SIZE];
     uint8_t gen, ok;
-} fmug_eff[NTRK];
-static int32_t fmug_nst[NTRK] = {0x2F6E2B1, 0x1A2B3C5, 0x3C4D5E7, 0x0F1E2D3};   /* a part's noise generator */
-static int32_t fmug_pk[NTRK][3];                 /* its pink filter */
-static int32_t fmug_nbuf[NTRK][CTL];             /* the part's noise for this block, +-32768: one source, all its voices */
-static int32_t fmug_sm[NTRK][3];                 /* the smoothed CUTOFF, EMPH, CNTR knobs (Q16): the encoder's steps become ramps */
-static uint8_t fmug_sm_ok;                       /* bit tr: fmug_sm[tr] follows the knobs (clear = snap to them) */
-static int32_t fmug_mn[NTRK];                    /* the modulation noise of this block, +-16384 */
+} fmini_eff[NTRK];
+static int32_t fmini_nst[NTRK] = {0x2F6E2B1, 0x1A2B3C5, 0x3C4D5E7, 0x0F1E2D3};   /* a part's noise generator */
+static int32_t fmini_pk[NTRK][3];                 /* its pink filter */
+static int32_t fmini_nbuf[NTRK][CTL];             /* the part's noise for this block, +-32768: one source, all its voices */
+static int32_t fmini_sm[NTRK][3];                 /* the smoothed CUTOFF, EMPH, CNTR knobs (Q16): the encoder's steps become ramps */
+static uint8_t fmini_sm_ok;                       /* bit tr: fmini_sm[tr] follows the knobs (clear = snap to them) */
+static int32_t fmini_mn[NTRK];                    /* the modulation noise of this block, +-16384 */
 
 /* the highest value of each byte */
-static uint32_t fmug_max(uint32_t i)
+static uint32_t fmini_max(uint32_t i)
 {
     static const uint8_t MAXV[FG_NUM] = {5, 5, 5, 5, 5, 5, 127, 127, 127, 127, 127, 127, 127, 3, 127, 127, 127, 127};
     return i < FG_NUM ? MAXV[i] : 0u;
 }
 
-static void fmug_sanitize(uint8_t *v)
+static void fmini_sanitize(uint8_t *v)
 {
     uint32_t i;
     for (i = 0; i < FG_SIZE; i++)
-        v[i] = i < FG_NUM ? (uint8_t)(v[i] > fmug_max(i) ? fmug_max(i) : v[i]) : 0;
+        v[i] = i < FG_NUM ? (uint8_t)(v[i] > fmini_max(i) ? fmini_max(i) : v[i]) : 0;
 }
 
 /* --------------------------------------------------------- factory patches --- */
 #define FGP(r1, r2, r3, w1, w2, w3, f2, f3, l1, l2, l3, ln, s1, s2, tn, mm, kb, gl) \
     {r1, r2, r3, w1, w2, w3, f2, f3, l1, l2, l3, ln, s1, s2, tn, mm, kb, gl}
 #define ALLO (FS_O1 | FS_O2 | FS_O3)
-/* what a factory patch sets beyond its preset_t (a load: fmug_app.c fa_factory_extras): the arpeggiator (ON, the MODE the ARP
+/* what a factory patch sets beyond its preset_t (a load: fmini_app.c fa_factory_extras): the arpeggiator (ON, the MODE the ARP
  * button turns on, RATE, OCT, GATE, SWG, PROB), the LFO (RATE, WAVE, FADE, SYNC), the common modulation (LFO -> pitch, LFO ->
  * amplitude, the amplitude contour -> pitch: P_LD_PIT P_LD_AMP P_ED_PIT, voice.c), the patch's LEVEL (P_LEVEL: every patch as loud as the next), the twelve FX settings (G_RTYPE G_RSIZE G_RDAMP
  * G_DTIME G_DRREV G_DFDBK G_ENGGO G_CDEPTH G_CRATE G_INFO G_DRLVL G_MIDI: the reverb TYPE DECAY TONE, the delay TYPE TIME FEEDBK,
@@ -84,111 +84,111 @@ static void fmug_sanitize(uint8_t *v)
 typedef struct {
     uint8_t arp[7], lfo[4], fx[12], level;
     int8_t mod[3], oct;
-} fmug_x_t;
-#include "eng_fmug_presets.h"          /* FMUG_FACTORY (the 100 patches) and FMUG_PRESETS: tools/gen_fmug_presets.py */
-#include "eng_fmug_filter.h"           /* the ladder's laws: FMUG_CUT FMUG_K FMUG_TRIM FMUG_G FMUG_GX (tools/fmug_filter.py) */
+} fmini_x_t;
+#include "eng_fmini_presets.h"          /* FMINI_FACTORY (the 100 patches) and FMINI_PRESETS: tools/gen_fmini_presets.py */
+#include "eng_fmini_filter.h"           /* the ladder's laws: FMINI_CUT FMINI_K FMINI_TRIM FMINI_G FMINI_GX (tools/fmini_filter.py) */
 
 /* --------------------------------------------------------------- the patch --- */
 /* track tr's patch = v (FG_SIZE bytes, sanitized). Main loop: the ISR takes it at its next block */
-static void fmug_set_patch(uint32_t tr, const uint8_t *v)
+static void fmini_set_patch(uint32_t tr, const uint8_t *v)
 {
     uint8_t s[FG_SIZE];
     tr %= NTRK;
     memcpy(s, v, FG_SIZE);
-    fmug_sanitize(s);
-    memcpy(fmug_patch[tr], s, FG_SIZE);
+    fmini_sanitize(s);
+    memcpy(fmini_patch[tr], s, FG_SIZE);
     RING_PUBLISH();
-    fmug_pgen[tr]++;
+    fmini_pgen[tr]++;
 }
 
-/* SLOT value s < FMUG_NFACTORY: that factory patch into track tr */
-static void fmug_load_slot(uint32_t tr, uint32_t s)
+/* SLOT value s < FMINI_NFACTORY: that factory patch into track tr */
+static void fmini_load_slot(uint32_t tr, uint32_t s)
 {
-    s %= FMUG_NFACTORY;
-    fmug_set_patch(tr, FMUG_FACTORY[s]);
-    fmug_slot[tr % NTRK] = (uint8_t)s;
+    s %= FMINI_NFACTORY;
+    fmini_set_patch(tr, FMINI_FACTORY[s]);
+    fmini_slot[tr % NTRK] = (uint8_t)s;
 }
 
 /* track tr's patch was just put in as its own (a project, a user preset, the editor): SLOT shows the factory patch it
- * equals unchanged (F n), else OWN; nothing reloads over it (fmug_poll) */
-static void fmug_adopt(uint32_t tr)
+ * equals unchanged (F n), else OWN; nothing reloads over it (fmini_poll) */
+static void fmini_adopt(uint32_t tr)
 {
     track_t *t = &trk[tr % NTRK];
     int32_t s = t->p[P_E7];
-    uint32_t k, f = s >= 0 && s < (int32_t)FMUG_NFACTORY ? (uint32_t)s : 0u;
+    uint32_t k, f = s >= 0 && s < (int32_t)FMINI_NFACTORY ? (uint32_t)s : 0u;
     tr %= NTRK;
-    fmug_own_ok &= (uint8_t)~(1u << tr);
-    if (t->eng_req == ENGI_FMUG) {
-        for (k = 0; k < FMUG_NFACTORY; k++)
-            if (!memcmp(FMUG_FACTORY[(f + k) % FMUG_NFACTORY], fmug_patch[tr], FG_SIZE))
+    fmini_own_ok &= (uint8_t)~(1u << tr);
+    if (t->eng_req == ENGI_FMINI) {
+        for (k = 0; k < FMINI_NFACTORY; k++)
+            if (!memcmp(FMINI_FACTORY[(f + k) % FMINI_NFACTORY], fmini_patch[tr], FG_SIZE))
                 break;
-        s = k < FMUG_NFACTORY ? (int32_t)((f + k) % FMUG_NFACTORY) : (int32_t)FMUG_OWN;
+        s = k < FMINI_NFACTORY ? (int32_t)((f + k) % FMINI_NFACTORY) : (int32_t)FMINI_OWN;
         t->p[P_E7] = (int16_t)s;
     }
-    fmug_slot[tr] = (uint8_t)s;
+    fmini_slot[tr] = (uint8_t)s;
 }
 
 /* a factory sound load put a SLOT value in (a preset, an engine change): its patch (OWN: the patch stays) */
-static void fmug_track_loaded(const track_t *t)
+static void fmini_track_loaded(const track_t *t)
 {
     uint32_t tr = (uint32_t)(t - trk);
-    if (tr < NTRK && t->eng_req == ENGI_FMUG) {
-        fmug_own_ok &= (uint8_t)~(1u << tr);
-        if (t->p[P_E7] >= 0 && t->p[P_E7] < (int32_t)FMUG_NFACTORY)
-            fmug_load_slot(tr, (uint32_t)t->p[P_E7]);
+    if (tr < NTRK && t->eng_req == ENGI_FMINI) {
+        fmini_own_ok &= (uint8_t)~(1u << tr);
+        if (t->p[P_E7] >= 0 && t->p[P_E7] < (int32_t)FMINI_NFACTORY)
+            fmini_load_slot(tr, (uint32_t)t->p[P_E7]);
         else
-            fmug_adopt(tr);
+            fmini_adopt(tr);
     }
 }
 
-static void fmug_init(void)                      /* power-on: every track F1 */
+static void fmini_init(void)                      /* power-on: every track F1 */
 {
     uint32_t tr;
     for (tr = 0; tr < NTRK; tr++) {
-        fmug_set_patch(tr, FMUG_FACTORY[0]);
-        fmug_slot[tr] = 0xFFu;
+        fmini_set_patch(tr, FMINI_FACTORY[0]);
+        fmini_slot[tr] = 0xFFu;
     }
 }
 
 /* main loop: SLOT turned (a knob, the editor, MIDI, motion) -> that factory patch; from OWN the own patch is kept
- * aside (fmug_own), and turning back to OWN brings it back */
-static void fmug_poll(void)
+ * aside (fmini_own), and turning back to OWN brings it back */
+static void fmini_poll(void)
 {
     uint32_t tr, bit;
     for (tr = 0; tr < NTRK; tr++) {
         int32_t s = trk[tr].p[P_E7];
-        if (trk[tr].eng_req != ENGI_FMUG || s == fmug_slot[tr])
+        if (trk[tr].eng_req != ENGI_FMINI || s == fmini_slot[tr])
             continue;
         bit = 1u << tr;
-        if (s < 0 || s >= (int32_t)FMUG_NFACTORY) {                                /* OWN */
-            if (fmug_own_ok & bit)
-                fmug_set_patch(tr, fmug_own[tr]);
-            fmug_own_ok &= (uint8_t)~bit;
-            fmug_slot[tr] = FMUG_OWN;
-            if (s != (int32_t)FMUG_OWN)
-                trk[tr].p[P_E7] = FMUG_OWN;
+        if (s < 0 || s >= (int32_t)FMINI_NFACTORY) {                                /* OWN */
+            if (fmini_own_ok & bit)
+                fmini_set_patch(tr, fmini_own[tr]);
+            fmini_own_ok &= (uint8_t)~bit;
+            fmini_slot[tr] = FMINI_OWN;
+            if (s != (int32_t)FMINI_OWN)
+                trk[tr].p[P_E7] = FMINI_OWN;
             continue;
         }
-        if (fmug_slot[tr] == FMUG_OWN && !(fmug_own_ok & bit)) {
-            memcpy(fmug_own[tr], fmug_patch[tr], FG_SIZE);
-            fmug_own_ok |= (uint8_t)bit;
+        if (fmini_slot[tr] == FMINI_OWN && !(fmini_own_ok & bit)) {
+            memcpy(fmini_own[tr], fmini_patch[tr], FG_SIZE);
+            fmini_own_ok |= (uint8_t)bit;
         }
-        fmug_load_slot(tr, (uint32_t)s);
+        fmini_load_slot(tr, (uint32_t)s);
     }
 }
 
 /* once a block and part, before its voices: the ISR's copy of the patch, the noise (one source for all the part's
  * voices, white or pink: Kellet's filter) and the modulation noise */
-static void fmug_block(track_t *t)
+static void fmini_block(track_t *t)
 {
     uint32_t tr = (uint32_t)(t - trk), i;
     const uint8_t *g;
     if (tr >= NTRK)
         return;
-    if (!fmug_eff[tr].ok || fmug_eff[tr].gen != fmug_pgen[tr]) {
-        fmug_eff[tr].gen = fmug_pgen[tr];
-        memcpy(fmug_eff[tr].p, fmug_patch[tr], FG_SIZE);
-        fmug_eff[tr].ok = 1;
+    if (!fmini_eff[tr].ok || fmini_eff[tr].gen != fmini_pgen[tr]) {
+        fmini_eff[tr].gen = fmini_pgen[tr];
+        memcpy(fmini_eff[tr].p, fmini_patch[tr], FG_SIZE);
+        fmini_eff[tr].ok = 1;
     }
     for (i = 0; i < NVOICE && !t->v[i].active; i++)
         ;
@@ -197,52 +197,52 @@ static void fmug_block(track_t *t)
         static const uint8_t KN[3] = {P_E0, P_E1, P_E2};
         uint32_t j;
         for (j = 0; j < 3; j++) {
-            int32_t want = (int32_t)clamp(t->p[KN[j]], 0, 127) << 16, d = want - fmug_sm[tr][j], st;
-            if (i == NVOICE || !(fmug_sm_ok & (1u << tr))) {
-                fmug_sm[tr][j] = want;
+            int32_t want = (int32_t)clamp(t->p[KN[j]], 0, 127) << 16, d = want - fmini_sm[tr][j], st;
+            if (i == NVOICE || !(fmini_sm_ok & (1u << tr))) {
+                fmini_sm[tr][j] = want;
                 continue;
             }
             st = d >= 0 ? (int32_t)(((int64_t)d * 238) >> 16) : -(int32_t)(((int64_t)-d * 238) >> 16);
             if (!st)
                 st = d > 0 ? 1 : d < 0 ? -1 : 0;
-            fmug_sm[tr][j] += st;
+            fmini_sm[tr][j] += st;
         }
         if (i == NVOICE)
-            fmug_sm_ok &= (uint8_t)~(1u << tr);
+            fmini_sm_ok &= (uint8_t)~(1u << tr);
         else
-            fmug_sm_ok |= (uint8_t)(1u << tr);
+            fmini_sm_ok |= (uint8_t)(1u << tr);
     }
     if (i == NVOICE)
         return;                                              /* nothing sounds: no noise to make */
-    g = fmug_eff[tr].p;
-    fmug_mn[tr] = (int32_t)(noise32(&fmug_nst[tr]) >> 17) - 16384;
+    g = fmini_eff[tr].p;
+    fmini_mn[tr] = (int32_t)(noise32(&fmini_nst[tr]) >> 17) - 16384;
     if (g[FG_SW1] & FS_NZ) {
-        int32_t b0 = fmug_pk[tr][0], b1 = fmug_pk[tr][1], b2 = fmug_pk[tr][2];
+        int32_t b0 = fmini_pk[tr][0], b1 = fmini_pk[tr][1], b2 = fmini_pk[tr][2];
         for (i = 0; i < CTL; i++) {
-            int32_t w = (int32_t)(noise32(&fmug_nst[tr]) >> 16) - 32768;   /* white, +-32768 */
+            int32_t w = (int32_t)(noise32(&fmini_nst[tr]) >> 16) - 32768;   /* white, +-32768 */
             if (g[FG_SW1] & FS_PINK) {
                 b0 += ((w * 3245) >> 15) - ((b0 * 77) >> 15);              /* 0.0990 in, 0.99765 kept */
                 b1 += ((w * 9716) >> 15) - ((b1 * 1212) >> 15);            /* 0.2965 in, 0.963 kept */
                 b2 += ((w * 34495) >> 15) - ((b2 * 14090) >> 15);          /* 1.0527 in, 0.57 kept */
                 w = (b0 + b1 + b2 + ((w * 6056) >> 15)) >> 1;
             }
-            fmug_nbuf[tr][i] = w;
+            fmini_nbuf[tr][i] = w;
         }
-        fmug_pk[tr][0] = b0;
-        fmug_pk[tr][1] = b1;
-        fmug_pk[tr][2] = b2;
+        fmini_pk[tr][0] = b0;
+        fmini_pk[tr][1] = b1;
+        fmini_pk[tr][2] = b2;
     }
 }
 
 /* ------------------------------------------------------------------ voice --- */
-static inline int32_t fmug_shark(uint32_t ph)            /* a triangle that rises for 3/4 of the cycle */
+static inline int32_t fmini_shark(uint32_t ph)            /* a triangle that rises for 3/4 of the cycle */
 {
     uint32_t x = ph >> 16;
     return x < 49152u ? (int32_t)((x * 43691u) >> 15) - 32768 : 32767 - (int32_t)((x - 49152u) * 4u);
 }
 
 /* one oscillator of the mix: mix[i] += its sample at level g (Q15); a loop per wave */
-static void fmug_wave(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, int32_t *mix, uint32_t n)
+static void fmini_wave(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, int32_t *mix, uint32_t n)
 {
     uint32_t ph = *php, i;
     switch (w) {
@@ -254,7 +254,7 @@ static void fmug_wave(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, int32_
         break;
     case 1:
         for (i = 0; i < n; i++) {
-            mix[i] += mulq15(fmug_shark(ph), g);
+            mix[i] += mulq15(fmini_shark(ph), g);
             ph += inc;
         }
         break;
@@ -287,28 +287,28 @@ static void fmug_wave(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, int32_
 }
 
 /* range of an oscillator in 1/16 semitones (LO: very low) */
-static int32_t fmug_range16(uint32_t r)
+static int32_t fmini_range16(uint32_t r)
 {
     static const int16_t R[6] = {-48 * 16, -24 * 16, -12 * 16, 0, 12 * 16, 24 * 16};
     return R[r % 6u];
 }
 
-static void fmug_note_on(track_t *t, voice_t *v)
+static void fmini_note_on(track_t *t, voice_t *v)
 {
     if (!v->env && !v->env_out) {                          /* from silence: the ladder and the contour from 0 */
         v->s[0] = v->s[1] = v->s[2] = v->s[3] = 0;
         v->s[4] = 0;
         v->s[7] = 0;
         if (t->p[P_E1] >= 96)                                         /* it will sing: a nudge to start from (the hardware has its own noise) */
-            v->s[0] = (noise32(&fmug_nst[(uint32_t)(t - trk) % NTRK]) & 0x80000000u) ? 700 * 256 : -700 * 256;
-        v->s[5] = (int32_t)(noise32(&fmug_nst[(uint32_t)(t - trk) % NTRK]) >> 20) - 2048;   /* the VCOs start a little apart: drift, cents * 256 */
-        v->s[6] = (int32_t)(noise32(&fmug_nst[(uint32_t)(t - trk) % NTRK]) >> 20) - 2048;
+            v->s[0] = (noise32(&fmini_nst[(uint32_t)(t - trk) % NTRK]) & 0x80000000u) ? 700 * 256 : -700 * 256;
+        v->s[5] = (int32_t)(noise32(&fmini_nst[(uint32_t)(t - trk) % NTRK]) >> 20) - 2048;   /* the VCOs start a little apart: drift, cents * 256 */
+        v->s[6] = (int32_t)(noise32(&fmini_nst[(uint32_t)(t - trk) % NTRK]) >> 20) - 2048;
     }
     v->s[7] = (int32_t)(1u << 24) | (v->s[7] & 0xFFFFFF);  /* the contour attacks from where it is */
 }
 
 /* the contour, once a block: stage 1 attack, 2 decay to the sustain, 3 release (the DECAY time); level Q23 */
-static int32_t fmug_contour(const int16_t *p, voice_t *v)
+static int32_t fmini_contour(const int16_t *p, voice_t *v)
 {
     uint32_t st = (uint32_t)v->s[7] >> 24;
     int32_t e = v->s[7] & 0xFFFFFF, sus = (int32_t)p[P_E5] << 16, k = (int32_t)ENV_EXP[p[P_E4] & 127];
@@ -339,25 +339,25 @@ static int32_t fmug_contour(const int16_t *p, voice_t *v)
 }
 
 /* a * k / 65536 rounded to the nearest (mulq16 floors: four stages of it leave a bias that a quiet, low ladder cannot sing against) */
-static inline int32_t fmug_mulr(int32_t a, uint32_t k)
+static inline int32_t fmini_mulr(int32_t a, uint32_t k)
 {
     return (int32_t)(((a >> 16) * (int32_t)k) + (int32_t)(((uint32_t)(a & 0xFFFF) * k + 32768u) >> 16));
 }
 
-/* The filter, after the Minimoog's (tools/fmug_filter.py has the laws and the reasoning, the CA-72 project's calibration the
+/* The filter, after the Minimoog's (tools/fmini_filter.py has the laws and the reasoning, the CA-72 project's calibration the
  * measurements): four equal one-pole stages, each a differential pair (tanh in front), the last stage's output fed back to
  * the first through a lag pole (the emphasis network), solved without a delay in the loop (zero-delay feedback: each stage
  * is a trapezoidal integrator, G = g / (1 + g), and the feedback is found from the stages' states before the sample is
  * processed). The lag pole puts the loop's 180-degree point at 0.686 of the stage pole: the filter sings at 1.578 times
  * its -3 dB corner, and it sings when the feedback k reaches 2.92. The knobs and the pitch work in 1/16 semitones of the
- * singing pitch (MIDI x 16): CUTOFF is the dial -5 .. +5 (FMUG_CUT), the keyboard adds 1 V/oct from F (MIDI 41) at KBD 127,
- * the contour up to 5 octaves; EMPHASIS is the dial 0 .. 10 (FMUG_K) with the hardware's passband loss (FMUG_TRIM). With
+ * singing pitch (MIDI x 16): CUTOFF is the dial -5 .. +5 (FMINI_CUT), the keyboard adds 1 V/oct from F (MIDI 41) at KBD 127,
+ * the contour up to 5 octaves; EMPHASIS is the dial 0 .. 10 (FMINI_K) with the hardware's passband loss (FMINI_TRIM). With
  * the mixer silent and EMPHASIS past 8 the ladder sings a sine at the singing pitch, 1 V/oct over the keyboard.
  * Q formats: signals +-32768 (tanh(1)); the states Q8 (a quiet ladder at a low cutoff moves less than a LSB a sample); G Q16; the prediction's coefficients c Q14; k Q12. */
-static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static void fmini_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
-    const uint8_t *g = fmug_eff[(uint32_t)(t - trk) % NTRK].p;
+    const uint8_t *g = fmini_eff[(uint32_t)(t - trk) % NTRK].p;
     int32_t mix[CTL];
     int32_t env15, mod, lfo, lc, p16, fine, k12, G16, gx16, c0, c1, c2, c3, inv14, kinv12, trim12;
     int32_t l1 = 0, l2 = 0, l3 = 0, ln = 0, dr1, dr2, dr3;
@@ -367,13 +367,13 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     uint32_t ph0 = v->ph[0], ph1 = v->ph[1], ph2 = v->ph[2];
     if (n > CTL)
         n = CTL;
-    env15 = fmug_contour(p, v);
+    env15 = fmini_contour(p, v);
 
     /* modulation: the LFO (a square when FT_SQR) or noise held for the block, MOD deep */
     lfo = mulq15(t->lfo_val, t->lfo_fade);
     if (g[FG_SW2] & FT_SQR)
         lfo = lfo >= 0 ? 32767 : -32767;
-    mod = mulq15(lfo, 32767 - (int32_t)g[FG_MMIX] * 258) + mulq15(fmug_mn[tr] << 1, (int32_t)g[FG_MMIX] * 258);
+    mod = mulq15(lfo, 32767 - (int32_t)g[FG_MMIX] * 258) + mulq15(fmini_mn[tr] << 1, (int32_t)g[FG_MMIX] * 258);
     {   /* the depth: the patch's MOD, and the mod wheel (CC1, t->mw) takes it up to the full depth */
         int32_t depth = p[P_E6] + ((127 - p[P_E6]) * (int32_t)t->mw + 63) / 127;
         mod = mulq15(mod, depth * 258);                                 /* Q15 of the full depth */
@@ -384,17 +384,17 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     fine = m->fine + ((int32_t)g[FG_TUNE] - 64) * 237 / 64;
     {   /* the VCOs wander a few cents (temperature, the integrators): a slow random walk per oscillator, about +-2 cents */
         int32_t d1 = v->s[5], d2 = v->s[6];
-        d1 += ((int32_t)(noise32(&fmug_nst[tr]) >> 20) - 2048 >> 6) - (d1 >> 11);
-        d2 += ((int32_t)(noise32(&fmug_nst[tr]) >> 20) - 2048 >> 6) - (d2 >> 11);
+        d1 += ((int32_t)(noise32(&fmini_nst[tr]) >> 20) - 2048 >> 6) - (d1 >> 11);
+        d2 += ((int32_t)(noise32(&fmini_nst[tr]) >> 20) - 2048 >> 6) - (d2 >> 11);
         v->s[5] = d1;
         v->s[6] = d2;
         dr1 = d1 >> 8;
         dr2 = d2 >> 8;
         dr3 = (d1 - d2) >> 9;
     }
-    inc1 = cents_inc(clamp(p16 + fmug_range16(g[FG_R1]), 0, 2047), dr1, fine);
-    inc2 = cents_inc(clamp(p16 + fmug_range16(g[FG_R2]), 0, 2047), ((int32_t)g[FG_F2] - 64) * 11 + dr2, fine);
-    inc3 = cents_inc(clamp(p16 + fmug_range16(g[FG_R3]), 0, 2047), ((int32_t)g[FG_F3] - 64) * 11 + dr3, fine);
+    inc1 = cents_inc(clamp(p16 + fmini_range16(g[FG_R1]), 0, 2047), dr1, fine);
+    inc2 = cents_inc(clamp(p16 + fmini_range16(g[FG_R2]), 0, 2047), ((int32_t)g[FG_F2] - 64) * 11 + dr2, fine);
+    inc3 = cents_inc(clamp(p16 + fmini_range16(g[FG_R3]), 0, 2047), ((int32_t)g[FG_F3] - 64) * 11 + dr3, fine);
 
     /* mixer levels: a squared curve */
     if (sw & FS_O1) l1 = (int32_t)(g[FG_L1] * g[FG_L1] * 2) + 0;
@@ -404,38 +404,38 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     for (i = 0; i < n; i++)
         mix[i] = 0;
     if (l1)
-        fmug_wave(g[FG_W1], &ph0, inc1, l1, mix, n);
+        fmini_wave(g[FG_W1], &ph0, inc1, l1, mix, n);
     else
         ph0 += inc1 * n;
     if (l2)
-        fmug_wave(g[FG_W2], &ph1, inc2, l2, mix, n);
+        fmini_wave(g[FG_W2], &ph1, inc2, l2, mix, n);
     else
         ph1 += inc2 * n;
     if (l3)
-        fmug_wave(g[FG_W3], &ph2, inc3, l3, mix, n);
+        fmini_wave(g[FG_W3], &ph2, inc3, l3, mix, n);
     else
         ph2 += inc3 * n;
     if (ln)
         for (i = 0; i < n; i++)
-            mix[i] += mulq15(fmug_nbuf[tr][i], ln);
+            mix[i] += mulq15(fmini_nbuf[tr][i], ln);
 
     /* the singing pitch (MIDI x 16): the CUTOFF knob's dial, the contour, the keyboard, the modulation, the host's (LFO / matrix / ENV routings) */
     {
-        int32_t kn = fmug_sm[tr][0], i0 = kn >> 16, fr = (kn >> 8) & 255;
-        lc = FMUG_CUT[i0];
+        int32_t kn = fmini_sm[tr][0], i0 = kn >> 16, fr = (kn >> 8) & 255;
+        lc = FMINI_CUT[i0];
         if (i0 < 127)
-            lc += ((FMUG_CUT[i0 + 1] - lc) * fr) >> 8;
+            lc += ((FMINI_CUT[i0 + 1] - lc) * fr) >> 8;
     }
     lc += (m->cutoff * 55) >> 10;                                                                           /* the host's steps (1/14 octave) in 1/16 semitones */
-    lc += (int32_t)(((int64_t)env15 * fmug_sm[tr][2] / (127 * 65536)) * 960) >> 15;                          /* the contour: up to 5 octaves */
-    lc += ((v->pitch_cur - FMUG_NOTE0 * 16) * (int32_t)g[FG_KBD] * 516) >> 16;                              /* the keyboard: 1 V/oct at 127, 0 V on F */
+    lc += (int32_t)(((int64_t)env15 * fmini_sm[tr][2] / (127 * 65536)) * 960) >> 15;                          /* the contour: up to 5 octaves */
+    lc += ((v->pitch_cur - FMINI_NOTE0 * 16) * (int32_t)g[FG_KBD] * 516) >> 16;                              /* the keyboard: 1 V/oct at 127, 0 V on F */
     if (sw & FS_MFLT)
         lc += (mod * 547) >> 15;                                                                            /* +-2.85 octaves at full depth */
-    lc = clamp(lc, FMUG_GM0 * 16, FMUG_FOSC_MAX16);
+    lc = clamp(lc, FMINI_GM0 * 16, FMINI_FOSC_MAX16);
     {   /* the stage pole G and the lag pole's from the tables (one entry a semitone, linear between), the feedback solved ahead */
-        uint32_t ix = (uint32_t)((lc >> 4) - FMUG_GM0), fr = (uint32_t)lc & 15u, gq, gxq, g2, g3, g4, om;
-        gq = FMUG_G[ix] + (uint32_t)(((int32_t)(FMUG_G[ix + 1] - FMUG_G[ix]) * (int32_t)fr) >> 4);
-        gxq = FMUG_GX[ix] + (uint32_t)(((int32_t)(FMUG_GX[ix + 1] - FMUG_GX[ix]) * (int32_t)fr) >> 4);
+        uint32_t ix = (uint32_t)((lc >> 4) - FMINI_GM0), fr = (uint32_t)lc & 15u, gq, gxq, g2, g3, g4, om;
+        gq = FMINI_G[ix] + (uint32_t)(((int32_t)(FMINI_G[ix + 1] - FMINI_G[ix]) * (int32_t)fr) >> 4);
+        gxq = FMINI_GX[ix] + (uint32_t)(((int32_t)(FMINI_GX[ix + 1] - FMINI_GX[ix]) * (int32_t)fr) >> 4);
         G16 = (int32_t)((gq + 128u) >> 8);
         gx16 = (int32_t)((gxq + 128u) >> 8);
         om = 65536u - (uint32_t)G16;
@@ -447,12 +447,12 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         c1 = (int32_t)((g2 * om) >> 18);
         c0 = (int32_t)((g3 * om) >> 18);
         {   /* EMPHASIS: the feedback gain k and the passband's loss, from the knob (Q16) */
-            int32_t kn = fmug_sm[tr][1], i0 = kn >> 16, fk = (kn >> 8) & 255, den;
-            k12 = FMUG_K[i0];
-            trim12 = FMUG_TRIM[i0];
+            int32_t kn = fmini_sm[tr][1], i0 = kn >> 16, fk = (kn >> 8) & 255, den;
+            k12 = FMINI_K[i0];
+            trim12 = FMINI_TRIM[i0];
             if (i0 < 127) {
-                k12 += ((FMUG_K[i0 + 1] - k12) * fk) >> 8;
-                trim12 += ((FMUG_TRIM[i0 + 1] - trim12) * fk) >> 8;
+                k12 += ((FMINI_K[i0 + 1] - k12) * fk) >> 8;
+                trim12 += ((FMINI_TRIM[i0 + 1] - trim12) * fk) >> 8;
             }
             den = 65536 + ((k12 * (int32_t)((((uint32_t)gxq >> 8) * g4) >> 16)) >> 12);        /* 1 + k Gx G^4: the loop around the whole sample */
             inv14 = (int32_t)((1u << 30) / (uint32_t)den);
@@ -463,21 +463,21 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     for (i = 0; i < n; i++) {
         int32_t x = softclip(mix[i]), S, fbc, u, v1, v2, v3, v4, y1, y2, y3, y4, w;      /* the mixer overloads softly */
         S = (c0 * ((s0 + 128) >> 8) + c1 * ((s1 + 128) >> 8) + c2 * ((s2 + 128) >> 8) + c3 * ((s3 + 128) >> 8)) >> 14;   /* what the stages already hold */
-        fbc = sx + fmug_mulr((S << 8) - sx, (uint32_t)gx16);              /* through the lag pole (Q8) */
+        fbc = sx + fmini_mulr((S << 8) - sx, (uint32_t)gx16);              /* through the lag pole (Q8) */
         u = ((x * inv14) >> 14) - ((kinv12 * ((fbc + 128) >> 8)) >> 12);  /* the input less the feedback, the loop solved */
-        v1 = fmug_mulr((softclip(u) << 8) - s0, (uint32_t)G16);           /* each stage is a differential pair: tanh in front of it */
+        v1 = fmini_mulr((softclip(u) << 8) - s0, (uint32_t)G16);           /* each stage is a differential pair: tanh in front of it */
         y1 = v1 + s0;
         s0 = y1 + v1;
-        v2 = fmug_mulr((softclip((y1 + 128) >> 8) << 8) - s1, (uint32_t)G16);
+        v2 = fmini_mulr((softclip((y1 + 128) >> 8) << 8) - s1, (uint32_t)G16);
         y2 = v2 + s1;
         s1 = y2 + v2;
-        v3 = fmug_mulr((softclip((y2 + 128) >> 8) << 8) - s2, (uint32_t)G16);
+        v3 = fmini_mulr((softclip((y2 + 128) >> 8) << 8) - s2, (uint32_t)G16);
         y3 = v3 + s2;
         s2 = y3 + v3;
-        v4 = fmug_mulr((softclip((y3 + 128) >> 8) << 8) - s3, (uint32_t)G16);
+        v4 = fmini_mulr((softclip((y3 + 128) >> 8) << 8) - s3, (uint32_t)G16);
         y4 = v4 + s3;
         s3 = y4 + v4;
-        w = fmug_mulr(y4 - sx, (uint32_t)gx16);                           /* the lag pole follows the output */
+        w = fmini_mulr(y4 - sx, (uint32_t)gx16);                           /* the lag pole follows the output */
         sx += w + w;
         out[i] += voice_amp((((y4 + 128) >> 8) * trim12) >> 12, m, i) << 1;
     }
@@ -492,8 +492,8 @@ static void fmug_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
 }
 
 /* --------------------------------------------------------------- the engine --- */
-static const engine_t ENG_FMUG = {
-    .name = "FMUG",
+static const engine_t ENG_FMINI = {
+    .name = "FMINI",
     .page_title = {"FILTER", "PATCH"},
     .edit = {
         {"CUT", F_MCUT, 0, 127, 64, 0, 0},
@@ -503,14 +503,14 @@ static const engine_t ENG_FMUG = {
         {"F.DEC", F_TIME, 0, 127, 64, 0, 0},
         {"F.SUS", F_PCT, 0, 127, 40, 0, 0},
         {"MOD", F_PCT, 0, 127, 0, 0, 0},
-        {"SLOT", F_INT, 0, FMUG_OWN, 0, 0, 0},
+        {"SLOT", F_INT, 0, FMINI_OWN, 0, 0, 0},
     },
-    .presets = FMUG_PRESETS,
-    .npresets = NELEM(FMUG_PRESETS),
-    .note_on = fmug_note_on,
-    .render = fmug_render,
+    .presets = FMINI_PRESETS,
+    .npresets = NELEM(FMINI_PRESETS),
+    .note_on = fmini_note_on,
+    .render = fmini_render,
     .knob = {P_E0, P_E1, P_E2, P_E4},
-    .poly = FMUG_POLY,
+    .poly = FMINI_POLY,
     .keep = 0x13,
-    .block = fmug_block,
+    .block = fmini_block,
 };

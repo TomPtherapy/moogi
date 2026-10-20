@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * FMini-1 screen: renders every page of fmug_app.c with the real drawing code to PPMs (OUT/fa_<page>.ppm) and
+ * FMini-1 screen: renders every page of fmini_app.c with the real drawing code to PPMs (OUT/fa_<page>.ppm) and
  * checks that the screen draws and that SELECT / ALGORITHM / PRESETS reach every control. */
 #define UI_TEST_NO_MAIN 1
-#define FELUCCA_FMUG_ONLY 1
+#define FELUCCA_FMINI_ONLY 1
 #include "ui_test.c"
-#include "../firmware/src/fmug_app.c"
+#include "../firmware/src/fmini_app.c"
 #include <stdio.h>
 static void dump(const char *dir, int n)
 {
@@ -67,11 +67,11 @@ int main(int argc, char **argv)
             int pg2 = pgs[k / 4], kn = k % 4;
             uint32_t before = 0, after = 0, i;
             fa_page = (uint8_t)pg2;
-            for (i = 0; i < FG_SIZE; i++) before = before * 31u + fmug_patch[0][i];
+            for (i = 0; i < FG_SIZE; i++) before = before * 31u + fmini_patch[0][i];
             for (i = 0; i < P_COUNT; i++) before = before * 31u + (uint32_t)TSEL->p[i];
             fmg_force_page = pg2;
             fmg_knob((uint32_t)kn, 3);
-            for (i = 0; i < FG_SIZE; i++) after = after * 31u + fmug_patch[0][i];
+            for (i = 0; i < FG_SIZE; i++) after = after * 31u + fmini_patch[0][i];
             for (i = 0; i < P_COUNT; i++) after = after * 31u + (uint32_t)TSEL->p[i];
             if (before == after) { printf("page %d knob %d does not move\n", pg2, kn); bad++; }
         }
@@ -94,7 +94,7 @@ int main(int argc, char **argv)
     }
     fa_page = 3;                                       /* patch 100 and the SAVE dialog */
     TSEL->p[P_E7] = 99;
-    fmug_load_slot(0, 99);
+    fmini_load_slot(0, 99);
     ui.force = 1;
     fa_draw();
     dump(dir, 10);
@@ -108,7 +108,7 @@ int main(int argc, char **argv)
         uint32_t before = fa_nuser();
         apply_preset_to(TSEL, 5);
         TSEL->p[P_E7] = 5;
-        fmug_poll();
+        fmini_poll();
         fa_sv_open();
         if (!fa_sv || fa_sv_slot != 0 || before != 0) { printf("save: open\n"); return 1; }
         str_cpy(fa_sv_name, "MY PATCH", 13);
@@ -118,7 +118,7 @@ int main(int argc, char **argv)
         if (!str_eq(nm, "MY PATCH")) { printf("save: name %s\n", nm); return 1; }
         apply_preset_to(TSEL, 7);
         TSEL->user = 0;
-        TSEL->p[P_E7] = (int16_t)(FMUG_NFACTORY - 1u);
+        TSEL->p[P_E7] = (int16_t)(FMINI_NFACTORY - 1u);
         fa_preset(1);                                   /* the last factory patch -> the saved one */
         if (!fa_on_user() || TSEL->user != 1) { printf("save: PRESETS does not reach it\n"); return 1; }
         fa_preset(1);                                   /* ... and round to the first factory patch */
@@ -132,13 +132,13 @@ int main(int argc, char **argv)
         TSEL->p[P_VOICE] = V_MONO;
         {   /* the bank: 100 patches, a voice mode each (leads, basses and SFX mono; pads, keys, brass chords and plucks poly), names that fit */
             uint32_t k, npoly = 0;
-            if (FMUG_NFACTORY != 100u || strlen(FMUG_CATS) != 100u || NELEM(FMUG_PRESETS) != 100u) { printf("bank size %u\n", (uint32_t)FMUG_NFACTORY); return 1; }
-            for (k = 0; k < FMUG_NFACTORY; k++) {
+            if (FMINI_NFACTORY != 100u || strlen(FMINI_CATS) != 100u || NELEM(FMINI_PRESETS) != 100u) { printf("bank size %u\n", (uint32_t)FMINI_NFACTORY); return 1; }
+            for (k = 0; k < FMINI_NFACTORY; k++) {
                 apply_preset_to(TSEL, k);
                 fa_mono();
-                if (TSEL->p[P_VOICE] != (ENGINES[ENGI_FMUG]->presets[k].mono ? V_MONO : V_POLY)) { printf("preset %u: voice mode %d\n", k, TSEL->p[P_VOICE]); return 1; }
-                if (strlen(ENGINES[ENGI_FMUG]->presets[k].name) > 12u) { printf("preset %u: name too long\n", k); return 1; }
-                npoly += !ENGINES[ENGI_FMUG]->presets[k].mono;
+                if (TSEL->p[P_VOICE] != (ENGINES[ENGI_FMINI]->presets[k].mono ? V_MONO : V_POLY)) { printf("preset %u: voice mode %d\n", k, TSEL->p[P_VOICE]); return 1; }
+                if (strlen(ENGINES[ENGI_FMINI]->presets[k].name) > 12u) { printf("preset %u: name too long\n", k); return 1; }
+                npoly += !ENGINES[ENGI_FMINI]->presets[k].mono;
             }
             if (npoly < 25u || npoly > 75u) { printf("bank: %u poly patches\n", npoly); return 1; }
             TSEL->p[P_VOICE] = V_MONO;
@@ -177,7 +177,7 @@ int main(int argc, char **argv)
         fa_mono();
     }
     {   /* the ARP settings and the tempo are part of a saved preset: SAVE keeps them, loading the preset sets them,
-         * a factory patch brings its own (the FMUG_X table) */
+         * a factory patch brings its own (the FMINI_X table) */
         int16_t bpm0 = song.g[G_BPM];
         apply_preset_to(TSEL, 2);
         TSEL->p[P_AMODE] = 3; TSEL->p[P_ARATE] = 4; TSEL->p[P_AOCT] = 3; TSEL->p[P_AGATE] = 90; TSEL->p[P_AHOLD] = 1;
@@ -194,8 +194,8 @@ int main(int argc, char **argv)
         song.g[G_RSIZE] = 50; song.g[G_DRREV] = 50; song.g[G_CRATE] = 50; song.g[G_DRLVL] = 50;
         if (TSEL->p[P_AMODE] != 0 || TSEL->p[P_AHOLD] != 0) { printf("arp: a factory patch leaves the ARP on\n"); return 1; }
         fa_preset(1);                                   /* the next factory patch (5, DUB STAB): its own FX settings, arpeggiator and octave */
-        if (fa_on_user() || TSEL->p[P_E7] != 5 || song.g[G_RSIZE] != FMUG_X[5].fx[1] || song.g[G_DRLVL] != FMUG_X[5].fx[10] ||
-            song.g[G_RTYPE] != FMUG_X[5].fx[0] || song.g[G_DTIME] != FMUG_X[5].fx[3] || song.octave != FMUG_X[5].oct) {
+        if (fa_on_user() || TSEL->p[P_E7] != 5 || song.g[G_RSIZE] != FMINI_X[5].fx[1] || song.g[G_DRLVL] != FMINI_X[5].fx[10] ||
+            song.g[G_RTYPE] != FMINI_X[5].fx[0] || song.g[G_DTIME] != FMINI_X[5].fx[3] || song.octave != FMINI_X[5].oct) {
             printf("fx: factory patch 5 keeps the old FX settings (%d %d %d)\n", song.g[G_RSIZE], song.g[G_DRLVL], song.octave); return 1;
         }
         up_load(1);
@@ -222,8 +222,8 @@ int main(int argc, char **argv)
         uint32_t k, on = 0, fxk, bad = 0;
         int16_t bpm0 = song.g[G_BPM];
         song.g[G_BPM] = 117;
-        for (k = 0; k < FMUG_NFACTORY; k++) {
-            const fmug_x_t *x = &FMUG_X[k];
+        for (k = 0; k < FMINI_NFACTORY; k++) {
+            const fmini_x_t *x = &FMINI_X[k];
             TSEL->user = 0;
             if (k) {
                 TSEL->p[P_E7] = (int16_t)(k - 1u);
@@ -249,9 +249,9 @@ int main(int argc, char **argv)
                 }
             if (song.octave != x->oct || (k >= 50u && k < 60u && x->oct != -1)) { printf("patch %u: octave %d\n", k, song.octave); bad++; }
             if (k >= 30u && k < 40u && song.octave != -1) { printf("patch %u: a bass comes in with OCT-1 (%d)\n", k, song.octave); bad++; }
-            if ((k == 0u || k == 2u || k == 10u) && (fmug_patch[0][FG_SW1] & FS_MOSC)) { printf("patch %u: MOD OSC is off\n", k); bad++; }
-            if (k == 0u && (song.octave != 1 || TSEL->p[P_E0] != 61 || fmug_patch[0][FG_GLID] != 50)) {      /* CUTOFF -0.2 (the ladder's dial, 1.7.0), GLIDE 3.9 (-10 %), OCT+ */
-                printf("patch 0: octave %d cutoff %d glide %d\n", song.octave, TSEL->p[P_E0], fmug_patch[0][FG_GLID]); bad++;
+            if ((k == 0u || k == 2u || k == 10u) && (fmini_patch[0][FG_SW1] & FS_MOSC)) { printf("patch %u: MOD OSC is off\n", k); bad++; }
+            if (k == 0u && (song.octave != 1 || TSEL->p[P_E0] != 61 || fmini_patch[0][FG_GLID] != 50)) {      /* CUTOFF -0.2 (the ladder's dial, 1.7.0), GLIDE 3.9 (-10 %), OCT+ */
+                printf("patch 0: octave %d cutoff %d glide %d\n", song.octave, TSEL->p[P_E0], fmini_patch[0][FG_GLID]); bad++;
             }
             if (k == 3u && (TSEL->p[P_E0] != 70 || TSEL->p[P_REV] != 64 || song.g[G_RTYPE] != 1)) {          /* CUTOFF +0.5 (the ladder's dial, 1.7.0), REVERB 5.0, HALL */
                 printf("patch 3: cutoff %d reverb %d type %d\n", TSEL->p[P_E0], TSEL->p[P_REV], song.g[G_RTYPE]); bad++;
@@ -263,7 +263,7 @@ int main(int argc, char **argv)
         song.g[G_BPM] = bpm0;                            /* (a Program Change brings the same: ui.c midi_pc_load) */
         ui.mpc[0] = (uint8_t)(0x80u | 14u);              /* 14 RAVE ARP */
         midi_pc_poll();
-        if (TSEL->p[P_E7] != 14 || TSEL->p[P_AMODE] != FMUG_X[14].arp[1] || song.g[G_RSIZE] != FMUG_X[14].fx[1] || song.octave != 0) {
+        if (TSEL->p[P_E7] != 14 || TSEL->p[P_AMODE] != FMINI_X[14].arp[1] || song.g[G_RSIZE] != FMINI_X[14].fx[1] || song.octave != 0) {
             printf("Program Change 14: slot %d arp %d\n", TSEL->p[P_E7], TSEL->p[P_AMODE]); return 1;
         }
         ui.mpc[0] = (uint8_t)(0x80u | 55u);              /* 55 BRASS SWELL: OCT-1 */
@@ -307,13 +307,13 @@ int main(int argc, char **argv)
         TSEL->user = 0;
         apply_preset_to(TSEL, 0);
         TSEL->p[P_E7] = 0;
-        TSEL->eng_req = ENGI_FMUG;
+        TSEL->eng_req = ENGI_FMINI;
         song.octave = 0;
         fa_init();
-        if (song.octave != FMUG_X[0].oct || song.octave != 1) { printf("power-on: patch 00 octave %d\n", song.octave); return 1; }
+        if (song.octave != FMINI_X[0].oct || song.octave != 1) { printf("power-on: patch 00 octave %d\n", song.octave); return 1; }
         TSEL->p[P_E7] = 35;
         fa_init();
-        if (song.octave != FMUG_X[35].oct) { printf("power-on: patch 35 octave %d\n", song.octave); return 1; }
+        if (song.octave != FMINI_X[35].oct) { printf("power-on: patch 35 octave %d\n", song.octave); return 1; }
         song.octave = 0;
     }
     {   /* a CTRL / OSC / MIX knob edits the patch (SLOT becomes OWN): PRESETS still goes on from the patch it came from (13 -> 14, then 14 -> 13) */
@@ -327,13 +327,13 @@ int main(int argc, char **argv)
             apply_preset_to(TSEL, 13);
             TSEL->p[P_E7] = 13;
             fa_factory_extras(TSEL, 13);
-            fmug_poll();
+            fmini_poll();
             fa_page = CASE[c][0];
             fmg_force_page = (int8_t)fa_page;
             fframes(48);
             fturn(EN_K1 + CASE[c][1], 3);
             fframes(48);
-            if (TSEL->p[P_E7] != (int16_t)FMUG_OWN) { printf("edit %u: the slot is %d, not OWN\n", c, TSEL->p[P_E7]); return 1; }
+            if (TSEL->p[P_E7] != (int16_t)FMINI_OWN) { printf("edit %u: the slot is %d, not OWN\n", c, TSEL->p[P_E7]); return 1; }
             fturn(EN_PRESET, 1);
             fframes(48);
             if (TSEL->p[P_E7] != 14 || fa_page != 0) { printf("edit %u: PRESETS from 13 -> %d (page %d), not 14\n", c, TSEL->p[P_E7], fa_page); return 1; }
@@ -351,13 +351,13 @@ int main(int argc, char **argv)
         apply_preset_to(TSEL, 0);
         TSEL->p[P_E7] = 0;
         fa_factory_extras(TSEL, 0);
-        fmug_poll();
+        fmini_poll();
     }
     {   /* GLIDE: the knob alone makes the track glide; ARP pop-up changes the arp; HOME */
         int i;
         fa_page = 0;
         fmg_force_page = 0;
-        fmug_load_slot(0, 0);
+        fmini_load_slot(0, 0);
         TSEL->p[P_E7] = 0;
         fmg_glide_sync();
         for (i = 0; i < 10; i++)
@@ -386,15 +386,15 @@ int main(int argc, char **argv)
             for (m = n + 1u; m < FA_NCC; m++)
                 if (fa_cc[n] == fa_cc[m]) { printf("cc %u twice (%u, %u)\n", fa_cc[n], n, m); return 1; }
         }
-        fmug_load_slot(0, 0);
+        fmini_load_slot(0, 0);
         for (n = 0; n < FA_NCC; n++) {                  /* a CC of each control moves it */
             uint32_t h0 = 0, h1 = 0, i;
             fa_ctl_apply(n, 0);
-            for (i = 0; i < FG_SIZE; i++) h0 = h0 * 31u + fmug_patch[0][i];
+            for (i = 0; i < FG_SIZE; i++) h0 = h0 * 31u + fmini_patch[0][i];
             for (i = 0; i < P_COUNT; i++) h0 = h0 * 31u + (uint32_t)TSEL->p[i];
             for (i = 0; i < G_COUNT; i++) h0 = h0 * 31u + (uint32_t)song.g[i];
             fa_ctl_apply(n, 127);
-            for (i = 0; i < FG_SIZE; i++) h1 = h1 * 31u + fmug_patch[0][i];
+            for (i = 0; i < FG_SIZE; i++) h1 = h1 * 31u + fmini_patch[0][i];
             for (i = 0; i < P_COUNT; i++) h1 = h1 * 31u + (uint32_t)TSEL->p[i];
             for (i = 0; i < G_COUNT; i++) h1 = h1 * 31u + (uint32_t)song.g[i];
             if (h0 == h1) { const char *tg; char nm[16]; fa_ctl_name(n, &tg, nm); printf("control %u (%s %s) ignores its CC\n", n, tg, nm); bad++; }
@@ -443,7 +443,7 @@ int main(int argc, char **argv)
         fa_gl = 0; fa_ar = 0; fa_sv = 0;
         apply_preset_to(TSEL, 42);
         TSEL->p[P_E7] = 42;
-        fmug_poll();
+        fmini_poll();
         fa_track_preset();
         fa_preset_label(num, nm);
         if (strcmp(num, "42") || !fa_pp_on()) { printf("label %s pop %d\n", num, fa_pp_on()); return 1; }
@@ -454,7 +454,7 @@ int main(int argc, char **argv)
         fa_track_preset();
         fa_preset_label(num, nm);
         if (strcmp(num, "42") || fa_pp_on() || nm[0] == 0) { printf("edited label %s\n", num); return 1; }
-        for (k = 0; k < FMUG_NFACTORY; k++) {            /* every number 00..99 */
+        for (k = 0; k < FMINI_NFACTORY; k++) {            /* every number 00..99 */
             TSEL->p[P_E7] = (int16_t)k;
             fa_track_preset();
             fa_preset_label(num, nm);
@@ -617,7 +617,7 @@ int main(int argc, char **argv)
         fpress(B_HOME);
         if (fa_page != 0) { printf("HOME -> CTRL (%d)\n", fa_page); return 1; }
     }
-    printf("fmug_app_test: ok\n");
+    printf("fmini_app_test: ok\n");
     {   /* the CUTOFF / EMPH / CNTR knobs glide (200 ms): a click is a ramp of tiny steps, silence snaps */
         track_t *t0 = &trk[0];
         int32_t last, d, n, kk, big;
@@ -628,20 +628,20 @@ int main(int argc, char **argv)
             for (vi = 0; vi < NVOICE; vi++)             /* (the patches played before may be polyphonic: their released voices are silent) */
                 t0->v[vi].active = 0;
             t0->p[KN3[kk]] = 64;
-            fmug_block(t0);
-            if (fmug_sm[0][kk] != 64 << 16) { printf("knob glide: silent block does not snap\n"); return 1; }
+            fmini_block(t0);
+            if (fmini_sm[0][kk] != 64 << 16) { printf("knob glide: silent block does not snap\n"); return 1; }
             t0->v[0].active = 1;
-            fmug_block(t0);                        /* the first block of a note follows the knobs at once */
+            fmini_block(t0);                        /* the first block of a note follows the knobs at once */
             t0->p[KN3[kk]] = 65;
-            last = fmug_sm[0][kk];
-            for (n = 0, big = 0; fmug_sm[0][kk] != 65 << 16 && n < 20000; ) {
-                fmug_block(t0);
+            last = fmini_sm[0][kk];
+            for (n = 0, big = 0; fmini_sm[0][kk] != 65 << 16 && n < 20000; ) {
+                fmini_block(t0);
                 n++;
-                d = fmug_sm[0][kk] - last;
-                if (d <= 0 || fmug_sm[0][kk] > 65 << 16) { printf("knob glide: not monotonic\n"); return 1; }
+                d = fmini_sm[0][kk] - last;
+                if (d <= 0 || fmini_sm[0][kk] > 65 << 16) { printf("knob glide: not monotonic\n"); return 1; }
                 if (d > 300) big++;
-                last = fmug_sm[0][kk];
-                if (n == 275) at275 = fmug_sm[0][kk] - (64 << 16);
+                last = fmini_sm[0][kk];
+                if (n == 275) at275 = fmini_sm[0][kk] - (64 << 16);
             }
             /* one time constant (275 blocks = 200 ms) = 63 % of the click */
             if (n >= 20000 || big || at275 < 65536 * 55 / 100 || at275 > 65536 * 72 / 100) {
@@ -649,7 +649,7 @@ int main(int argc, char **argv)
                 return 1;
             }
             t0->v[0].active = 0;
-            fmug_block(t0);
+            fmini_block(t0);
         }
     }
     {   /* the loudness contour is a Minimoog's ADS: the DECAY knob is the decay and the release; SUSTAIN clamps it */
@@ -714,12 +714,12 @@ int main(int argc, char **argv)
         t0->p[P_E3] = 127; t0->p[P_E4] = 127; t0->p[P_E5] = 0;
         vv.gate = 1;
         vv.s[7] = 1 << 24;                                   /* stage 1 from 0 */
-        do { e = fmug_contour(t0->p, &vv); n++; } while (((uint32_t)vv.s[7] >> 24) == 1u && n < 2000000);
+        do { e = fmini_contour(t0->p, &vv); n++; } while (((uint32_t)vv.s[7] >> 24) == 1u && n < 2000000);
         sec = (double)n * CTL / FS;
         if (sec < 11.0 || sec > 13.0) { printf("filter attack at max: %.2f s\n", sec); return 1; }
         vv.gate = 0;
         n = 0;
-        do { e = fmug_contour(t0->p, &vv); n++; } while (e > 2048 && n < 4000000);   /* -24 dB (Q15) */
+        do { e = fmini_contour(t0->p, &vv); n++; } while (e > 2048 && n < 4000000);   /* -24 dB (Q15) */
         sec = (double)n * CTL / FS;
         if (((uint32_t)vv.s[7] >> 24) != 3u || sec < 11.0 || sec > 14.5) { printf("filter release at max DECAY: %.2f s (st %u)\n", sec, (unsigned)((uint32_t)vv.s[7] >> 24)); return 1; }
     }

@@ -53,7 +53,7 @@ static const char *const N_MIDI_INPUT[] = {"USB", "TRS"};
 static const char *const N_ROUTE[] = {"CH1-4", "SEL", "CH5-8", "CH9-12", "CH13-16", "TRACK"};
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 static const char *const N_DASH[] = {"--"};
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
 /* FMini-1: G_RTYPE's five models (the FX > REVERB > TYPE list; fx.c rev_run runs them) */
 static const char *const N_RTYPE[] = {"ROOM", "HALL", "PLATE", "SPRING", "CLOUD"};
 static const char *const N_DLYTYPE[] = {"ANALOG", "DIGITAL", "TAPE", "P-PONG", "MULTI", "SLAP", "REVERSE"};   /* G_DTIME's use */
@@ -199,7 +199,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_SWING] = PD("SWG", F_PCT, 0, 100, 0),
     [G_CLOCK] = PE("CLK", N_CLOCK, 0),
     [G_TUNE] = PD("TUNE", F_INT, -50, 50, 0),     /* cents; edited on MENU > AUDIO TUNE (1.2: menu_items.c MI_TUNE) */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     [G_DTIME] = PE("TYPE", N_DLYTYPE, 0),         /* FMini-1: the DELAY's TYPE (the tempo time is not used: G_DRREV is the time in ms) */
 #else
     [G_DTIME] = PE("TIME", N_DTIME, 1),
@@ -208,7 +208,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_DCOLOR] = PD("COLR", F_PCT, 0, 127, 70),
     [G_DMIX] = PD("MIX", F_PCT, 0, 127, 90),
     [G_RSIZE] = PD("SIZE", F_PCT, 0, 127, 90),
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     [G_RDAMP] = PD("TONE", F_PCT, 0, 127, 67),    /* FMini-1: the REVERB's TONE (a high cut: 127 open; fx.c uses 127 - TONE as the damping) */
 #else
     [G_RDAMP] = PD("DAMP", F_PCT, 0, 127, 60),
@@ -218,7 +218,7 @@ static const param_desc_t GP[G_COUNT] = {
     /* G_MIDI, G_SYNC, G_INFO: the old SYSTEM page's (gone in 1.2), on no page: MIDI's value was never read (its card
      * showed the USB state), SYNC was a placeholder, CPU a reading; the USB state and the CPU load are MENU > SYSTEM >
      * INFO's now (ui_menu.c). Kept: the ids and G_COUNT are fixed by the formats and the protocol */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     [G_MIDI] = PD("OUT", F_PCT, 0, 127, 64),      /* FMini-1: the DRIVE's OUTPUT level (64 = as before, up to +6 dB) */
 #else
     [G_MIDI] = PE("MIDI", N_MIDI_INPUT, 0),
@@ -227,7 +227,7 @@ static const param_desc_t GP[G_COUNT] = {
     /* MIDI IN's routing, edited on MENU > MIDI > MIDI IN (1.2: menu_items.c MI_MIDIIN; up to 1.1.5 GLO > SYSTEM ROUT),
      * stored with the project as before. (was "--": stored 0 = CH1-4, as MIDI IN always was) */
     [G_ROUTE] = PE("ROUT", N_ROUTE, 0),
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     [G_INFO] = PE("TYPE", N_DRVTYPE, 0),          /* FMini-1: the DRIVE's TYPE */
 #else
     [G_INFO] = PD("CPU", F_INT, 0, 0, 0),
@@ -237,7 +237,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_LOAD] = PE("LOAD", N_GO, 0),
     [G_SAVE] = PE("SAVE", N_GO, 0),
     [G_ENGSEL] = PE("ENG", N_ENGNAME, 0),
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     [G_ENGGO] = PE("TYPE", N_CHOTYPE, 0),         /* FMini-1: the CHORUS's TYPE */
 #else
     [G_ENGGO] = PE("SET", N_GO, 0),
@@ -245,7 +245,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_CLRSEQ] = PE("CLRSQ", N_GO, 0),
     [G_INITSND] = PE("INIT", N_GO, 0),
     /* the reverb's model on the REVERB page: the id of the old GM drum channel (G_DRCH, inert since 1.0) */
-#if FELUCCA_FMUG_ONLY
+#if FELUCCA_FMINI_ONLY
     [G_RTYPE] = PE("TYPE", N_RTYPE, 1),         /* FMini-1: HALL (index 1 of the six) */
 #else
     [G_RTYPE] = PE("TYPE", N_RTYPE, 2),
@@ -498,7 +498,7 @@ enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK };   /* SC_TRK: the TRACK
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
        GR_SLCR, GR_MOD, GR_PATS, GR_SONG, GR_TOOLS, GR_CHORD, GR_SLICES, GR_EVENTS,
        GR_FMOP, GR_FMOP2, GR_FMENV, GR_INS,
-       GR_FMG0, GR_FMG1, GR_FMG2, GR_FMG3, GR_FMG4, GR_FMG5, GR_FMG6 };   /* GR_FMG0..6: FMUG's seven panel pages (ui_fmug.c) */   /* (GR_STEPS: SEQ TOOLS' knobs; GR_FMOP..: FM6's operator pages, ui_fm6op.c) */
+       GR_FMG0, GR_FMG1, GR_FMG2, GR_FMG3, GR_FMG4, GR_FMG5, GR_FMG6 };   /* GR_FMG0..6: FMINI's seven panel pages (ui_fmini.c) */   /* (GR_STEPS: SEQ TOOLS' knobs; GR_FMOP..: FM6's operator pages, ui_fm6op.c) */
 
 typedef struct {
     const char *title;
@@ -532,13 +532,13 @@ static const page_t PAGES[] = {
     {"OPERATOR", FAM_EDIT, SC_TRACK, GR_FMOP, {0xFF, 0xFF, 0xFF, 0xFF}},    /* FM6 only: KNOB 1 the operator, then its */
     {"OP ENV", FAM_EDIT, SC_TRACK, GR_FMENV, {0xFF, 0xFF, 0xFF, 0xFF}},     /* bytes of the track's patch (ui_fm6op.c): */
     {"OPERATOR 2", FAM_EDIT, SC_TRACK, GR_FMOP2, {0xFF, 0xFF, 0xFF, 0xFF}}, /* CRS FINE LEVEL / STG RATE LEVEL / MODE DTUN VEL */
-    {"CTRL", FAM_EDIT, SC_TRACK, GR_FMG0, {0xFF, 0xFF, 0xFF, 0xFF}},       /* FMUG only (ui_fmug.c): the synth's panel, */
+    {"CTRL", FAM_EDIT, SC_TRACK, GR_FMG0, {0xFF, 0xFF, 0xFF, 0xFF}},       /* FMINI only (ui_fmini.c): the synth's panel, */
     {"OSC", FAM_EDIT, SC_TRACK, GR_FMG1, {0xFF, 0xFF, 0xFF, 0xFF}},        /* four knobs a page; SELECT picks a control, */
     {"MIX", FAM_EDIT, SC_TRACK, GR_FMG2, {0xFF, 0xFF, 0xFF, 0xFF}},        /* ALGORITHM changes it */
     {"FILT", FAM_EDIT, SC_TRACK, GR_FMG3, {0xFF, 0xFF, 0xFF, 0xFF}},
     {"F.ENV", FAM_EDIT, SC_TRACK, GR_FMG4, {0xFF, 0xFF, 0xFF, 0xFF}},
     {"A.ENV", FAM_EDIT, SC_TRACK, GR_FMG5, {0xFF, 0xFF, 0xFF, 0xFF}},
-    {"FMUG FX", FAM_EDIT, SC_TRACK, GR_FMG6, {0xFF, 0xFF, 0xFF, 0xFF}},
+    {"FMINI FX", FAM_EDIT, SC_TRACK, GR_FMG6, {0xFF, 0xFF, 0xFF, 0xFF}},
     {"OP1 ENV", FAM_EDIT, SC_TRACK, GR_ADSR, {P_FM1_ATK, P_FM1_DEC, P_FM1_SUS, P_FM1_REL}},
     {"OP2 ENV", FAM_EDIT, SC_TRACK, GR_ADSR, {P_FM2_ATK, P_FM2_DEC, P_FM2_SUS, P_FM2_REL}},
     {"OP3 ENV", FAM_EDIT, SC_TRACK, GR_ADSR, {P_FM3_ATK, P_FM3_DEC, P_FM3_SUS, P_FM3_REL}},
