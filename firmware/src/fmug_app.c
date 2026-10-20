@@ -474,6 +474,7 @@ static void fa_wave_boxes(uint32_t pg, uint32_t cur)
 }
 
 /* ------------------------------------------------------- presets --- */
+static uint8_t fa_base;                                   /* the factory patch last loaded (0..99): the one PRESETS goes on from, edited or not (an edit makes SLOT OWN) */
 /* the list PRESETS walks: the 8 factory patches, then the user presets of this instrument (SAVE) in slot order */
 static uint32_t fa_nuser(void)
 {
@@ -520,7 +521,7 @@ static void fa_sv_fill(void)                              /* the slot's own name
     else if (fa_on_user())
         up_name((uint32_t)TSEL->user - 1u, fa_sv_name);
     else
-        str_cpy(fa_sv_name, ENGINES[ENGI_FMUG]->presets[TSEL->p[P_E7] >= 0 && TSEL->p[P_E7] < (int32_t)FMUG_NFACTORY ? TSEL->p[P_E7] : 0].name, 13);
+        str_cpy(fa_sv_name, ENGINES[ENGI_FMUG]->presets[TSEL->p[P_E7] >= 0 && TSEL->p[P_E7] < (int32_t)FMUG_NFACTORY ? (uint32_t)TSEL->p[P_E7] : fa_base % FMUG_NFACTORY].name, 13);
 }
 static void fa_sv_open(void)
 {
@@ -741,7 +742,7 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.5.1"
+#define FMINI_VERSION "v1.5.2"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -994,7 +995,6 @@ static void fa_gl_dialog(void)
 
 /* the patch shown: a factory one by its number 00..99 and name, or a saved one (U01..) ; the last factory patch loaded
  * stays shown while its sound is edited (SLOT OWN), so there is always a number */
-static uint8_t fa_base;                                   /* the factory patch last loaded (0..99) */
 static int16_t fa_last_sl = -2;                           /* SLOT as last seen: -1 = not a factory patch (edited / saved one) */
 static uint8_t fa_primed;                                 /* the first frame has been seen: no pop-up at power-on */
 static uint32_t fa_pp_until;                              /* the preset pop-up shows until fm1_ms passes this */
@@ -1302,7 +1302,7 @@ static void fa_preset(int32_t s)
         return;
     }
     cur = fa_on_user() ? FMUG_NFACTORY + fa_user_rank((uint32_t)t->user - 1u)
-                       : (t->p[P_E7] >= 0 && t->p[P_E7] < (int32_t)FMUG_NFACTORY ? (uint32_t)t->p[P_E7] : 0u);
+                       : (t->p[P_E7] >= 0 && t->p[P_E7] < (int32_t)FMUG_NFACTORY ? (uint32_t)t->p[P_E7] : fa_base % FMUG_NFACTORY);   /* (OWN: an edit of CTRL / OSC / MIX: on from the patch it came from) */
     nx = (cur + (s > 0 ? 1u : n - 1u)) % n;
     if (nx < FMUG_NFACTORY) {
         t->user = 0;

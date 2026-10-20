@@ -302,6 +302,43 @@ int main(int argc, char **argv)
         fa_page = 0;
         fmg_force_page = 0;
     }
+    {   /* a CTRL / OSC / MIX knob edits the patch (SLOT becomes OWN): PRESETS still goes on from the patch it came from (13 -> 14, then 14 -> 13) */
+        static const uint8_t CASE[5][2] = {{0, 0}, {0, 1}, {0, 2}, {1, 3}, {2, 0}};     /* TUNE, GLIDE, MOD MIX; OSC DET 2; MIX OSC 1 level */
+        uint32_t c;
+        panel_init();
+        fa_init();
+        fa_gl = 0; fa_ar = 0; fa_sv = 0; fa_sq = 0;
+        for (c = 0; c < 5u; c++) {
+            TSEL->user = 0;
+            apply_preset_to(TSEL, 13);
+            TSEL->p[P_E7] = 13;
+            fa_factory_extras(TSEL, 13);
+            fmug_poll();
+            fa_page = CASE[c][0];
+            fmg_force_page = (int8_t)fa_page;
+            fframes(48);
+            fturn(EN_K1 + CASE[c][1], 3);
+            fframes(48);
+            if (TSEL->p[P_E7] != (int16_t)FMUG_OWN) { printf("edit %u: the slot is %d, not OWN\n", c, TSEL->p[P_E7]); return 1; }
+            fturn(EN_PRESET, 1);
+            fframes(48);
+            if (TSEL->p[P_E7] != 14 || fa_page != 0) { printf("edit %u: PRESETS from 13 -> %d (page %d), not 14\n", c, TSEL->p[P_E7], fa_page); return 1; }
+            fa_page = CASE[c][0];
+            fmg_force_page = (int8_t)fa_page;
+            fturn(EN_K1 + CASE[c][1], 3);
+            fframes(48);
+            fturn(EN_PRESET, -1);
+            fframes(48);
+            if (TSEL->p[P_E7] != 13) { printf("edit %u: PRESETS from 14 -> %d, not 13\n", c, TSEL->p[P_E7]); return 1; }
+        }
+        fa_page = 0;
+        fmg_force_page = 0;
+        TSEL->user = 0;
+        apply_preset_to(TSEL, 0);
+        TSEL->p[P_E7] = 0;
+        fa_factory_extras(TSEL, 0);
+        fmug_poll();
+    }
     {   /* GLIDE: the knob alone makes the track glide; ARP pop-up changes the arp; HOME */
         int i;
         fa_page = 0;
