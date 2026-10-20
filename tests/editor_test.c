@@ -171,7 +171,7 @@ static int preferences(void)
     uint8_t a[4] = {0, 7, 0, 0};
     reset();
     uint32_t n = request(ED_INFO, a, 0);
-    uint32_t e = n - 6u;                                  /* (1.5.5: 4B 01 NCOND, 1.6: 45 01 5 last, below) */
+    uint32_t e = n - 9u;                                  /* (1.5.5: 4B 01 NCOND, 1.6: 45 01 5, FMini-1: 47 01 32 last, below) */
     bad += check("INFO explicitly tags display capabilities after SONG without changing command 33",
         ED_SONG == 33 && ED_UI_STATE == 34 && ED_FAV_SET == 38 &&
         host_wire[e - 47] == CHAIN_ROWS && host_wire[e - 46] == 0x55 &&
@@ -192,9 +192,11 @@ static int preferences(void)
         host_wire[e - 7] == 0x56 && host_wire[e - 6] == 1 && host_wire[e - 5] == 32 &&   /* 1.4.1: FM6 voice bank */
         host_wire[e - 4] == 0x43 && host_wire[e - 3] == 1 && host_wire[e - 2] == ML_N);   /* 1.5: MIDI LEARN */
     bad += check("INFO 1.5.5: 4B 01 11, a step's condition after its nudge",
-        host_wire[n - 7] == 0x4B && host_wire[n - 6] == 1 && host_wire[n - 5] == NCOND);
-    bad += check("INFO 1.6: 45 01 5, CUSTOM's colours, last",
-        host_wire[n - 4] == 0x45 && host_wire[n - 3] == 1 && host_wire[n - 2] == 5);
+        host_wire[n - 10] == 0x4B && host_wire[n - 9] == 1 && host_wire[n - 8] == NCOND);
+    bad += check("INFO 1.6: 45 01 5, CUSTOM's colours",
+        host_wire[n - 7] == 0x45 && host_wire[n - 6] == 1 && host_wire[n - 5] == 5);
+    bad += check("INFO FMini-1: 47 01 32, the FMUG patch's size, last",
+        host_wire[n - 4] == 0x47 && host_wire[n - 3] == 1 && host_wire[n - 2] == FG_SIZE);
     request(ED_UI_SET, a, 2);
     bad += check("UI_SET updates the actual palette and reports RAM-only saving",
         host_wire[5] == 3 && settings.palette == 7 && T_BG == UI_PALETTES[7].bg);
@@ -510,6 +512,55 @@ static int malformed_saves(void)
     TSEL->p[P_LEVEL] = 21; song.playing = 1; host_progress = 0;
     bad += check("PROJECT never confirms an old used slot when STOP timed out",
                  !request(ED_PROJECT, save, sizeof save) && !memcmp(&old, &proj_slot[0], sizeof old));
+    return bad;
+}
+
+/* FMUG patches (FMini-1, cmds 82, 83): a track's own patch, a factory patch, malformed frames */
+static int fmug_patches(void)
+{
+    int bad = 0;
+    uint8_t a[2 + FG_SIZE];
+    uint32_t n, i;
+    reset();
+    a[0] = ED_FMUG_FACTORY; a[1] = 3;
+    n = request(ED_FMUG_GET, a, 2);
+    bad += check("FMUG_GET factory 4: the 32 bytes", n == 5u + 3u + FG_SIZE + 1u && host_wire[7] == 0 &&
+                 !memcmp(host_wire + 8, FMUG_FACTORY[3], FG_SIZE));
+    trk[1].eng_req = ENGI_FMUG;
+    trk[1].p[P_E7] = 3;
+    memcpy(a + 2, FMUG_FACTORY[3], FG_SIZE);
+    a[0] = ED_FMUG_TRACK; a[1] = 1; a[2 + FG_L1] = 77; a[2 + FG_W2] = 4; a[2 + FG_W3] = 5; a[2 + FG_SW1] = 127;
+    n = request(ED_FMUG_PUT, a, sizeof a);
+    bad += check("FMUG_PUT track 2: rc 0, the patch (clamped into its ranges), SLOT OWN",
+                 host_wire[7] == 0 && fmug_patch[1][FG_L1] == 77 && fmug_patch[1][FG_W2] == 4 &&
+                 fmug_patch[1][FG_W3] == 5 && trk[1].p[P_E7] == FMUG_OWN && fmug_slot[1] == FMUG_OWN);
+    fmug_poll();
+    bad += check("  .. the main loop keeps it", fmug_patch[1][FG_L1] == 77);
+    n = request(ED_FMUG_GET, a, 2);
+    bad += check("FMUG_GET track 2: as put, then SLOT", n == 5u + 3u + FG_SIZE + 2u && host_wire[7] == 0 &&
+                 host_wire[8 + FG_L1] == 77 && host_wire[8 + FG_SIZE] == FMUG_OWN);
+    memcpy(a + 2, FMUG_FACTORY[5], FG_SIZE);
+    request(ED_FMUG_PUT, a, sizeof a);
+    bad += check("FMUG_PUT of a factory patch unchanged: SLOT shows it (F6)", trk[1].p[P_E7] == 5 && fmug_slot[1] == 5u);
+    trk[2].eng_req = 0;
+    a[1] = 2;
+    request(ED_FMUG_PUT, a, sizeof a);
+    bad += check("FMUG_PUT to a track that is not FMUG: rc 2", host_wire[7] == 2u);
+    a[0] = ED_FMUG_FACTORY; a[1] = 1;
+    request(ED_FMUG_PUT, a, sizeof a);
+    bad += check("FMUG_PUT to a factory patch: rc 1", host_wire[7] == 1u);
+    a[0] = ED_FMUG_TRACK; a[1] = NTRK;
+    request(ED_FMUG_GET, a, 2);
+    bad += check("FMUG_GET of track 5: rc 1", host_wire[7] == 1u);
+    a[0] = 1; a[1] = 0;
+    request(ED_FMUG_GET, a, 2);
+    bad += check("FMUG_GET of an unknown target: rc 1", host_wire[7] == 1u);
+    a[0] = ED_FMUG_FACTORY; a[1] = FMUG_NFACTORY;
+    request(ED_FMUG_GET, a, 2);
+    bad += check("FMUG_GET of factory patch 101: rc 1", host_wire[7] == 1u);
+    for (i = 0; i < 3u; i++)
+        a[i] = 0;
+    bad += check("FMUG_GET with a wrong length: rc 1", request(ED_FMUG_GET, a, 3) > 0 && host_wire[7] == 1u);
     return bad;
 }
 
@@ -1335,7 +1386,7 @@ static int custom_palette(void)
 int main(void)
 {
     int bad = preferences() + motion_locks() + framing() + uart_recovery() + steps() + samples() + song_protocol() + malformed_saves() +
-              fm6_patches() + user_preset_roundtrip() + live_sync() + usb_burst() + menu_protocol() + drum_kit_retired() +
+              fm6_patches() + fmug_patches() + user_preset_roundtrip() + live_sync() + usb_burst() + menu_protocol() + drum_kit_retired() +
               learn_protocol() + custom_palette();
     printf("%s\n", bad ? "EDITOR TEST FAILED" : "editor test passed");
     return bad != 0;

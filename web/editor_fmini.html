@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FMini-1 Editor</title>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     FMini-1 patch editor: one self-contained page, Web MIDI + SysEx (Chrome / Edge / Android).
+     Protocol: web/EDITOR_PROTOCOL.md (cmds 2 GET, 3 SET, 4 DUMP, 5 DESC, 8 PRESET, 10 NAMES, 27 TRACK, 82/83 FMUG_GET/PUT). -->
+<style>
+  :root {
+    --bg: #0d0c10; --surface: #15131a; --surface2: #1c1922; --line: #2a2631; --fg: #f4f0ea; --dim: #a29cab; --mute: #6f6a78;
+    --or: #ff7a1a; --or2: #ff9a4d; --ok: #7bd88f; --bad: #ff7a6a; --wood: #3a2616;
+    --sans: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; color: var(--fg); font: 15px/1.5 var(--sans); background: var(--bg); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+  a { color: var(--or2); }
+  button, select { font: inherit; color: inherit; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+
+  header.top { background: linear-gradient(#4a301b, #2e1d10); border-bottom: 3px solid #17100a; }
+  header.top .wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-top: 12px; padding-bottom: 12px; }
+  h1 { margin: 0; font-size: 19px; letter-spacing: .04em; font-weight: 700; }
+  h1 small { color: var(--or2); font-weight: 600; margin-left: 6px; letter-spacing: 0; font-size: 13px; }
+  .grow { flex: 1; }
+  .btn { background: var(--surface2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+  .btn:hover { border-color: var(--mute); }
+  .btn.pri { background: var(--or); color: #1a0e05; border-color: var(--or); font-weight: 700; }
+  .btn[disabled] { opacity: .45; cursor: default; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--mute); margin-right: 7px; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  #status { font-size: 13.5px; color: var(--dim); }
+
+  .notice { margin: 16px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-left: 3px solid var(--or); border-radius: 8px; background: var(--surface); color: var(--dim); }
+  .notice.bad { border-left-color: var(--bad); }
+  .notice b { color: var(--fg); }
+
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 18px 0 10px; }
+  .bar select { background: var(--surface2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 0; max-width: 100%; }
+  #preset { flex: 1; min-width: 160px; }
+  .sq { width: 38px; padding: 7px 0; text-align: center; }
+
+  nav.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+  nav.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px; cursor: pointer; color: var(--dim); font-weight: 600; letter-spacing: .05em; font-size: 13px; white-space: nowrap; }
+  nav.tabs button[aria-selected="true"] { color: var(--or2); border-bottom-color: var(--or); }
+
+  main.panel { margin: 18px 0 40px; padding: 22px 18px 26px; background: linear-gradient(#1c1922, #15131a); border: 1px solid var(--line); border-radius: 14px; min-height: 280px; }
+  .grp { margin-bottom: 22px; }
+  .grp:last-child { margin-bottom: 0; }
+  .grp h2 { margin: 0 0 12px; font-size: 12px; letter-spacing: .14em; color: var(--mute); font-weight: 700; text-transform: uppercase; }
+  .row { display: flex; flex-wrap: wrap; gap: 18px 26px; align-items: flex-start; }
+
+  .knob { width: 84px; text-align: center; user-select: none; -webkit-user-select: none; touch-action: none; outline: none; cursor: ns-resize; }
+  .knob svg { width: 70px; height: 70px; display: block; margin: 0 auto; }
+  .knob .ring { fill: none; stroke: var(--line); stroke-width: 4; stroke-linecap: round; }
+  .knob .arc { fill: none; stroke: var(--or); stroke-width: 4; stroke-linecap: round; }
+  .knob .cap { fill: url(#cap); stroke: #000; stroke-width: 1; }
+  .knob .tick { stroke: #1a1a1a; stroke-width: 3; stroke-linecap: round; }
+  .knob:focus-visible svg { outline: 2px solid var(--or2); outline-offset: 2px; border-radius: 50%; }
+  .knob .lb { font-size: 11.5px; letter-spacing: .08em; color: var(--dim); margin-top: 2px; font-weight: 600; }
+  .knob .val { font: 600 13px var(--mono); color: var(--or2); }
+
+  .sw { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: 0; cursor: pointer; padding: 0; width: 84px; }
+  .sw i { width: 46px; height: 22px; border-radius: 11px; background: #0f0e0d; border: 1px solid var(--line); position: relative; transition: background .12s; }
+  .sw i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #8d8d8b; transition: left .12s, background .12s; }
+  .sw[aria-pressed="true"] i { background: var(--or); border-color: var(--or); }
+  .sw.blue[aria-pressed="true"] i { background: #2f7fe0; border-color: #2f7fe0; }
+  .sw.red[aria-pressed="true"] i { background: #d6382b; border-color: #d6382b; }
+  .sw[aria-pressed="true"] i::after { left: 26px; background: #fff; }
+  .sw span { font-size: 11.5px; letter-spacing: .08em; color: var(--dim); font-weight: 600; }
+  .sw:focus-visible i { outline: 2px solid var(--or2); outline-offset: 2px; }
+
+  .seg { display: flex; flex-direction: column; gap: 7px; min-width: 150px; }
+  .seg .t { font-size: 11.5px; letter-spacing: .08em; color: var(--dim); font-weight: 600; }
+  .seg .opts { display: flex; flex-wrap: wrap; gap: 4px; }
+  .seg button { background: #0f0e0d; border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; cursor: pointer; font: 600 12px var(--mono); color: var(--dim); }
+  .seg button[aria-pressed="true"] { background: var(--or); border-color: var(--or); color: #1a0e05; }
+  .sel { display: flex; flex-direction: column; gap: 7px; width: 120px; }
+  .sel .t { font-size: 11.5px; letter-spacing: .08em; color: var(--dim); font-weight: 600; }
+  .sel select { background: #0f0e0d; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; }
+
+  footer { color: var(--mute); font-size: 12.5px; padding: 0 0 30px; }
+  footer .wrap > * { margin: 4px 0; }
+  .off main.panel, .off .bar, .off nav.tabs { opacity: .35; pointer-events: none; }
+  @media (max-width: 560px) { .knob, .sw { width: 72px; } .row { gap: 16px 14px; } main.panel { padding: 18px 12px; } }
+</style>
+</head>
+<body class="off">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <radialGradient id="cap" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#f4f4f2"/><stop offset=".55" stop-color="#9a9a98"/><stop offset="1" stop-color="#55554f"/></radialGradient>
+</defs></svg>
+
+<header class="top"><div class="wrap">
+  <h1>FMini-1 <small data-t="editor">Editor</small></h1>
+  <span class="grow"></span>
+  <span id="status"><span class="dot" id="dot"></span><span id="stxt"></span></span>
+  <select id="port" class="btn" hidden aria-label="MIDI"></select>
+  <button class="btn pri" id="connect"></button>
+</div></header>
+
+<div class="wrap" id="body">
+  <div id="msg"></div>
+  <div class="bar">
+    <button class="btn sq" id="prev" aria-label="-">◀</button>
+    <select id="preset" aria-label="Patch"></select>
+    <button class="btn sq" id="next" aria-label="+">▶</button>
+    <button class="btn" id="save" data-t="save"></button>
+    <button class="btn" id="load" data-t="open"></button>
+    <input type="file" id="file" accept=".json,application/json" hidden>
+  </div>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <main class="panel" id="panel"></main>
+</div>
+
+<footer><div class="wrap">
+  <div data-t="foot1"></div>
+  <div><a href="./" data-t="home"></a> · <a href="https://github.com/ruppert/fmini-1" rel="noopener">GitHub</a></div>
+</div></footer>
+
+<script>
+"use strict";
+/* ------------------------------------------------------------------ texts --- */
+const TX = {
+  pt: { editor: "Editor", connect: "Conectar", disconnect: "Desconectar", connecting: "Conectando…", disc: "Desconectado",
+    conn: "Conectado — FMini-1", save: "Salvar som", open: "Abrir som", home: "Site do FMini-1",
+    foot1: "Funciona no Chrome, Edge e Android (Web MIDI com SysEx). Os ajustes valem para o som que está tocando; para guardar, use o SAVE do próprio aparelho.",
+    nomidi: "Este navegador não tem Web MIDI com SysEx. Use o Chrome ou o Edge (computador) ou o Chrome no Android.",
+    denied: "O navegador negou o acesso MIDI. Libere “MIDI” nas permissões do site e tente de novo.",
+    none: "Nenhum FM-1 encontrado. Conecte o cabo USB, feche outros programas que usam a porta MIDI e toque em Conectar.",
+    pick: "Escolha a porta MIDI do FM-1 na lista ao lado e toque em Conectar.",
+    noedit: "Este firmware não é o FMini-1 (ou é anterior à v1.6.0). O editor só funciona com o FMini-1 v1.6.0 ou mais novo.",
+    noenv: "Atualização necessária: este firmware não tem o editor de osciladores e chaves. Instale a versão mais nova pelo site para editar tudo.",
+    noeng: "A trilha 1 não está com o motor FMUG.", lost: "A conexão com o aparelho foi perdida.", timeout: "O aparelho não respondeu.",
+    badfile: "Arquivo de som inválido.", loaded: "Som carregado no aparelho.", saved: "Som salvo em arquivo." },
+  en: { editor: "Editor", connect: "Connect", disconnect: "Disconnect", connecting: "Connecting…", disc: "Disconnected",
+    conn: "Connected — FMini-1", save: "Save sound", open: "Open sound", home: "FMini-1 site",
+    foot1: "Works in Chrome, Edge and Android (Web MIDI with SysEx). Edits change the sound that is playing; to keep it, use the device's own SAVE.",
+    nomidi: "This browser has no Web MIDI with SysEx. Use Chrome or Edge (desktop) or Chrome on Android.",
+    denied: "The browser denied MIDI access. Allow “MIDI” in the site permissions and try again.",
+    none: "No FM-1 found. Plug in the USB cable, close other programs using the MIDI port and press Connect.",
+    pick: "Pick the FM-1's MIDI port in the list and press Connect.",
+    noedit: "This firmware is not the FMini-1 (or older than v1.6.0). The editor needs FMini-1 v1.6.0 or newer.",
+    noenv: "Update needed: this firmware has no oscillator / switch editing. Install the newest version from the site to edit everything.",
+    noeng: "Track 1 is not on the FMUG engine.", lost: "The connection to the device was lost.", timeout: "The device did not answer.",
+    badfile: "Invalid sound file.", loaded: "Sound loaded into the device.", saved: "Sound saved to a file." },
+};
+const LANG = /^pt/i.test(navigator.language || "") ? "pt" : "en";
+const T = (k) => TX[LANG][k] || k;
+document.documentElement.lang = LANG === "pt" ? "pt-BR" : "en";
+
+/* ---------------------------------------------------------------- protocol --- */
+const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, PRESET: 8, NAMES: 10, TRACK: 27, FMUG_GET: 82, FMUG_PUT: 83 };
+const FG = { R1: 0, R2: 1, R3: 2, W1: 3, W2: 4, W3: 5, F2: 6, F3: 7, L1: 8, L2: 9, L3: 10, LN: 11, SW1: 12, SW2: 13, TUNE: 14, MMIX: 15, KBD: 16, GLID: 17, SIZE: 32 };
+const FS = { O1: 1, O2: 2, O3: 4, NZ: 8, PINK: 16, MOSC: 32, MFLT: 64 }, FT = { GLIDE: 1, SQR: 2 };
+/* track parameters (core.h; all but E0..E7 are fixed ids) and globals */
+const P = { LEVEL: 0, ATK: 1, DEC: 2, SUS: 3, REL: 4, LRATE: 9, AMODE: 17, ARATE: 18, AOCT: 19, AGATE: 20, DIST: 33, CHOR: 34, DLY: 35, REV: 36, VOICE: 37, GLIDE: 38 };
+const G = { BPM: 0, DTIME: 4, DFDBK: 5, RSIZE: 8, RDAMP: 9, CRATE: 10, CDEPTH: 11, MIDI: 12, INFO: 15, ENGGO: 21, RTYPE: 24, DRLVL: 25, DRREV: 26 };
+
+const v14 = (n) => { n = Math.max(-8192, Math.min(8191, Math.round(n))) + 8192; return [n & 127, n >> 7]; };
+const rv = (a, i) => (a[i] | (a[i + 1] << 7)) - 8192;
+const cstr = (a, i) => { let s = ""; while (i < a.length && a[i]) s += String.fromCharCode(a[i++]); return [s, i + 1]; };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const dev = { access: null, inp: null, out: null, waiter: null, chain: Promise.resolve(), open: false };
+
+function onMsg(ev) {
+  const d = ev.data;
+  if (d[0] !== 0xF0 || d[1] !== 0x7D || d[2] !== 0x46 || d[3] !== 0x4C || !dev.waiter || dev.waiter.cmd !== d[4]) return;
+  const w = dev.waiter; dev.waiter = null;
+  w.res(Array.from(d.slice(5, d.length - 1)));
+}
+function req(cmd, args = [], ms = 900) {
+  const p = dev.chain.then(() => new Promise((res, rej) => {
+    if (!dev.out || dev.out.state === "disconnected") return rej(new Error("lost"));
+    const t = setTimeout(() => { dev.waiter = null; rej(new Error("timeout")); }, ms);
+    dev.waiter = { cmd, res: (a) => { clearTimeout(t); res(a); } };
+    try { dev.out.send([0xF0, 0x7D, 0x46, 0x4C, cmd, ...args, 0xF7]); } catch (e) { clearTimeout(t); dev.waiter = null; rej(new Error("lost")); }
+  }));
+  dev.chain = p.catch(() => {});
+  return p;
+}
+
+/* ------------------------------------------------------------------ state --- */
+const S = {
+  pe0: 103, patch: new Array(FG.SIZE).fill(0), p: [], g: [], slot: 0, engine: 0, fmug: -1, desc: {},
+  names: [], canPatch: false, page: 0,
+};
+const touch = { until: 0, dragging: 0 };
+let pollTimer = 0, polling = false;
+
+/* -------------------------------------------------------------- the panel --- */
+/* kinds: byte (patch byte), par (track param), glb (global), sw (patch bit), seg (patch byte with names), sel (enum param / global),
+   glide (the GLIDE knob: kept time, mirrored into P_GLIDE while the switch is on). pe: engine parameter n (P_E0 + n) */
+const RANGES = ["LO", "32'", "16'", "8'", "4'", "2'"], WAVES = ["TRI", "SHARK", "SAW", "SQR", "PLS W", "PLS N"];
+const PAGES = [
+  { id: "CTRL", groups: [
+    { t: "Controllers", c: [
+      { k: "byte", b: FG.TUNE, lb: "TUNE", def: 64 }, { k: "glide", lb: "GLIDE" }, { k: "byte", b: FG.MMIX, lb: "MOD MIX", def: 0 },
+      { k: "par", p: P.LRATE, lb: "LFO RATE" }, { k: "sel", p: P.VOICE, lb: "VOICES" } ] },
+    { t: "Modulation", c: [
+      { k: "sw", b: FG.SW1, bit: FS.MOSC, lb: "MOD OSC", cls: "red" }, { k: "sw", b: FG.SW1, bit: FS.MFLT, lb: "MOD FLT", cls: "red" },
+      { k: "sw", b: FG.SW2, bit: FT.GLIDE, lb: "GLIDE", cls: "red", glide: 1 }, { k: "sw", b: FG.SW2, bit: FT.SQR, lb: "LFO SQR", cls: "red" } ] } ] },
+  { id: "OSC", groups: [
+    { t: "Oscillator bank", c: [
+      { k: "seg", b: FG.R1, names: RANGES, lb: "OSC 1 RANGE" }, { k: "seg", b: FG.R2, names: RANGES, lb: "OSC 2 RANGE" }, { k: "seg", b: FG.R3, names: RANGES, lb: "OSC 3 RANGE" } ] },
+    { t: "Waveform", c: [
+      { k: "seg", b: FG.W1, names: WAVES, lb: "OSC 1 WAVE" }, { k: "seg", b: FG.W2, names: WAVES, lb: "OSC 2 WAVE" }, { k: "seg", b: FG.W3, names: WAVES, lb: "OSC 3 WAVE" } ] },
+    { t: "Detune", c: [ { k: "byte", b: FG.F2, lb: "DET 2", def: 64 }, { k: "byte", b: FG.F3, lb: "DET 3", def: 64 } ] } ] },
+  { id: "MIX", groups: [
+    { t: "Mixer", c: [
+      { k: "byte", b: FG.L1, lb: "OSC 1" }, { k: "byte", b: FG.L2, lb: "OSC 2" }, { k: "byte", b: FG.L3, lb: "OSC 3" }, { k: "byte", b: FG.LN, lb: "NOISE" } ] },
+    { t: "Inputs", c: [
+      { k: "sw", b: FG.SW1, bit: FS.O1, lb: "OSC 1", cls: "blue" }, { k: "sw", b: FG.SW1, bit: FS.O2, lb: "OSC 2", cls: "blue" },
+      { k: "sw", b: FG.SW1, bit: FS.O3, lb: "OSC 3", cls: "blue" }, { k: "sw", b: FG.SW1, bit: FS.NZ, lb: "NOISE", cls: "blue" },
+      { k: "sw", b: FG.SW1, bit: FS.PINK, lb: "PINK", cls: "blue" } ] } ] },
+  { id: "FILT", groups: [
+    { t: "Filter", c: [
+      { k: "par", pe: 0, lb: "CUTOFF" }, { k: "par", pe: 1, lb: "EMPHASIS" }, { k: "par", pe: 2, lb: "CONTOUR" }, { k: "byte", b: FG.KBD, lb: "KBD CTRL" } ] } ] },
+  { id: "F.ENV", groups: [
+    { t: "Filter contour", c: [
+      { k: "par", pe: 3, lb: "ATTACK" }, { k: "par", pe: 4, lb: "DECAY" }, { k: "par", pe: 5, lb: "SUSTAIN" }, { k: "par", pe: 2, lb: "AMOUNT" } ] } ] },
+  { id: "A.ENV", groups: [
+    { t: "Loudness contour", c: [
+      { k: "par", p: P.ATK, lb: "ATTACK" }, { k: "par", p: P.DEC, lb: "DECAY" }, { k: "par", p: P.SUS, lb: "SUSTAIN" }, { k: "par", p: P.LEVEL, lb: "LEVEL" } ] } ] },
+  { id: "FX", groups: [
+    { t: "Reverb", c: [ { k: "par", p: P.REV, lb: "MIX" }, { k: "sel", g: G.RTYPE, lb: "TYPE" }, { k: "glb", g: G.RSIZE, lb: "DECAY" }, { k: "glb", g: G.RDAMP, lb: "TONE" } ] },
+    { t: "Delay", c: [ { k: "par", p: P.DLY, lb: "MIX" }, { k: "sel", g: G.DTIME, lb: "TYPE" }, { k: "glb", g: G.DRREV, lb: "TIME" }, { k: "glb", g: G.DFDBK, lb: "FEEDBK" } ] },
+    { t: "Chorus", c: [ { k: "par", p: P.CHOR, lb: "MIX" }, { k: "sel", g: G.ENGGO, lb: "TYPE" }, { k: "glb", g: G.CDEPTH, lb: "DEPTH" }, { k: "glb", g: G.CRATE, lb: "RATE" } ] },
+    { t: "Drive", c: [ { k: "par", p: P.DIST, lb: "GAIN" }, { k: "sel", g: G.INFO, lb: "TYPE" }, { k: "glb", g: G.DRLVL, lb: "TONE" }, { k: "glb", g: G.MIDI, lb: "OUTPUT" } ] } ] },
+  { id: "ARP", groups: [
+    { t: "Arpeggiator", c: [ { k: "sel", p: P.AMODE, lb: "MODE" }, { k: "par", p: P.ARATE, lb: "RATE" }, { k: "par", p: P.AOCT, lb: "OCTAVES" }, { k: "par", p: P.AGATE, lb: "GATE" }, { k: "glb", g: G.BPM, lb: "BPM" } ] } ] },
+];
+
+const pid = (c) => (c.pe !== undefined ? S.pe0 + c.pe : c.p);
+const descOf = (c) => (c.g !== undefined ? S.desc["1:" + c.g] : S.desc["0:" + pid(c)]) || { min: 0, max: 127, def: 0, names: null, fmt: 0 };
+function getv(c) {
+  if (c.k === "byte") return S.patch[c.b];
+  if (c.k === "glide") return S.patch[FG.GLID];
+  if (c.k === "seg") return S.patch[c.b];
+  if (c.k === "sw") return (S.patch[c.b] & c.bit) ? 1 : 0;
+  if (c.g !== undefined) return S.g[c.g] ?? 0;
+  return S.p[pid(c)] ?? 0;
+}
+function range(c) {
+  if (c.k === "byte" || c.k === "glide") return [0, 127];
+  const d = descOf(c); return [d.min, d.max];
+}
+const shown = (c, v) => {
+  if (c.k === "sel") { const d = descOf(c); return (d.names && d.names[v]) || String(v); }
+  const [lo, hi] = range(c); return hi > lo ? (((v - lo) * 10) / (hi - lo)).toFixed(1) : String(v);
+};
+
+/* writes: coalesced per control, flushed every 30 ms */
+const pending = new Map();
+let flushT = 0;
+function queue(key, fn) { pending.set(key, fn); touch.until = Date.now() + 500; if (!flushT) flushT = setTimeout(flush, 30); }
+async function flush() {
+  flushT = 0;
+  const jobs = [...pending.values()]; pending.clear();
+  for (const j of jobs) { try { await j(); } catch (e) { fail(e); return; } }
+  touch.until = Date.now() + 400;
+}
+function putPatch() { return () => req(CMD.FMUG_PUT, [0, 0, ...S.patch]); }
+function setPar(id) { return () => req(CMD.SET, [0, id, ...v14(S.p[id])]); }
+function setGlb(id) { return () => req(CMD.SET, [1, id, ...v14(S.g[id])]); }
+function commit(c, v) {
+  const [lo, hi] = range(c);
+  v = Math.max(lo, Math.min(hi, Math.round(v)));
+  if (c.k === "byte" || c.k === "seg") { S.patch[c.b] = v; queue("patch", putPatch()); }
+  else if (c.k === "glide") {
+    S.patch[FG.GLID] = v; queue("patch", putPatch());
+    if (S.patch[FG.SW2] & FT.GLIDE) { S.p[P.GLIDE] = v; queue("p" + P.GLIDE, setPar(P.GLIDE)); }
+  } else if (c.k === "sw") {
+    S.patch[c.b] = v ? S.patch[c.b] | c.bit : S.patch[c.b] & ~c.bit; queue("patch", putPatch());
+    if (c.glide) { S.p[P.GLIDE] = v ? S.patch[FG.GLID] : 0; queue("p" + P.GLIDE, setPar(P.GLIDE)); }
+  } else if (c.g !== undefined) { S.g[c.g] = v; queue("g" + c.g, setGlb(c.g)); }
+  else { const id = pid(c); S.p[id] = v; queue("p" + id, setPar(id)); }
+  refreshOne(c);
+}
+
+/* ------------------------------------------------------------ the widgets --- */
+const ctl = []; /* {c, el, upd()} of the page on screen */
+const A0 = -135, A1 = 135;
+const polar = (a, r) => { const t = (a - 90) * Math.PI / 180; return [35 + r * Math.cos(t), 35 + r * Math.sin(t)]; };
+function arcPath(a0, a1, r) {
+  const [x0, y0] = polar(a0, r), [x1, y1] = polar(a1, r);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+function mkKnob(c) {
+  const el = document.createElement("div");
+  el.className = "knob"; el.tabIndex = 0; el.setAttribute("role", "slider"); el.setAttribute("aria-label", c.lb);
+  el.innerHTML = `<svg viewBox="0 0 70 70"><path class="ring" d="${arcPath(A0, A1, 31)}"/><path class="arc" d=""/><circle class="cap" cx="35" cy="35" r="22"/><line class="tick" x1="35" y1="35" x2="35" y2="17"/></svg><div class="lb"></div><div class="val"></div>`;
+  el.querySelector(".lb").textContent = c.lb;
+  const arc = el.querySelector(".arc"), tick = el.querySelector(".tick"), val = el.querySelector(".val");
+  const upd = () => {
+    const [lo, hi] = range(c), v = getv(c), f = hi > lo ? (v - lo) / (hi - lo) : 0, a = A0 + f * (A1 - A0);
+    arc.setAttribute("d", f > 0.004 ? arcPath(A0, a, 31) : "");
+    tick.setAttribute("transform", `rotate(${a} 35 35)`);
+    val.textContent = shown(c, v);
+    el.setAttribute("aria-valuemin", lo); el.setAttribute("aria-valuemax", hi); el.setAttribute("aria-valuenow", v); el.setAttribute("aria-valuetext", shown(c, v));
+  };
+  let y0 = 0, v0 = 0;
+  el.addEventListener("pointerdown", (e) => { el.setPointerCapture(e.pointerId); y0 = e.clientY; v0 = getv(c); touch.dragging++; el.focus(); e.preventDefault(); });
+  el.addEventListener("pointermove", (e) => {
+    if (!el.hasPointerCapture(e.pointerId)) return;
+    const [lo, hi] = range(c), px = e.shiftKey ? 700 : 190;
+    commit(c, v0 + ((y0 - e.clientY) / px) * (hi - lo));
+  });
+  const up = (e) => { if (el.hasPointerCapture(e.pointerId)) { el.releasePointerCapture(e.pointerId); touch.dragging = Math.max(0, touch.dragging - 1); } };
+  el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  el.addEventListener("wheel", (e) => { e.preventDefault(); const [lo, hi] = range(c); commit(c, getv(c) + (e.deltaY < 0 ? 1 : -1) * Math.max(1, (hi - lo) / 100)); }, { passive: false });
+  el.addEventListener("keydown", (e) => {
+    const [lo, hi] = range(c), st = Math.max(1, Math.round((hi - lo) / (e.shiftKey ? 100 : 20)));
+    const m = { ArrowUp: st, ArrowRight: st, ArrowDown: -st, ArrowLeft: -st, PageUp: st * 4, PageDown: -st * 4 }[e.key];
+    if (m) { commit(c, getv(c) + m); e.preventDefault(); } else if (e.key === "Home") { commit(c, lo); e.preventDefault(); } else if (e.key === "End") { commit(c, hi); e.preventDefault(); }
+  });
+  el.addEventListener("dblclick", () => commit(c, c.def !== undefined ? c.def : c.k === "par" || c.k === "glb" ? descOf(c).def : lo0(c)));
+  return { el, upd };
+}
+const lo0 = (c) => range(c)[0];
+function mkSwitch(c) {
+  const el = document.createElement("button");
+  el.className = "sw " + (c.cls || ""); el.innerHTML = `<i></i><span></span>`; el.querySelector("span").textContent = c.lb;
+  el.addEventListener("click", () => commit(c, getv(c) ? 0 : 1));
+  return { el, upd: () => el.setAttribute("aria-pressed", getv(c) ? "true" : "false") };
+}
+function mkSeg(c) {
+  const el = document.createElement("div"); el.className = "seg";
+  el.innerHTML = `<div class="t"></div><div class="opts"></div>`; el.querySelector(".t").textContent = c.lb;
+  const bs = c.names.map((n, i) => { const b = document.createElement("button"); b.textContent = n; b.addEventListener("click", () => commit(c, i)); el.querySelector(".opts").append(b); return b; });
+  return { el, upd: () => bs.forEach((b, i) => b.setAttribute("aria-pressed", getv(c) === i ? "true" : "false")) };
+}
+function mkSel(c) {
+  const el = document.createElement("div"); el.className = "sel";
+  el.innerHTML = `<div class="t"></div><select></select>`; el.querySelector(".t").textContent = c.lb;
+  const s = el.querySelector("select"), d = descOf(c);
+  const n = d.names ? d.names.length : d.max - d.min + 1;
+  for (let i = 0; i < n; i++) { const o = document.createElement("option"); o.value = d.min + i; o.textContent = d.names ? d.names[i] : String(d.min + i); s.append(o); }
+  s.addEventListener("change", () => commit(c, +s.value));
+  return { el, upd: () => { if (document.activeElement !== s) s.value = getv(c); } };
+}
+function build() {
+  const panel = document.getElementById("panel"); panel.textContent = ""; ctl.length = 0;
+  for (const g of PAGES[S.page].groups) {
+    const grp = document.createElement("section"); grp.className = "grp";
+    const h = document.createElement("h2"); h.textContent = g.t; grp.append(h);
+    const row = document.createElement("div"); row.className = "row"; grp.append(row);
+    for (const c of g.c) {
+      const w = c.k === "sw" ? mkSwitch(c) : c.k === "seg" ? mkSeg(c) : c.k === "sel" ? mkSel(c) : mkKnob(c);
+      row.append(w.el); ctl.push({ c, el: w.el, upd: w.upd }); w.upd();
+    }
+    panel.append(grp);
+  }
+}
+function refreshOne(c) { for (const x of ctl) if (x.c === c || (x.c.k === "glide" && c.k === "sw")) x.upd(); }
+function refreshAll() {
+  ctl.forEach((x) => x.upd());
+  const pr = document.getElementById("preset");
+  if (S.slot < S.names.length) pr.value = S.slot; else pr.value = "own";
+}
+function tabs() {
+  const nav = document.getElementById("tabs"); nav.textContent = "";
+  PAGES.forEach((p, i) => {
+    const b = document.createElement("button"); b.role = "tab"; b.textContent = p.id; b.setAttribute("aria-selected", i === S.page);
+    b.addEventListener("click", () => { S.page = i; tabs(); build(); }); nav.append(b);
+  });
+}
+
+/* ------------------------------------------------------------- connection --- */
+const $ = (id) => document.getElementById(id);
+let msgT = 0;
+const msg = (t, bad) => {
+  clearTimeout(msgT);
+  $("msg").innerHTML = t ? `<div class="notice${bad ? " bad" : ""}"></div>` : ""; if (t) $("msg").firstChild.textContent = t;
+  if (t && !bad && !/^(Update|Atualiza)/.test(t)) msgT = setTimeout(() => { $("msg").textContent = ""; }, 3500);   /* (a confirmation fades; errors and the update notice stay) */
+};
+function setStatus(on, text) { $("dot").className = "dot" + (on ? " on" : ""); $("stxt").textContent = text; document.body.classList.toggle("off", !on); }
+function fail(e) {
+  stopPoll(); closePorts();
+  setStatus(false, T("disc")); $("connect").textContent = T("connect"); $("connect").disabled = false;
+  msg(T(e && (e.message === "timeout" || e.message === "lost") ? e.message : "lost"), true);
+}
+function closePorts() {
+  if (dev.inp) dev.inp.onmidimessage = null; dev.inp = dev.out = null; dev.open = false; dev.waiter = null; dev.chain = Promise.resolve();
+}
+const MATCH = /fm-1|fmini|felucca/i;
+function ports() {
+  const outs = [...dev.access.outputs.values()];
+  return [...dev.access.inputs.values()].filter((i) => i.state !== "disconnected").map((i) => ({ i, o: outs.find((o) => o.name === i.name && o.state !== "disconnected") })).filter((x) => x.o);
+}
+function fillPorts(keep) {
+  const sel = $("port"), all = ports(); sel.textContent = "";
+  for (const x of all) { const o = document.createElement("option"); o.value = x.i.name; o.textContent = x.i.name; sel.append(o); }
+  const m = all.filter((x) => MATCH.test(x.i.name));
+  sel.hidden = all.length < 2 && m.length === 1;
+  if (keep && all.some((x) => x.i.name === keep)) sel.value = keep; else if (m[0]) sel.value = m[0].i.name;
+  return all;
+}
+async function connect() {
+  msg(""); $("connect").disabled = true; $("connect").textContent = T("connecting");
+  try {
+    if (!navigator.requestMIDIAccess) { msg(T("nomidi"), true); throw 0; }
+    if (!dev.access) {
+      try { dev.access = await navigator.requestMIDIAccess({ sysex: true }); } catch (e) { msg(T(e && e.name === "SecurityError" ? "denied" : "nomidi"), true); throw 0; }
+      dev.access.onstatechange = () => { if (dev.open && (!dev.inp || dev.inp.state === "disconnected" || dev.out.state === "disconnected")) fail(new Error("lost")); else if (!dev.open) fillPorts($("port").value); };
+    }
+    const all = fillPorts();
+    if (!all.length) { msg(T("none"), true); throw 0; }
+    const m = all.filter((x) => MATCH.test(x.i.name));
+    let pick = all.find((x) => x.i.name === $("port").value);
+    if (!pick || (!MATCH.test(pick.i.name) && m.length && !$("port").dataset.user)) pick = m[0] || pick;
+    if (!m.length && all.length > 1 && !$("port").dataset.user) { $("port").hidden = false; msg(T("pick")); throw 0; }
+    await pick.i.open(); await pick.o.open();
+    dev.inp = pick.i; dev.out = pick.o; dev.inp.onmidimessage = onMsg; dev.open = true;
+    await handshake();
+    setStatus(true, T("conn")); $("connect").textContent = T("disconnect"); $("connect").disabled = false;
+    startPoll();
+  } catch (e) {
+    if (e instanceof Error) { closePorts(); msg(T(e.code || (e.message === "timeout" ? "timeout" : "none")), true); }
+    setStatus(false, T("disc")); $("connect").textContent = T("connect"); $("connect").disabled = false;
+  }
+}
+const bad = (code) => { const e = new Error(code); e.code = code; return e; };
+async function handshake() {
+  let a;
+  try { a = await req(CMD.INFO, [], 1500); } catch (e) { await sleep(300); a = await req(CMD.INFO, [], 1500); }
+  let [ver, i] = cstr(a, 0);
+  if (!/^FELUCCA/.test(ver)) throw bad("noedit");
+  const nEng = a[i++]; const pCount = a[i++]; const gCount = a[i++]; i++; /* NSTEP */ S.pe0 = a[i++];
+  const eng = []; for (let k = 0; k < nEng; k++) { let s; [s, i] = cstr(a, i); eng.push(s); }
+  S.fmug = eng.indexOf("FMUG");
+  if (S.fmug < 0) throw bad("noedit");
+  S.canPatch = a.length >= 3 && a[a.length - 3] === 0x47 && a[a.length - 2] === 1 && a[a.length - 1] === FG.SIZE;
+  S.pCount = pCount; S.gCount = gCount;
+  if (!S.canPatch) msg(T("noenv"));
+  await req(CMD.TRACK, [0]);
+  /* descriptors of what the page edits (labels come from the page; ranges and enum names from the device) */
+  S.desc = {};
+  const want = new Set();
+  for (const p of PAGES) for (const g of p.groups) for (const c of g.c) { if (c.k === "par" || c.k === "sel" || c.k === "glb") want.add(c.g !== undefined ? "1:" + c.g : "0:" + pid(c)); }
+  for (const key of want) {
+    const [sc, id] = key.split(":").map(Number);
+    const r = await req(CMD.DESC, [sc, id]);
+    let j = 2; const fmt = r[j++]; const min = rv(r, j); j += 2; const max = rv(r, j); j += 2; const def = rv(r, j); j += 2;
+    let lab, unit; [lab, j] = cstr(r, j); [unit, j] = cstr(r, j);
+    const names = []; if (fmt === 8) while (j < r.length && names.length < 24) { let s; [s, j] = cstr(r, j); names.push(s); }
+    S.desc[key] = { fmt, min, max, def, label: lab, names: fmt === 8 ? names : null };
+  }
+  const nm = await req(CMD.NAMES, [S.fmug]);
+  S.names = []; { let j = 1; const n = nm[j++]; for (let k = 0; k < n; k++) { let s; [s, j] = cstr(nm, j); S.names.push(s); } }
+  fillPreset(); tabs(); build();
+  await pull(true);
+}
+function fillPreset() {
+  const pr = $("preset"); pr.textContent = "";
+  S.names.forEach((n, i) => { const o = document.createElement("option"); o.value = i; o.textContent = String(i).padStart(2, "0") + "  " + n; pr.append(o); });
+  const o = document.createElement("option"); o.value = "own"; o.textContent = "— OWN —"; o.hidden = true; pr.append(o);
+}
+
+/* read everything the page shows: DUMP (track 1 and the globals) + the patch */
+async function pull(force) {
+  if (!dev.open) return;
+  const d = await req(CMD.DUMP, [], 1500);
+  if (d[0] !== S.fmug) { if (force) throw bad("noeng"); return; }
+  S.engine = d[0]; S.preset = d[1];
+  const pc = S.pCount, gc = S.gCount;
+  S.p = []; S.g = [];
+  for (let k = 0; k < pc; k++) S.p.push(rv(d, 2 + 2 * k));
+  for (let k = 0; k < gc; k++) S.g.push(rv(d, 2 + 2 * pc + 2 * k));
+  S.slot = S.p[S.pe0 + 7];
+  if (S.slot < S.names.length && !pending.size) cur = S.slot;
+  if (S.canPatch) {
+    const r = await req(CMD.FMUG_GET, [0, 0]);
+    if (r[2] === 0) S.patch = r.slice(3, 3 + FG.SIZE);
+  }
+  refreshAll();
+}
+function startPoll() {
+  stopPoll();
+  pollTimer = setInterval(async () => {
+    if (polling || !dev.open || Date.now() < touch.until || touch.dragging || pending.size || document.hidden) return;
+    polling = true;
+    try { await pull(false); } catch (e) { if (dev.open) fail(e); } finally { polling = false; }
+  }, 700);
+}
+function stopPoll() { clearInterval(pollTimer); pollTimer = 0; }
+
+/* presets */
+let cur = 0;                                   /* the patch the page last asked for (so ◀ ◀ in a row counts twice) */
+async function loadPreset(k) {
+  if (!(k >= 0 && k < S.names.length)) return;
+  cur = k; touch.until = Date.now() + 800;
+  try { await req(CMD.PRESET, [S.fmug, k], 1500); await sleep(60); await pull(true); } catch (e) { fail(e); }
+}
+$("preset").addEventListener("change", (e) => loadPreset(+e.target.value));
+$("prev").addEventListener("click", () => loadPreset((cur + S.names.length - 1) % S.names.length));
+$("next").addEventListener("click", () => loadPreset((cur + 1) % S.names.length));
+$("connect").addEventListener("click", () => { if (dev.open) { stopPoll(); closePorts(); setStatus(false, T("disc")); $("connect").textContent = T("connect"); } else connect(); });
+$("port").addEventListener("change", () => { $("port").dataset.user = "1"; });
+
+/* sound files: the patch bytes and the parameters the page edits */
+$("save").addEventListener("click", () => {
+  const obj = { fmini1: 1, patch: S.patch, params: {}, globals: {} };
+  for (const p of PAGES) for (const g of p.groups) for (const c of g.c) {
+    if (c.k === "par") obj.params[c.pe !== undefined ? "E" + c.pe : String(c.p)] = S.p[pid(c)];
+    else if (c.k === "glb" || (c.k === "sel" && c.g !== undefined)) obj.globals[String(c.g)] = S.g[c.g];
+    else if (c.k === "sel") obj.params[String(c.p)] = S.p[c.p];
+  }
+  const a = document.createElement("a"), name = (S.names[S.slot] || "fmini-sound").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 1)], { type: "application/json" })); a.download = name + ".json"; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000); msg(T("saved"));
+});
+$("load").addEventListener("click", () => $("file").click());
+$("file").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const o = JSON.parse(await f.text());
+    if (o.fmini1 !== 1 || !Array.isArray(o.patch) || o.patch.length !== FG.SIZE) throw 0;
+    for (const [k, v] of Object.entries(o.params || {})) { const id = k[0] === "E" ? S.pe0 + +k.slice(1) : +k; if (id >= 0 && id < S.pCount) { S.p[id] = v | 0; queue("p" + id, setPar(id)); } }
+    for (const [k, v] of Object.entries(o.globals || {})) { const id = +k; if (id >= 0 && id < S.gCount) { S.g[id] = v | 0; queue("g" + id, setGlb(id)); } }
+    if (S.canPatch) { S.patch = o.patch.map((x) => x & 127); queue("patch", putPatch()); }
+    refreshAll(); msg(T("loaded"));
+  } catch (_) { msg(T("badfile"), true); }
+});
+
+for (const el of document.querySelectorAll("[data-t]")) el.textContent = T(el.dataset.t);
+$("connect").textContent = T("connect"); setStatus(false, T("disc"));
+tabs(); build();
+window.__fmini = { S, req, connect, commit, PAGES, pull };   /* (the tests drive the page through this) */
+</script>
+</body>
+</html>

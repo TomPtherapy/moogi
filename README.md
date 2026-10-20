@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/fmini-ad.mp4">▶ Watch the video (30 s)</a> · <a href="https://ruppert.github.io/fmini-1/emu/">🎹 Try FMini-1 in your browser</a>
+  <a href="docs/fmini-ad.mp4">▶ Watch the video (30 s)</a> · <a href="https://ruppert.github.io/fmini-1/emu/">🎹 Try FMini-1 in your browser</a> · <a href="https://ruppert.github.io/fmini-1/editor/">🎛 Patch editor</a>
 </p>
 
 ## 1. Screenshots

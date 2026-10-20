@@ -506,6 +506,14 @@ else
     echo "== skip web tests (no node)"
 fi
 
+if python3 -c "import playwright" >/dev/null 2>&1; then
+    $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/editor_bridge" tests/editor_bridge.c -lm
+    run "FMini-1 web editor (web/editor_fmini.html): Chromium + the firmware's real editor handler, patch commands 82 / 83" \
+        python3 web/test_editor_fmini.py "$OUT/editor_bridge"
+else
+    echo "== skip the FMini-1 web editor test (no python playwright)"
+fi
+
 if ! command -v emcc >/dev/null 2>&1; then
     echo "== skip the browser emulator (no emcc: Emscripten builds web/emu)"
 elif ! command -v node >/dev/null 2>&1 || [ ! -f build/gen/felucca_tables.h ]; then
