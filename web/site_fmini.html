@@ -172,6 +172,9 @@
   #go:hover:not(:disabled) { background: var(--or2); }
   #go:active:not(:disabled) { transform: translateY(1px); }
   #go:disabled { cursor: default; background: var(--surface2); color: var(--mute); }
+  .busywarn { display: none; margin: 18px 0 0; padding: 14px 16px; border-radius: 12px; border: 2px solid var(--or); background: rgba(255,122,26,.12); color: var(--fg); font-size: 15px; line-height: 1.45; }
+  .busywarn b { display: block; color: var(--or2); font-size: 16px; margin-bottom: 4px; }
+  body.busy .busywarn { display: block; }
   body.busy #go { background: var(--surface2); color: var(--or2); }
 
   .prog { margin-top: 22px; }
@@ -337,6 +340,7 @@
 
       <button id="go" disabled><span data-t="install"></span> <small class="curver-b"></small></button>
 
+      <div class="busywarn" role="alert"><b data-t="busy_t"></b><span data-t="busy_d"></span></div>
       <div class="prog">
         <div class="meter" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="fill"></div></div>
         <div class="row"><span id="pct">0%</span><span id="status" aria-live="polite"></span></div>
@@ -413,6 +417,7 @@ const TEXT = {
     mismatch: "Gravado, mas o FM-1 informa outra versão: ",
     badpkg: "O arquivo a instalar está danificado. Recarregue a página.",
     leave: "Gravando. Não feche a página.",
+    busy_t: "Instalação em andamento: não feche esta página!", busy_d: "Não troque de aba ou de janela, não minimize o navegador, não desconecte o USB nem desligue o FM-1 até aparecer \"Pronto\". A tela do FM-1 pode ficar apagada ou reiniciar durante o processo: é normal.",
     license: "GPL-3.0, sem garantia. Código-fonte:",
     ready: "Pronto. Conecte o FM-1 e aperte Instalar.",
     step1: "Conectar", step2: "Instalar", step3: "Tocar",
@@ -451,6 +456,7 @@ const TEXT = {
     mismatch: "書き込みは終わりましたが、FM-1 が別のバージョンを報告しています: ",
     badpkg: "インストールするファイルが壊れています。ページを再読み込みしてください。",
     leave: "書き込み中です。ページを閉じないでください。",
+    busy_t: "インストール中：このページを閉じないでください！", busy_d: "「完了」と表示されるまで、タブやウィンドウを切り替えたり、ブラウザーを最小化したり、USB を抜いたり FM-1 の電源を切ったりしないでください。処理中に FM-1 の画面が消えたり再起動したりしますが正常です。",
     license: "GPL-3.0、無保証。ソース:",
     ready: "準備完了。FM-1 を接続して「インストール」を押してください。",
     step1: "接続", step2: "インストール", step3: "演奏",
@@ -489,6 +495,7 @@ const TEXT = {
     mismatch: "Written, but the FM-1 reports another version: ",
     badpkg: "The file to install is damaged. Reload the page.",
     leave: "Writing. Do not close the page.",
+    busy_t: "Installing: do not close this page!", busy_d: "Do not switch tabs or windows, minimize the browser, unplug the USB cable or power off the FM-1 until it says Done. The FM-1 screen may go blank or restart meanwhile: that is normal.",
     license: "GPL-3.0, no warranty. Source:",
     ready: "Ready. Connect your FM-1 and press Install.",
     step1: "Connect", step2: "Install", step3: "Play",
@@ -765,7 +772,9 @@ document.querySelectorAll(".curver").forEach((e) => { e.textContent = "v" + meta
 document.querySelectorAll(".curver-b").forEach((e) => { e.textContent = "(v" + meta.version + ")"; });
 
 let writing = false, stock = null, stockFileEpoch = 0;
-const lockInstaller = (on) => { writing = on; $("go").disabled = on || !image; $("stock-go").disabled = on || !stock; $("stock-file").disabled = on; $("stock-recovery").disabled = on; };
+let wake = null;
+const keepAwake = async (on) => { try { if (on && navigator.wakeLock) wake = await navigator.wakeLock.request("screen"); else if (wake) { await wake.release(); wake = null; } } catch (_) {} };
+const lockInstaller = (on) => { keepAwake(on); writing = on; $("go").disabled = on || !image; $("stock-go").disabled = on || !stock; $("stock-file").disabled = on; $("stock-recovery").disabled = on; };
 window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
 
 (async () => {
