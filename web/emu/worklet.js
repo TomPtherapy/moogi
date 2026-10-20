@@ -50,9 +50,13 @@ export function midiKnob(last, cc, value, mode = "abs") {
   return { role, n: was === undefined ? 0 : value - was };
 }
 
-if (typeof registerProcessor === "function") {
-  const clock = globalThis.performance ? () => globalThis.performance.now() : () => Date.now();
-  class Felucca extends AudioWorkletProcessor {
+// The same processor also runs on the page's main thread (FeluccaCore) while the browser keeps the AudioContext suspended
+// (no click yet): the firmware boots and shows its screen silently, and the page hands over to the worklet at the first click.
+const clock = globalThis.performance ? () => globalThis.performance.now() : () => Date.now();
+const nowSec = () => (typeof currentTime === "number" ? currentTime : clock() / 1000);
+const Base = typeof AudioWorkletProcessor === "function" ? AudioWorkletProcessor : class { constructor() { this.port = { postMessage() {}, onmessage: null }; } };
+{
+  class Felucca extends Base {
     constructor() {
       super();
       this.ex = null;
@@ -151,12 +155,14 @@ if (typeof registerProcessor === "function") {
       this.frames += n;
       out[0].set(new Float32Array(ex.memory.buffer, ex.web_out_l(), n));
       if (out[1]) out[1].set(new Float32Array(ex.memory.buffer, ex.web_out_r(), n));
-      if (currentTime - this.lastFrame >= this.period) {
-        this.lastFrame = currentTime;
+      if (nowSec() - this.lastFrame >= this.period) {
+        this.lastFrame = nowSec();
         this.publish();
       }
       return true;
     }
   }
-  registerProcessor("felucca", Felucca);
+  if (typeof registerProcessor === "function") registerProcessor("felucca", Felucca);
+  globalThis.FeluccaCore = Felucca;
 }
+export const FeluccaCore = globalThis.FeluccaCore;

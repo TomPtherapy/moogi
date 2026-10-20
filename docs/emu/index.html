@@ -489,39 +489,81 @@ async function midiOn() {
 // ------------------------------------------------------------------ switching on
 const status = document.getElementById("status");
 const say = (t) => { status.textContent = t; status.hidden = !t; };
+let silent = null;                                    // the firmware on the main thread while the browser keeps the sound suspended
+function onNodeMessage(e, st) {
+  const m = e.data;
+  if (m.type === "frame") {
+    if (m.fb) drawScreen(m.fb);
+    if (m.leds) drawLights(lastLeds = m.leds, m.anim);
+    if (m.sectors && !saveFlash(m.sectors) && !st.warned) {
+      st.warned = true;
+      console.warn("FMini-1: this browser does not keep the saves; they last until the page closes.");
+    }
+  }
+}
+function loadNode(n, wasm, st) {                      // the "load" handshake of a worklet or the main-thread core
+  return new Promise((res, rej) => {
+    n.port.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === "ready") res();
+      else if (m.type === "error") rej(new Error(m.message));
+      else onNodeMessage(e, st);
+    };
+    n.port.postMessage({ type: "load", wasm, sectors: loadFlash(), master: masterValue }, [wasm]);
+  });
+}
+async function startWorklet(ac, wasm) {
+  await ac.audioWorklet.addModule("worklet.js");
+  const n = new AudioWorkletNode(ac, "felucca", { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
+  n.connect(ac.destination);
+  await loadNode(n, wasm, { warned: false });
+  node = n;
+}
+// no click yet: the browser keeps the AudioContext suspended and a worklet would not run. The firmware runs on this thread
+// (the same code, silently, in real time) so the splash and the screens are alive; the first click / key starts the sound
+// and the firmware boots again in the worklet.
+async function startSilent(ac, wasm) {
+  const { FeluccaCore } = await import("./worklet.js");
+  const core = new FeluccaCore();
+  const out = [[new Float32Array(128), new Float32Array(128)]];
+  const n = { port: { onmessage: null, postMessage: (m) => core.onMessage(m) } };
+  core.port = { postMessage: (m) => n.port.onmessage && n.port.onmessage({ data: m }), set onmessage(f) {} };
+  await loadNode(n, wasm.slice(0), { warned: false });
+  node = n;
+  let last = performance.now(), owed = 0;
+  const timer = setInterval(() => {
+    const t = performance.now();
+    owed += Math.min(100, t - last) * 44.1 / 128;      // render quanta owed since the last tick
+    last = t;
+    for (; owed >= 1; owed--) core.process([], out);
+  }, 8);
+  silent = { timer, node: n };
+  const wake = async () => {
+    try { await ac.resume(); } catch (_) {}
+    if (ac.state !== "running") return;
+    for (const t of ["pointerdown", "keydown", "touchstart"]) removeEventListener(t, wake, true);
+    clearInterval(timer);
+    silent = null;
+    node = null;
+    await startWorklet(ac, wasm);
+    syncButtons();
+    syncKeys();
+    send({ type: "visible", on: !document.hidden });
+  };
+  for (const t of ["pointerdown", "keydown", "touchstart"]) addEventListener(t, wake, true);
+}
 async function switchOn() {
   const go = document.getElementById("go");
   go.disabled = true;
   go.textContent = "Starting…";
   try {
     const ac = new AudioContext({ sampleRate: 44100, latencyHint: "interactive" });
+    ac.resume().catch(() => {});
     const [wasm] = await Promise.all([
       fetch("felucca.wasm").then((r) => { if (!r.ok) throw new Error(`felucca.wasm: ${r.status}`); return r.arrayBuffer(); }),
-      ac.audioWorklet.addModule("worklet.js")]);
-    node = new AudioWorkletNode(ac, "felucca", { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
-    node.connect(ac.destination);
-    let warned = false;
-    await new Promise((res, rej) => {
-      node.port.onmessage = (e) => {
-        const m = e.data;
-        if (m.type === "ready") res();
-        else if (m.type === "error") rej(new Error(m.message));
-        else if (m.type === "frame") {
-          if (m.fb) drawScreen(m.fb);
-          if (m.leds) drawLights(lastLeds = m.leds, m.anim);
-          if (m.sectors && !saveFlash(m.sectors) && !warned) {
-            warned = true;
-            console.warn("FMini-1: this browser does not keep the saves; they last until the page closes.");
-          }
-        }
-      };
-      node.port.postMessage({ type: "load", wasm, sectors: loadFlash(), master: masterValue }, [wasm]);
-    });
-    ac.resume().catch(() => {});                       // (a browser that blocks sound before a click leaves it suspended: the first touch, click or key starts it)
-    if (ac.state !== "running") {
-      const wake = () => { ac.resume().then(() => { if (ac.state === "running") for (const t of ["pointerdown", "keydown", "touchstart"]) removeEventListener(t, wake, true); }).catch(() => {}); };
-      for (const t of ["pointerdown", "keydown", "touchstart"]) addEventListener(t, wake, true);
-    }
+      new Promise((r) => setTimeout(r, 250))]);
+    if (ac.state === "running") await startWorklet(ac, wasm);
+    else await startSilent(ac, wasm);
     document.getElementById("start").hidden = true;
     go.textContent = "On";
     if (ac.sampleRate !== 44100) console.warn(`FMini-1: the browser plays at ${ac.sampleRate} Hz, the pitch is off by ${(1200 * Math.log2(ac.sampleRate / 44100)).toFixed(0)} cents.`);
