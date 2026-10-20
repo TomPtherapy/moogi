@@ -32,7 +32,7 @@
 
 ## 2. Installation
 
-<https://ruppert.github.io/fmini-1/>
+Official site: <https://ruppert.github.io/fmini-1/> (with Web Installer)
 
 ## 3. Credits
 
