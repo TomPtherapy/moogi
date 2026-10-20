@@ -517,7 +517,11 @@ async function switchOn() {
       };
       node.port.postMessage({ type: "load", wasm, sectors: loadFlash(), master: masterValue }, [wasm]);
     });
-    await ac.resume();
+    ac.resume().catch(() => {});                       // (a browser that blocks sound before a click leaves it suspended: the first touch, click or key starts it)
+    if (ac.state !== "running") {
+      const wake = () => { ac.resume().then(() => { if (ac.state === "running") for (const t of ["pointerdown", "keydown", "touchstart"]) removeEventListener(t, wake, true); }).catch(() => {}); };
+      for (const t of ["pointerdown", "keydown", "touchstart"]) addEventListener(t, wake, true);
+    }
     document.getElementById("start").hidden = true;
     go.textContent = "On";
     if (ac.sampleRate !== 44100) console.warn(`FMini-1: the browser plays at ${ac.sampleRate} Hz, the pitch is off by ${(1200 * Math.log2(ac.sampleRate / 44100)).toFixed(0)} cents.`);
@@ -533,6 +537,7 @@ async function switchOn() {
   }
 }
 document.getElementById("go").addEventListener("click", switchOn);
+switchOn();                                           // on by itself when the page opens
 document.addEventListener("visibilitychange", () => send({ type: "visible", on: !document.hidden }));
 </script>
 </body>
