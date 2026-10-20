@@ -302,6 +302,20 @@ int main(int argc, char **argv)
         fa_page = 0;
         fmg_force_page = 0;
     }
+    {   /* power-on with the autosaved patch 00 (the track keeps its sound, the octave is not autosaved): OCT+ is on, as the preset says */
+        panel_init();
+        TSEL->user = 0;
+        apply_preset_to(TSEL, 0);
+        TSEL->p[P_E7] = 0;
+        TSEL->eng_req = ENGI_FMUG;
+        song.octave = 0;
+        fa_init();
+        if (song.octave != FMUG_X[0].oct || song.octave != 1) { printf("power-on: patch 00 octave %d\n", song.octave); return 1; }
+        TSEL->p[P_E7] = 35;
+        fa_init();
+        if (song.octave != FMUG_X[35].oct) { printf("power-on: patch 35 octave %d\n", song.octave); return 1; }
+        song.octave = 0;
+    }
     {   /* a CTRL / OSC / MIX knob edits the patch (SLOT becomes OWN): PRESETS still goes on from the patch it came from (13 -> 14, then 14 -> 13) */
         static const uint8_t CASE[5][2] = {{0, 0}, {0, 1}, {0, 2}, {1, 3}, {2, 0}};     /* TUNE, GLIDE, MOD MIX; OSC DET 2; MIX OSC 1 level */
         uint32_t c;

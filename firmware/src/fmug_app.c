@@ -742,7 +742,7 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.5.4"
+#define FMINI_VERSION "v1.5.5"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -1671,6 +1671,8 @@ static void fa_init(void)
             if (!i)
                 fa_factory_extras(t, 0);                 /* the first patch's arpeggiator, LFO, FX settings and octave */
         }
+        else if (t->p[P_E7] >= 0 && t->p[P_E7] < (int32_t)FMUG_NFACTORY && !fa_on_user())
+            song.octave = FMUG_X[t->p[P_E7]].oct;        /* the autosaved factory patch (the octave is not autosaved): its own octave, as a PRESETS turn gives */
         t->p[P_MUTE] = i ? 1 : 0;
     }
     song.sel = 0;
