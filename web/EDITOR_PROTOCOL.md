@@ -1059,6 +1059,13 @@ the device takes requests between its screen redraws, and the queue behind it ke
 seconds after the mouse stopped; now a round carries every control changed so far with its latest value
 (`web/test_editor_fmini.py` drags for 2 s against a device that answers in 70 ms: the last value arrives in about one round trip).
 
+**1.7.3 (no new command, INFO unchanged, nothing stored changes meaning):** on FMINI the velocity of a note is loudness only. Before,
+a note-on above 110 (a key, MIDI, an arp or a step accented at 127: `STEP_GET` flags bit 0) also added the loudness contour to
+the CUTOFF, up to about 1.7 octaves at full level: with the oscillators off and EMPHASIS at the top the ladder sang a different
+pitch from velocity 111 up (`tests/fmini_filter_test.c`, 3a: 0.0 cents from velocity 20 to 127 now). The accent stays in
+Felucca's other engines (`voice.c`). A patch played with velocities above 110 sounds darker than on 1.7.2 and older, as it was
+made to; the 100 factory goldens moved for that reason (`regress.c` plays a note at 120).
+
 The web editor for it is `web/editor_fmini.html` (published at `editor/` on the FMini-1 site).
 
 ## Tagged device preferences v1

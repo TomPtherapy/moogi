@@ -184,7 +184,7 @@ of meaning matters to users, add a marker byte there and convert on load.
 | `regress.c` + `golden.txt`, `cpu_baseline.txt`, `target_budget.*` | render hashes of every engine and preset (the 100 FMINI ones are current in the default build; the `FELUCCA_CPU2=0` build differs for 41, see CLAUDE.md); level, DC, voices; CPU: the host's instruction counter may be missing (it was, in the sandbox: the budget is then not checked), the **static loop-instruction count** of the render functions in the chip's disassembly is always checked (+10 %) |
 | the rest | storage, projects, MIDI, USB, update loader, FX, other engines (Felucca's) |
 
-Seven sections fail at 1.7.2 (as at 1.7.0); CLAUDE.md lists them and says which were confirmed on the untouched v1.6.1. `tests/hostsim.c`
+Seven sections fail at 1.7.3 (as at 1.7.0); CLAUDE.md lists them and says which were confirmed on the untouched v1.6.1. `tests/hostsim.c`
 renders any engine and preset to a WAV (`build/host/hostsim ENGINE PRESET MONO OUT.wav`, with `SECS`, `CHORD`, `NOTE`,
 `PSET=id:v`, `BENCH=1` and more: its header) and is the quickest way to listen to a change. For sound work, write the measurement
 first (a test with the number to hit), then the code.
@@ -272,4 +272,8 @@ was written: verify before reusing anything beyond ideas.
   the panel (`ui.force` redraws it all). A drag then queues up and the device follows old positions for seconds. `queue` /
   `flush` in `web/editor_fmini.html` keep one round in flight with the latest values; `web/test_editor_fmini.py` has a slow
   device (70 ms) and a 2 s drag to hold it to that.
+- `voice.c` adds work to every engine's `vmod_t` before `e->render`; FMINI only wants the knobs. Up to 1.7.2 the "accent" there
+  (velocity above 110: the loudness contour added to the cutoff) opened the ladder by up to 1.7 octaves, so a key struck hard sang a
+  different pitch with the mixer silent (an owner's bug report). `tests/fmini_filter_test.c` section 3a plays velocities 20 to 127
+  against that. The regress `phrase()` has a note at 120, so any such host path moves the 100 FMINI goldens.
 - The GitHub token of a session cannot create Releases (403). The owner does it.

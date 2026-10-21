@@ -60,17 +60,22 @@ static void setup(uint32_t cut, uint32_t emph, uint32_t kbd, uint32_t sw1)
     trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = trk[0].p[P_DIST] = 0;
 }
 
-static void play(uint32_t note, double *y, uint32_t n)
+static void play_v(uint32_t note, uint32_t vel, double *y, uint32_t n)
 {
     static int32_t b[CTL];
     uint32_t i, k;
-    trk_note_on(&trk[0], note, 100);
+    trk_note_on(&trk[0], note, vel);
     for (i = 0; i < n; i += CTL) {
         track_render(&trk[0], b, CTL);
         for (k = 0; k < CTL && i + k < n; k++)
             y[i + k] = b[k];
     }
     trk_note_off(&trk[0], note);
+}
+
+static void play(uint32_t note, double *y, uint32_t n)
+{
+    play_v(note, 100, y, n);
 }
 
 /* the pitch (rising zero crossings, interpolated), the rms and the share of what is not the fundamental in y[a .. b) */
@@ -227,6 +232,40 @@ int main(int argc, char **argv)
         check("EMPHASIS below 7.6 on the dial does not sing, from 8.5 it does", ok_off && ok_on);
     }
 
+
+    /* 3a. velocity does not move the cutoff: the mixer silent, EMPHASIS full, CONTOUR 0, the same key at every velocity, and
+     * the loudness contour in every stage (before 1.7.3 the host's "accent" added that contour to the cutoff from velocity 111:
+     * about 1.7 octaves at full level) */
+    {
+        static const uint32_t V[9] = {20, 64, 110, 111, 112, 115, 120, 126, 127};
+        uint32_t kb, ok = 1;
+        double worst = 0;
+        for (kb = 0; kb < 2u; kb++) {
+            double ref;
+            setup(64, 127, kb ? 127 : 0, 0);
+            trk[0].p[P_ATK] = 30;
+            trk[0].p[P_DEC] = 60;
+            trk[0].p[P_SUS] = 90;
+            play_v(60, 100, y, N);
+            analyse(y, FS, N, &f, &r, &t);
+            ref = f;
+            printf("   KBD %s, velocity 100: %.1f Hz, rms %.0f\n", kb ? "127" : "0", f, r);
+            ok &= r > 200;
+            for (i = 0; i < 9u; i++) {
+                setup(64, 127, kb ? 127 : 0, 0);
+                trk[0].p[P_ATK] = 30;
+                trk[0].p[P_DEC] = 60;
+                trk[0].p[P_SUS] = 90;
+                play_v(60, V[i], y, N);
+                analyse(y, FS, N, &f, &r, &t);
+                printf("   KBD %s, velocity %3u: %.1f Hz (%+.1f cents), rms %.0f\n", kb ? "127" : "0", V[i], f, cents(f, ref), r);
+                ok &= r > 100 && fabs(cents(f, ref)) < 5;
+                worst = fmax(worst, fabs(cents(f, ref)));
+            }
+        }
+        printf("   the largest change from velocity 100: %.1f cents\n", worst);
+        check("velocity 20 .. 127 does not change the singing pitch (the cutoff): within 5 cents, KBD 0 and 127", ok);
+    }
 
     /* 4. bounded: a loud saw through every corner of the knobs and the keys stays inside what a voice may give */
     {

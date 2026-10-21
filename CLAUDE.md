@@ -48,6 +48,9 @@ BUILDING.md has the SDK clone). If a download is refused by the network allowlis
   not checked in). Change the generator, rerun it, commit both.
 - The factory bank (`tools/fmini_bank.py`) is written in physical units (Hz, ms, cents). A change of a law (the filter's) needs
   a conversion of the bank (`tools/fmini_retune.py` is the pattern) and new levels (`tools/fmini_levels.json`).
+- Velocity is loudness only on FMINI (1.7.3). `voice.c` has Felucca's "accent" (a velocity above 110 adds the loudness contour to the
+  cutoff); it skips `ENG_FMINI`. A host behaviour that reaches the cutoff, pitch or shape (`vmod_t`) reaches FMINI too: check
+  `tests/fmini_filter_test.c` (section 3a holds the velocity) when you touch `track_render`.
 - Raw CUTOFF / EMPHASIS bytes changed meaning in 1.7.0: a stored patch, user preset, sound file or library entry from 1.6.x sounds
   different. Any change of a stored value's meaning needs a note in `web/EDITOR_PROTOCOL.md` and, if possible, a migration.
 - The version is `FMINI_VERSION` in `firmware/src/fmini_app.c`; the workflow, the emulator and the installer read it from there.
@@ -60,9 +63,9 @@ BUILDING.md has the SDK clone). If a download is refused by the network allowlis
   build/felucca.dis tests/target_budget.txt`; for goldens run `build/host/regress` against a scratch copy with `GOLDEN_UPDATE=1`
   and merge only the lines you mean to change.
 
-## The test suite today (1.7.2): what fails and is not yours
+## The test suite today (1.7.3): what fails and is not yours
 
-Seven sections fail at 1.7.2, the same seven as at 1.7.0 (the 1.7.1 rename changed no render hash and no instruction; 1.7.2 touched the editor only). Four were
+Seven sections fail at 1.7.3, the same seven as at 1.7.0 (the 1.7.1 rename changed no render hash and no instruction; 1.7.2 touched the editor only; 1.7.3 moved the 100 FMINI goldens on purpose and no other). Four were
 confirmed on the untouched v1.6.1 with identical output: `fm4` (the DIGITAL conversion) and the three `regress` sections (the golden
 hashes of Felucca's other engines: 76 differ; in the default build the 100 FMINI hashes are current). The second `regress` section,
 the `FELUCCA_CPU2=0` build, reports 117 changed: the same 76 plus 41 FMINI patches (pads, brass, drones) whose render differs from

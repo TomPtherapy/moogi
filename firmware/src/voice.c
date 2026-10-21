@@ -772,7 +772,9 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         if (v->fine + tune_fine + bend_fine)             /* residual below 1/16 semitone */
             m.inc += (uint32_t)((int32_t)(m.inc >> 12) * (v->fine + tune_fine + bend_fine));
         m.cutoff = ((lfo * p[P_LD_FLT]) >> 7) + ((m.envq15 * p[P_ED_FLT]) >> 7);
-        if (v->vel > 110)                               /* accent opens the filter with the env */
+        if (v->vel > 110 && e != &ENG_FMINI)            /* accent opens the filter with the env (Felucca's engines; before 1.7.3 FMINI's too: from
+                                                         * velocity 111 its cutoff followed the loudness contour, up to 1.7 octaves, and a velocity
+                                                         * of 127 or an accented step did the same: on FMINI velocity is loudness only) */
             m.cutoff += (m.envq15 * 24) >> 7;
         m.shape = (64 << 8) + ((lfo * p[P_LD_SHP]) >> 7) + ((m.envq15 * p[P_ED_SHP]) >> 7);
         if (MOD(t).on)                                  /* the modulation matrix (mod.c) */
