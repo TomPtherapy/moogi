@@ -233,8 +233,7 @@
     <nav>
       <a href="#features" data-t="nav_f"></a>
       <a href="#screens" data-t="nav_s"></a>
-      <a href="#presets" data-t="nav_p"></a>
-      <a href="#midi" data-t="nav_m"></a>
+      <a href="#feat" data-t="nav_ft"></a>
       <a href="editor/" data-t="nav_ed"></a>
       <a href="emu/" class="try"><span class="tl" data-t="nav_try"></span><span class="ts" data-t="nav_try_s"></span></a>
       <a href="#install" class="keep" data-t="nav_i"></a>
@@ -313,27 +312,21 @@
     <div class="pops" id="pops"></div>
   </section>
 
-  <section class="s wrap" id="presets">
-    <p class="eyebrow" data-t="e_presets"></p>
-    <h2 data-t="h_presets"></h2>
-    <p class="lead" data-t="l_presets"></p>
-    <ul class="presets" id="pl"></ul>
-    <ul class="groups">
-      <li><b data-t="g_show"></b> 00–09</li><li><b data-t="g_hard"></b> 10–19</li><li><b data-t="g_soft"></b> 20–29</li><li><b data-t="g_bass"></b> 30–39</li><li><b data-t="g_pads"></b> 40–49</li><li><b data-t="g_brass"></b> 50–59</li><li><b data-t="g_pluck"></b> 60–69</li><li><b data-t="g_keys"></b> 70–79</li><li><b data-t="g_atmo"></b> 80–89</li><li><b data-t="g_fx"></b> 90–99</li><li><b data-t="g_user"></b> U01–U32</li>
-    </ul>
-  </section>
-
-  <section class="s wrap" id="midi">
-    <p class="eyebrow" data-t="e_midi"></p>
-    <h2 data-t="h_midi"></h2>
-    <p class="lead" data-t="l_midi"></p>
+  <section class="s wrap" id="feat">
+    <p class="eyebrow" data-t="e_feat"></p>
+    <h2 data-t="h_feat"></h2>
+    <p class="lead" data-t="l_feat"></p>
     <div class="grid">
-      <article class="feat"><span class="n">01</span><h3 data-t="m1t"></h3><p data-t="m1d"></p></article>
-      <article class="feat"><span class="n">02</span><h3 data-t="m2t"></h3><p data-t="m2d"></p></article>
-      <article class="feat"><span class="n">03</span><h3 data-t="m3t"></h3><p data-t="m3d"></p></article>
+      <article class="feat"><span class="n">01</span><h3 data-t="ft1t"></h3><p data-t="ft1d"></p></article>
+      <article class="feat"><span class="n">02</span><h3 data-t="ft2t"></h3><p data-t="ft2d"></p></article>
+      <article class="feat"><span class="n">03</span><h3 data-t="ft3t"></h3><p data-t="ft3d"></p></article>
+      <article class="feat"><span class="n">04</span><h3 data-t="ft4t"></h3><p data-t="ft4d"></p></article>
+      <article class="feat"><span class="n">05</span><h3 data-t="ft5t"></h3><p data-t="ft5d"></p></article>
+      <article class="feat"><span class="n">06</span><h3 data-t="ft6t"></h3><p data-t="ft6d"></p></article>
+      <article class="feat"><span class="n">07</span><h3 data-t="ft7t"></h3><p data-t="ft7d"></p></article>
+      <article class="feat"><span class="n">08</span><h3 data-t="ft8t"></h3><p data-t="ft8d"></p></article>
+      <article class="feat"><span class="n">09</span><h3 data-t="ft9t"></h3><p data-t="ft9d"></p></article>
     </div>
-    <h3 class="sub2" data-t="h_keys"></h3>
-    <div class="keys" id="keys"></div>
   </section>
 
   <section class="s wrap" id="install">
@@ -1188,7 +1181,7 @@ const TEXT = {
 /* ---- the site: texts (PT / EN / JA) and the parts it draws itself ---- */
 const SITE = {
   pt: {
-    nav_f: "Som", nav_s: "Telas", nav_p: "Presets", nav_m: "MIDI", nav_ed: "Editor", nav_i: "Instalar",
+    nav_f: "Som", nav_s: "Telas", nav_ft: "Features", nav_ed: "Editor", nav_i: "Instalar",
     sub: "Um firmware aberto que transforma o M-VAVE FM-1 em um sintetizador monofônico modelado no circuito do Minimoog: três osciladores, filtro ladder, contornos, efeitos e tudo ao alcance dos botões do FM-1.",
     chip_f: "Filtro ladder", chip_p: "100 presets",
     cta_install: "Instalar agora", cta_screens: "Ver as telas",
@@ -1219,23 +1212,20 @@ const SITE = {
       { i: "cc", t: "Lista de MIDI CC", d: "50 controles do painel, cada um com o seu número de CC. Gire o encoder para trocar ou envie um CC do seu teclado para aprender." },
       { i: "preset", t: "Troca de preset", d: "Ao trocar de preset aparece o número e o nome em letras grandes, por 1,5 s, e some." },
     ],
-    h_presets: "Presets", l_presets: "Cem timbres, dos clássicos do Minimoog aos efeitos sonoros. Os dez primeiros mostram do que o sintetizador é capaz:",
-    g_show: "Vitrine", g_hard: "Hard leads", g_soft: "Soft leads", g_bass: "Baixos", g_pads: "Pads e cordas", g_brass: "Metais (OCT −1)", g_pluck: "Plucks", g_keys: "Teclas", g_atmo: "Atmosferas e drones", g_fx: "Efeitos (SFX)", g_user: "Seus presets",
-    h_midi: "MIDI e controles", l_midi: "Toque pelo teclado do FM-1 ou por um controlador externo, por USB ou pela entrada MIDI.",
-    m1t: "Notas e canais", m1d: "Entrada USB, entrada MIDI (TRS) ou as duas ao mesmo tempo, com filtro de canal (1–16 ou todos).",
-    m2t: "Pitch bend e modulação", m2d: "Pitch bend de ±2, ±12, +2/−12 ou +2/−24 semitons, escolhido na tela Global, e roda de modulação (CC 1) que controla a modulação.",
-    m3t: "50 controles por CC", m3d: "Cada knob, chave e forma de onda tem o seu CC, que você pode trocar, e o FMini-1 aprende o CC que você enviar.",
-    h_keys: "Os botões do FM-1",
-    keys: [
-      ["LFO", "Abre a página CTRL."], ["EDIT", "Abre a página OSC."], ["SCL", "Alterna entre MIX e FILT."], ["ENV", "Alterna entre F.ENV e A.ENV."],
-      ["FX", "Abre a página de efeitos."], ["GLO", "Configurações globais (MIDI, bend, ABOUT)."], ["ARP", "Toque liga e desliga. Segurar ativa o HOLD."], ["SEQ", "Abre o sequenciador de 16 notas."],
-      ["REC", "Arma a gravação do sequenciador."], ["PLAY", "Toca e para o sequenciador."], ["SAVE", "Salva um preset de usuário."], ["HOME", "Volta para CTRL e fecha os quadros."],
-      ["OCT − / +", "Muda a oitava do teclado."], ["K1–K4", "Os quatro knobs editam os controles da página."], ["SELECT / ALGO", "Movem o cursor e mudam o valor."], ["PRESETS", "O encoder de presets troca os 100 timbres."],
-    ],
+    l_feat: "As funcionalidades, em resumo.",
+    ft1t: "100 presets e 32 de usuário", ft1d: "100 presets de fábrica, de leads a efeitos sonoros, e 32 posições (U01–U32) para salvar os seus.",
+    ft2t: "Mono e 12 vozes", ft2d: "Monofônico como o Minimoog, ou polifônico com 12 vozes.",
+    ft3t: "Modelo do Minimoog", ft3d: "Três osciladores, mixer com saturação suave e filtro ladder de 24 dB/oitava com auto-oscilação, modelados no Minimoog Model D.",
+    ft4t: "Efeitos", ft4d: "5 reverbs (Room, Hall, Plate, Spring, Cloud), 7 delays (Analog, Digital, Tape, Ping-Pong, Multi, Slap, Reverse), 3 chorus (Stereo, Juno, Multi) e drive (Soft, Tube).",
+    ft5t: "MIDI CC para controladores", ft5d: "50 controles com CC próprio, que você pode trocar, e o FMini-1 aprende o CC que o controlador enviar. Entrada USB e TRS, filtro de canal, pitch bend e roda de modulação.",
+    ft6t: "Sequenciador de 16 notas", ft6d: "Grave até 16 notas (REC) e toque (PLAY).",
+    ft7t: "Arpejador", ft7d: "Um toque liga e desliga, segurar ativa o HOLD. Cerca de um quarto dos presets já vem com o arpejador ligado.",
+    ft8t: "Editor web", ft8d: "Edite sons e presets pelo navegador, ligado ao FM-1 por USB-MIDI.",
+    ft9t: "Emulador online", ft9d: "Experimente o FMini-1 no navegador, sem instalar nada.",
     h_install: "Instalar", l_install: "O instalador roda aqui mesmo, no navegador, e grava o firmware no FM-1 pelo cabo USB. Dá para voltar ao firmware original a qualquer momento.",
   },
   en: {
-    nav_f: "Sound", nav_s: "Screens", nav_p: "Presets", nav_m: "MIDI", nav_ed: "Editor", nav_i: "Install",
+    nav_f: "Sound", nav_s: "Screens", nav_ft: "Features", nav_ed: "Editor", nav_i: "Install",
     sub: "An open firmware that turns the M-VAVE FM-1 into a monophonic synth modelled after the Minimoog circuit: three oscillators, a ladder filter, contours and effects, all within reach of the FM-1's buttons.",
     chip_f: "Ladder filter", chip_p: "100 presets",
     cta_install: "Install now", cta_screens: "See the screens",
@@ -1266,23 +1256,20 @@ const SITE = {
       { i: "cc", t: "MIDI CC list", d: "50 panel controls, each with its CC number. Turn the encoder to change it, or send a CC from your keyboard to learn it." },
       { i: "preset", t: "Preset change", d: "When the preset changes, its number and name appear in big letters for 1.5 s, then vanish." },
     ],
-    h_presets: "Presets", l_presets: "One hundred sounds, from Minimoog classics to sound effects. The first ten show what the synth can do:",
-    g_show: "Showcase", g_hard: "Hard leads", g_soft: "Soft leads", g_bass: "Basses", g_pads: "Pads and strings", g_brass: "Brass (OCT −1)", g_pluck: "Plucks", g_keys: "Keys", g_atmo: "Atmospheres and drones", g_fx: "Effects (SFX)", g_user: "Your presets",
-    h_midi: "MIDI and controls", l_midi: "Play from the FM-1's keys or from an external controller, over USB or the MIDI input.",
-    m1t: "Notes and channels", m1d: "USB input, MIDI (TRS) input or both together, with a channel filter (1–16 or all).",
-    m2t: "Pitch bend and modulation", m2d: "Pitch bend of ±2, ±12, +2/−12 or +2/−24 semitones, chosen on the Global screen, and a mod wheel (CC 1) that controls the modulation.",
-    m3t: "50 CC controls", m3d: "Every knob, switch and waveform has its own CC, which you can change, and FMini-1 learns the CC you send.",
-    h_keys: "The FM-1's buttons",
-    keys: [
-      ["LFO", "Opens the CTRL page."], ["EDIT", "Opens the OSC page."], ["SCL", "Toggles between MIX and FILT."], ["ENV", "Toggles between F.ENV and A.ENV."],
-      ["FX", "Opens the effects page."], ["GLO", "Global settings (MIDI, bend, ABOUT)."], ["ARP", "Tap turns it on and off. Hold sets HOLD."], ["SEQ", "Opens the 16-note sequencer."],
-      ["REC", "Arms sequencer recording."], ["PLAY", "Starts and stops the sequencer."], ["SAVE", "Saves a user preset."], ["HOME", "Back to CTRL, closes the boxes."],
-      ["OCT − / +", "Shifts the keyboard octave."], ["K1–K4", "The four knobs edit the page's controls."], ["SELECT / ALGO", "Move the cursor and change the value."], ["PRESETS", "The preset encoder steps through the 100 sounds."],
-    ],
+    l_feat: "The features at a glance.",
+    ft1t: "100 presets and 32 user slots", ft1d: "100 factory presets, from leads to sound effects, and 32 slots (U01–U32) for your own.",
+    ft2t: "Mono and 12 voices", ft2d: "Monophonic like the Minimoog, or polyphonic with 12 voices.",
+    ft3t: "Minimoog model", ft3d: "Three oscillators, a mixer that overloads softly and a 24 dB/oct ladder filter that self-oscillates, modelled on the Minimoog Model D.",
+    ft4t: "Effects", ft4d: "5 reverbs (Room, Hall, Plate, Spring, Cloud), 7 delays (Analog, Digital, Tape, Ping-Pong, Multi, Slap, Reverse), 3 choruses (Stereo, Juno, Multi) and drive (Soft, Tube).",
+    ft5t: "MIDI CC for controllers", ft5d: "50 controls with their own CC, which you can change, and the FMini-1 learns the CC your controller sends. USB and TRS input, channel filter, pitch bend and mod wheel.",
+    ft6t: "16-note sequencer", ft6d: "Record up to 16 notes (REC) and play them back (PLAY).",
+    ft7t: "Arpeggiator", ft7d: "One tap turns it on and off, holding it enables HOLD. About a quarter of the presets come with the arpeggiator on.",
+    ft8t: "Web editor", ft8d: "Edit sounds and presets in the browser, connected to the FM-1 over USB-MIDI.",
+    ft9t: "Online emulator", ft9d: "Try the FMini-1 in your browser, with nothing to install.",
     h_install: "Install", l_install: "The installer runs right here, in the browser, and writes the firmware to the FM-1 over the USB cable. You can go back to the original firmware at any time.",
   },
   ja: {
-    nav_f: "サウンド", nav_s: "画面", nav_p: "プリセット", nav_m: "MIDI", nav_ed: "エディタ", nav_i: "インストール",
+    nav_f: "サウンド", nav_s: "画面", nav_ft: "機能", nav_ed: "エディタ", nav_i: "インストール",
     sub: "M-VAVE FM-1 を、Minimoog の回路をモデルにしたモノフォニック・シンセに変えるオープンなファームウェア。3 基のオシレーター、ラダーフィルター、コンター、エフェクトを FM-1 のボタンで操作できます。",
     chip_f: "ラダーフィルター", chip_p: "100 プリセット",
     cta_install: "今すぐインストール", cta_screens: "画面を見る",
@@ -1313,30 +1300,27 @@ const SITE = {
       { i: "cc", t: "MIDI CC 一覧", d: "パネルの 50 のコントロールそれぞれに CC 番号。エンコーダーで変更、またはキーボードから CC を送って学習できます。" },
       { i: "preset", t: "プリセット切替", d: "プリセットを変えると番号と名前が大きな文字で 1.5 秒表示され、消えます。" },
     ],
-    h_presets: "プリセット", l_presets: "Minimoog の名音から効果音まで、100 の音色。最初の 10 音がこのシンセの実力を示します。",
-    g_show: "ショーケース", g_hard: "ハードリード", g_soft: "ソフトリード", g_bass: "ベース", g_pads: "パッド＆ストリングス", g_brass: "ブラス (OCT −1)", g_pluck: "プラック", g_keys: "鍵盤", g_atmo: "アトモスフィア", g_fx: "効果音 (SFX)", g_user: "ユーザー音色",
-    h_midi: "MIDI とコントロール", l_midi: "FM-1 の鍵盤でも外部コントローラーでも、USB または MIDI 入力で演奏できます。",
-    m1t: "ノートとチャンネル", m1d: "USB 入力、MIDI（TRS）入力、または両方を同時に。チャンネルフィルター（1〜16 またはすべて）付き。",
-    m2t: "ピッチベンドとモジュレーション", m2d: "ピッチベンドは ±2、±12、+2/−12、+2/−24 半音からグローバル画面で選択。モジュレーションホイール（CC 1）に対応。",
-    m3t: "50 の CC コントロール", m3d: "すべてのノブ、スイッチ、波形に変更可能な CC があり、送った CC を FMini-1 が学習します。",
-    h_keys: "FM-1 のボタン",
-    keys: [
-      ["LFO", "CTRL ページを開く。"], ["EDIT", "OSC ページを開く。"], ["SCL", "MIX と FILT を切り替え。"], ["ENV", "F.ENV と A.ENV を切り替え。"],
-      ["FX", "エフェクトページを開く。"], ["GLO", "グローバル設定（MIDI、ベンド、ABOUT）。"], ["ARP", "押すとオン/オフ、長押しで HOLD。"], ["SEQ", "16 音のシーケンサーを開く。"],
-      ["REC", "シーケンサーの録音待機。"], ["PLAY", "シーケンサーの再生/停止。"], ["SAVE", "ユーザープリセットを保存。"], ["HOME", "CTRL に戻り、ボックスを閉じる。"],
-      ["OCT − / +", "鍵盤のオクターブを移動。"], ["K1–K4", "4 つのノブでページのコントロールを編集。"], ["SELECT / ALGO", "カーソル移動と値の変更。"], ["PRESETS", "プリセットエンコーダーで 100 音色を切り替え。"],
-    ],
+    l_feat: "主な機能の一覧です。",
+    ft1t: "100 のプリセットと 32 のユーザー枠", ft1d: "リードから効果音まで 100 のファクトリー音色と、自分の音色を保存できる 32 の枠（U01〜U32）。",
+    ft2t: "モノと 12 ボイス", ft2d: "Minimoog と同じモノフォニック、または 12 ボイスのポリフォニック。",
+    ft3t: "Minimoog のモデル", ft3d: "3 基のオシレーター、ソフトに歪むミキサー、自己発振する 24 dB/oct のラダーフィルターを Minimoog Model D に倣って再現。",
+    ft4t: "エフェクト", ft4d: "リバーブ 5 種（Room, Hall, Plate, Spring, Cloud）、ディレイ 7 種（Analog, Digital, Tape, Ping-Pong, Multi, Slap, Reverse）、コーラス 3 種（Stereo, Juno, Multi）、ドライブ（Soft, Tube）。",
+    ft5t: "コントローラー用 MIDI CC", ft5d: "50 のコントロールにそれぞれ変更できる CC を割り当て、コントローラーが送る CC も学習します。USB と TRS 入力、チャンネルフィルター、ピッチベンド、モジュレーションホイール。",
+    ft6t: "16 ノートのシーケンサー", ft6d: "最大 16 ノートを録音（REC）して再生（PLAY）。",
+    ft7t: "アルペジエーター", ft7d: "ワンタッチでオン/オフ、長押しで HOLD。プリセットの約 4 分の 1 はアルペジエーターがオンの状態です。",
+    ft8t: "Web エディタ", ft8d: "USB-MIDI でつないだ FM-1 の音色とプリセットをブラウザーで編集。",
+    ft9t: "オンラインエミュレーター", ft9d: "インストール不要、ブラウザーで FMini-1 を試せます。",
     h_install: "インストール", l_install: "インストーラーはこのページ内、ブラウザー上で動き、USB ケーブル経由で FM-1 にファームウェアを書き込みます。いつでも元のファームウェアに戻せます。",
   },
 };
 for (const l in SITE) Object.assign(TEXT[l], SITE[l]);
 const SITE2 = {
   pt: { announce: "Firmware gratuito e de código aberto para o M-VAVE FM-1", e_sound: "Som", h_sound: "Três osciladores, um filtro ladder e muito corpo", e_screens: "Telas", h_screens: "Cada página, uma seção do painel",
-        e_presets: "Presets", h_presets: "Cem timbres, de clássicos a efeitos", e_midi: "MIDI e controles", h_midi: "Toque do jeito que preferir", e_install: "Instalar", h_install: "Instale direto do navegador" },
+        e_feat: "Features", h_feat: "Tudo o que o FMini-1 faz", e_install: "Instalar", h_install: "Instale direto do navegador" },
   en: { announce: "Free, open-source firmware for the M-VAVE FM-1", e_sound: "Sound", h_sound: "Three oscillators, a ladder filter and plenty of body", e_screens: "Screens", h_screens: "Every page, one section of the panel",
-        e_presets: "Presets", h_presets: "One hundred sounds, from classics to effects", e_midi: "MIDI and controls", h_midi: "Play it your way", e_install: "Install", h_install: "Install straight from the browser" },
+        e_feat: "Features", h_feat: "Everything the FMini-1 does", e_install: "Install", h_install: "Install straight from the browser" },
   ja: { announce: "M-VAVE FM-1 用の無料オープンソース・ファームウェア", e_sound: "サウンド", h_sound: "3 基のオシレーター、ラダーフィルター、そして厚み", e_screens: "画面", h_screens: "1 ページが、パネルの 1 セクション",
-        e_presets: "プリセット", h_presets: "100 の音色、クラシックから効果音まで", e_midi: "MIDI とコントロール", h_midi: "好きな方法で演奏", e_install: "インストール", h_install: "ブラウザーから直接インストール" },
+        e_feat: "機能", h_feat: "FMini-1 でできること", e_install: "インストール", h_install: "ブラウザーから直接インストール" },
 };
 for (const l in SITE2) Object.assign(TEXT[l], SITE2[l]);
 const SITE3 = {
@@ -1383,7 +1367,6 @@ function renderSite() {
   if (!$("v-tabs").children.length) {
     VIEW_TAB.forEach((n, i) => { const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "tab"); b.textContent = n;
       b.addEventListener("click", () => { viewIdx = i; viewHold = performance.now() + 8000; renderView(); }); $("v-tabs").appendChild(b); });
-    PRESET_NAMES.forEach((n, i) => { const li = document.createElement("li"); li.innerHTML = "<b>" + String(i).padStart(2, "0") + "</b>"; li.appendChild(document.createTextNode(n)); $("pl").appendChild(li); });
   }
   renderView();
   $("pops").innerHTML = "";
@@ -1393,8 +1376,6 @@ function renderSite() {
     f.querySelector("img").src = IMG[p.i]; f.querySelector("img").alt = p.t; f.querySelector("h4").textContent = p.t; f.querySelector("p").textContent = p.d;
     $("pops").appendChild(f);
   });
-  $("keys").innerHTML = "";
-  TEXT[lang].keys.forEach(([k, d]) => { const e = document.createElement("div"); e.innerHTML = "<b></b><span></span>"; e.querySelector("b").textContent = k; e.querySelector("span").textContent = d; $("keys").appendChild(e); });
 }
 
 const nl = (navigator.language || "en").toLowerCase();
