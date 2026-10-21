@@ -617,6 +617,35 @@ int main(int argc, char **argv)
         fpress(B_HOME);
         if (fa_page != 0) { printf("HOME -> CTRL (%d)\n", fa_page); return 1; }
     }
+    {   /* 1.8.0: the battery icon bottom right, four bars, red on the last one, a bolt on USB power; no "n/7" any more */
+        static const struct { int32_t raw, usb, bars, red, bolt; } B[6] = {
+            {0, 0, 4, 0, 0}, {600, 0, 4, 0, 0}, {570, 0, 3, 0, 0}, {540, 0, 2, 0, 0}, {500, 0, 1, 1, 0}, {500, 1, 1, 1, 1}};
+        uint32_t k, bad = 0;
+        for (k = 0; k < 6u; k++) {
+            uint32_t b, red = 0, bolt = 0, lit = 0, i;
+            song.batt_raw = B[k].raw;
+            usb.config = (uint8_t)B[k].usb;
+            usb.suspended = 0;
+            fa_page = 3;
+            ui.force = 1;
+            fa_draw();
+            for (b = 0; b < 4u; b++) {                       /* the bar's centre pixel: 4 bars of 4 x 6 px from x 203, y 229..234 */
+                uint16_t c = swap16(host_screen[231u * 240u + 203u + 5u * b + 1u]);
+                lit += c != swap16(FA_RGB(0x0E, 0x0D, 0x0C)) && c != swap16(FA_RGB(0x1E, 0x1B, 0x19)) && (c >> 11) > 12u;
+            }
+            for (i = 0; i < 25u * 10u; i++) {
+                uint16_t c = host_screen[(227u + i / 25u) * 240u + 201u + i % 25u];
+                red += c == swap16(FA_RED);
+                bolt += c == swap16(FA_OR);
+            }
+            if ((int32_t)lit != B[k].bars - (B[k].bolt ? 0 : 0) && !B[k].bolt) { printf("battery raw %d: %u bars lit, wanted %d\n", B[k].raw, lit, B[k].bars); bad++; }
+            if ((red > 0u) != (B[k].red != 0)) { printf("battery raw %d: red %u, wanted %d\n", B[k].raw, red, B[k].red); bad++; }
+            if ((bolt > 0u) != (B[k].bolt != 0)) { printf("battery raw %d usb %d: bolt pixels %u, wanted %d\n", B[k].raw, B[k].usb, bolt, B[k].bolt); bad++; }
+        }
+        usb.config = 0;
+        song.batt_raw = 0;
+        if (bad) return 1;
+    }
     printf("fmini_app_test: ok\n");
     {   /* the CUTOFF / EMPH / CNTR knobs glide (200 ms): a click is a ramp of tiny steps, silence snaps */
         track_t *t0 = &trk[0];

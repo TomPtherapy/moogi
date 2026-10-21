@@ -761,7 +761,7 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.7.3"
+#define FMINI_VERSION "v1.8.0"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
@@ -1072,6 +1072,38 @@ static uint32_t fa_track_preset(void)
     return ch;
 }
 
+/* The battery, bottom right (1.8.0): a horizontal icon of four bars. The level comes from the ADC thresholds the firmware always had
+ * (531 / 561 / 591: ui_draw.c batt_level), so 4 bars from 591, 3 from 561, 2 from 531 and 1 below; that last one is red (FA_BATT_LOW,
+ * the stock "empty": calibrate it against song.batt_raw, which the console prints as batt_raw). USB power has no charger line to
+ * read (ui_draw.c batt_shown): a host that has configured us and is not suspended counts as charging, and a bolt crosses the icon.
+ * Not yet read (raw 0: the emulator, the first blocks): full. Bits 0..2 the bars, bit 3 low, bit 4 charging. */
+#define FA_BATT_LOW 531
+static uint32_t fa_batt(void)
+{
+    int32_t r = song.batt_raw;
+    uint32_t bars = r == 0 || r >= 591 ? 4u : r >= 561 ? 3u : r >= FA_BATT_LOW ? 2u : 1u;
+    return bars | (uint32_t)(bars == 1u) << 3 | (uint32_t)(usb.config && !usb.suspended) << 4;
+}
+/* xr: the right edge of the nub, y: the top of the 10 px body */
+static void fa_battery(int32_t xr, int32_t y)
+{
+    uint32_t st = fa_batt(), bars = st & 7u, i;
+    uint16_t bg = fa_bg(y + 4), ink = st & 8u ? FA_RED : FA_RGB(0xD9, 0xD2, 0xC0), lit = st & 8u ? FA_RED : FA_CR;
+    int32_t x = xr - 25;
+    cv_rect(x, y, 23, 10, ink);                              /* the outline: a 23 x 10 body and a 2 x 4 nub */
+    cv_rect(x + 1, y + 1, 21, 8, bg);
+    cv_rect(x + 23, y + 3, 2, 4, ink);
+    for (i = 0; i < bars; i++)
+        cv_rect(x + 2 + (int32_t)i * 5, y + 2, 4, 6, lit);
+    if (st & 16u) {                                          /* the bolt over the bars: rows of {y, x0, x1} in the body, a dark edge, then an orange core */
+        static const uint8_t R[7][3] = {{1, 12, 13}, {2, 11, 12}, {3, 10, 11}, {4, 9, 12}, {5, 10, 11}, {6, 9, 10}, {7, 8, 9}};
+        for (i = 0; i < 7u; i++)
+            cv_rect(x + (int32_t)R[i][1] - 1, y + (int32_t)R[i][0], (int32_t)(R[i][2] - R[i][1]) + 3, 1, FA_RGB(0x0E, 0x0D, 0x0C));
+        for (i = 0; i < 7u; i++)
+            cv_rect(x + (int32_t)R[i][1], y + (int32_t)R[i][0], (int32_t)(R[i][2] - R[i][1]) + 1, 1, FA_OR);
+    }
+}
+
 static void fa_scene(void)
 {
     uint32_t pg = fa_page, i, cur = fmg_curi(pg), ex = fmg_count(pg) > 4u ? fmg_count(pg) - 4u : 0u;
@@ -1140,18 +1172,14 @@ static void fa_scene(void)
         if (pg == 0u)
             fa_voices(cur == 8u);
     }
-    {   /* the foot: the patch's number (00..99, or U01.. of a saved one) and name, the page "n/7" */
+    {   /* the foot: the patch's number (00..99, or U01.. of a saved one) and name, the battery at the right */
         int32_t w;
         char nm[16];
         fa_preset_label(b, nm);
         w = text_w(&AF_N, b);
         fa_ltext(14, 214, &AF_N, b, FA_OR);
         fa_ltext(14 + w + 6, 214, &AF_N, nm, FA_CR);
-        b[0] = (char)('1' + pg);
-        b[1] = '/';
-        b[2] = '7';
-        b[3] = 0;
-        fa_rtext(226, 232, &AF_X, b, FA_RGB(0x7A, 0x71, 0x64));
+        fa_battery(226, 227);
     }
     if (fa_gl == 1u || fa_gl == 2u)
         fa_gl_dialog();
@@ -1200,6 +1228,7 @@ static uint32_t fa_signature(void)
          (uint32_t)(song.playing ? t->seq_idx : 0u) << 9 ^ (uint32_t)fa_sq_blink() << 16) * 16777619u;
     for (i = 0; i < 16u; i++)
         h = (h ^ (uint32_t)(t->step[i].n ? t->step[i].note[0] : 0u)) * 16777619u;
+    h = (h ^ fa_batt()) * 16777619u;                         /* the battery icon */
     return (h ^ t->preset) * 16777619u;
 }
 

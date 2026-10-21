@@ -184,7 +184,7 @@ of meaning matters to users, add a marker byte there and convert on load.
 | `regress.c` + `golden.txt`, `cpu_baseline.txt`, `target_budget.*` | render hashes of every engine and preset (the 100 FMINI ones are current in the default build; the `FELUCCA_CPU2=0` build differs for 41, see CLAUDE.md); level, DC, voices; CPU: the host's instruction counter may be missing (it was, in the sandbox: the budget is then not checked), the **static loop-instruction count** of the render functions in the chip's disassembly is always checked (+10 %) |
 | the rest | storage, projects, MIDI, USB, update loader, FX, other engines (Felucca's) |
 
-Seven sections fail at 1.7.3 (as at 1.7.0); CLAUDE.md lists them and says which were confirmed on the untouched v1.6.1. `tests/hostsim.c`
+Seven sections fail at 1.8.0 (as at 1.7.0); CLAUDE.md lists them and says which were confirmed on the untouched v1.6.1. `tests/hostsim.c`
 renders any engine and preset to a WAV (`build/host/hostsim ENGINE PRESET MONO OUT.wav`, with `SECS`, `CHORD`, `NOTE`,
 `PSET=id:v`, `BENCH=1` and more: its header) and is the quickest way to listen to a change. For sound work, write the measurement
 first (a test with the number to hit), then the code.
@@ -276,4 +276,8 @@ was written: verify before reusing anything beyond ideas.
   (velocity above 110: the loudness contour added to the cutoff) opened the ladder by up to 1.7 octaves, so a key struck hard sang a
   different pitch with the mixer silent (an owner's bug report). `tests/fmini_filter_test.c` section 3a plays velocities 20 to 127
   against that. The regress `phrase()` has a note at 120, so any such host path moves the 100 FMINI goldens.
+- The battery icon (1.8.0, `fa_batt` / `fa_battery` in `fmini_app.c`, bottom right of every page; the page "n/7" is gone) has never been
+  calibrated on a device: its levels are the stock ADC thresholds 531 / 561 / 591 (`ui_draw.c`), red is the stock "empty" (`FA_BATT_LOW`,
+  not a measured 15 %), and "charging" is only USB power (no charger status line is read). Read `batt_raw` on the console at
+  known charge levels and move the constants. `tests/fmini_app_test.c` checks the four states by pixel.
 - The GitHub token of a session cannot create Releases (403). The owner does it.
