@@ -55,6 +55,9 @@ static int motion_valid(const motion_store_t *m)
     }
     return 1;
 }
+#if FELUCCA_FMINI_ONLY
+static uint8_t fa_knob_rec;     /* Acid Moogi (GLO > KNOB REC, fmini_seq.c): the knobs are recorded with the notes only when ON */
+#endif
 static int motion_enabled(const track_t *t) { return (motion.on >> trk_index(t)) & 1u; }
 static uint32_t motion_count(const track_t *t)
 {
@@ -220,7 +223,11 @@ static int motion_capture(track_t *t, uint32_t id, int16_t value)
 {
     uint32_t k = trk_index(t), idx, len, period, f;
     if (!motion_param(id)) return 0;
-    if (!rec_on(t) || t != TSEL) {
+    if (!rec_on(t) || t != TSEL
+#if FELUCCA_FMINI_ONLY
+        || !fa_knob_rec
+#endif
+        ) {
         /* A live edit becomes a new base, even when an earlier motion value is
          * currently sounding. Subsequent recorded events can still override it. */
         f = motion_guard();

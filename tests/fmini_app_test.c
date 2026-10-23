@@ -583,6 +583,46 @@ int main(int argc, char **argv)
             trk_all_off(&trk[0]);
             if (song.playing || song.rec) { printf("live rec stop\n"); return 1; }
         }
+        {   /* the knobs' motion: recorded with the notes only with KNOB REC on; REC + ARP undoes it; SEQ + REC clears it */
+            fa_seq_clear();
+            fa_parts = 1;
+            fa_page = 3;
+            fa_knob_rec = 0;
+            fframe();
+            fpress(B_PLAY);
+            for (i = 0; i < 40; i++) { int32_t o[2 * CTL]; mix_block(o, CTL); }
+            fpress(B_REC);
+            fturn(EN_K1, 3);
+            for (i = 0; i < 200; i++) { int32_t o[2 * CTL]; mix_block(o, CTL); }
+            if (motion_count(&trk[0])) { printf("KNOB REC off: %u knob events recorded\n", motion_count(&trk[0])); return 1; }
+            fpress(B_REC);
+            fa_knob_rec = 1;
+            fpress(B_REC);
+            if (!fa_sq_rec) { printf("rec arm on release\n"); return 1; }
+            fframes(200); fturn(EN_K1, 3);
+            for (i = 0; i < 200; i++) { int32_t o[2 * CTL]; mix_block(o, CTL); }
+            fframes(200); fturn(EN_K1, -2);
+            if (!motion_count(&trk[0])) { printf("KNOB REC on: nothing recorded\n"); return 1; }
+            fm1_in.buttons |= 1u << panel.btn[B_REC]; host_pressed |= 1u << panel.btn[B_REC]; fframe();
+            fm1_in.buttons |= 1u << panel.btn[B_ARP]; host_pressed |= 1u << panel.btn[B_ARP]; fframe();
+            fm1_in.buttons &= ~(1u << panel.btn[B_ARP]); fframe();
+            fm1_in.buttons &= ~(1u << panel.btn[B_REC]); fframe();
+            if (motion_count(&trk[0]) || trk[0].p[P_AMODE] || !fa_sq_rec) { printf("REC + ARP: %u left, arp %d, rec %d\n", motion_count(&trk[0]), trk[0].p[P_AMODE], fa_sq_rec); return 1; }
+            fframes(200); fturn(EN_K1, 3);
+            for (i = 0; i < 100; i++) { int32_t o[2 * CTL]; mix_block(o, CTL); }
+            if (!motion_count(&trk[0])) { printf("KNOB REC again: nothing recorded\n"); return 1; }
+            fm1_in.buttons |= 1u << panel.btn[B_SEQ]; host_pressed |= 1u << panel.btn[B_SEQ]; fframe();
+            fpress(B_REC);
+            fm1_in.buttons &= ~(1u << panel.btn[B_SEQ]); fframe();
+            if (motion_count(&trk[0]) || !fa_sq_rec) { printf("SEQ + REC: knobs %u, rec %d\n", motion_count(&trk[0]), fa_sq_rec); return 1; }
+            fpress(B_REC);
+            fpress(B_PLAY);
+            events_block(CTL);
+            trk_all_off(&trk[0]);
+            fa_knob_rec = 0;
+            if (song.playing || fa_sq_rec) { printf("knob rec stop\n"); return 1; }
+            fmini_fine[0][0] = fmini_fine[0][1] = fmini_fine[0][2] = -1;   /* (the CUTOFF turned here: no quarter step left for the glide test) */
+        }
         {   /* the tempo: PLAY held + SELECT; the hold does not start the sequence, a tap does */
             int32_t b0 = song.g[G_BPM] = 120;
             fm1_in.buttons |= 1u << panel.btn[B_PLAY]; host_pressed |= 1u << panel.btn[B_PLAY]; fframe();
@@ -668,7 +708,7 @@ int main(int argc, char **argv)
         fturn(EN_ALGO, -1); fturn(EN_ALGO, -1); fturn(EN_ALGO, -1);
         if (fm_midi_src != 0) { printf("src min\n"); return 1; }
         fturn(EN_SELECT, -1);
-        if (fa_gl_row != 5) { printf("rows wrap\n"); return 1; }
+        if (fa_gl_row != 6) { printf("rows wrap\n"); return 1; }
         /* GLO: PITCH BEND draws at once, ABOUT closes with either encoder */
         fa_gl = 1; fa_gl_row = 3; fm_bend_mode = 0;
         sig = fa_signature();
@@ -682,9 +722,13 @@ int main(int argc, char **argv)
         if (fa_gl != 2) { printf("MIDI CC opens\n"); return 1; }
         fa_gl = 1; fa_gl_row = 2; fturn(EN_SELECT, 1);
         if (fa_gl_row != 3) { printf("PITCH BEND follows MIDI CC\n"); return 1; }
-        fa_gl = 1; fa_gl_row = 4; fturn(EN_ALGO, 1);
-        if (fa_gl != 4) { printf("ACID opens\n"); return 1; }
+        fa_gl = 1; fa_gl_row = 4; fa_knob_rec = 0; fturn(EN_ALGO, 1);
+        if (fa_gl != 1 || !fa_knob_rec) { printf("KNOB REC on\n"); return 1; }
+        fturn(EN_ALGO, -1);
+        if (fa_knob_rec) { printf("KNOB REC off\n"); return 1; }
         fa_gl = 1; fa_gl_row = 5; fturn(EN_ALGO, 1);
+        if (fa_gl != 4) { printf("ACID opens\n"); return 1; }
+        fa_gl = 1; fa_gl_row = 6; fturn(EN_ALGO, 1);
         if (fa_gl != 3) { printf("ABOUT opens\n"); return 1; }
         fa_gl = 3; fturn(EN_ALGO, 1);
         if (fa_gl != 1) { printf("about ALGO\n"); return 1; }

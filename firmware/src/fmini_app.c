@@ -686,11 +686,11 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.8.0-m3"
+#define FMINI_VERSION "v1.8.0-m4"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT, 4 ACID (fmini_seq.c) */
-static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 MIDI CC, 3 PITCH BEND, 4 ACID, 5 ABOUT */
+static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 MIDI CC, 3 PITCH BEND, 4 KNOB REC, 5 ACID, 6 ABOUT */
 static uint8_t fa_cc_i;                                   /* the control highlighted in MIDI CC */
 static uint8_t fa_cc[FA_NCC];                             /* its CC, 0 = none */
 static uint8_t fa_cfg_dirty;
@@ -907,16 +907,17 @@ static void fa_gl_dialog(void)
     }
     if (fa_gl == 1u) {
         fa_frame("GLOBAL");
-        fa_line(62, "MIDI IN", FA_SRC[fm_midi_src == 3u ? 2u : fm_midi_src & 1u], fa_gl_row == 0u);
+        fa_line(56, "MIDI IN", FA_SRC[fm_midi_src == 3u ? 2u : fm_midi_src & 1u], fa_gl_row == 0u);
         if (fm_midi_ch)
             fmt_int(b, fm_midi_ch);
         else
             str_cpy(b, "ALL", 4);
-        fa_line(84, "MIDI CHANNEL", b, fa_gl_row == 1u);
-        fa_line(106, "MIDI CC", ">", fa_gl_row == 2u);
-        fa_line(128, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 3u);
-        fa_line(150, "ACID", ">", fa_gl_row == 4u);
-        fa_line(172, "ABOUT", ">", fa_gl_row == 5u);
+        fa_line(76, "MIDI CHANNEL", b, fa_gl_row == 1u);
+        fa_line(96, "MIDI CC", ">", fa_gl_row == 2u);
+        fa_line(116, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 3u);
+        fa_line(136, "KNOB REC", fa_knob_rec ? "ON" : "OFF", fa_gl_row == 4u);
+        fa_line(156, "ACID", ">", fa_gl_row == 5u);
+        fa_line(176, "ABOUT", ">", fa_gl_row == 6u);
         fa_ctext(120, 198, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
     } else {                                              /* MIDI CC: a window of six lines on the list */
         uint32_t top = fa_cc_i < 3u ? 0u : fa_cc_i - 3u, k;
@@ -1342,6 +1343,7 @@ static void fa_buttons(uint32_t pressed)
     }
     fa_play_btn(pressed);                                 /* PLAY: a tap; held, the tempo */
     fa_edit_btn_poll(pressed);                            /* EDIT: the acid line */
+    pressed = fa_rec_btn(pressed);                        /* REC: arm on its release; REC + ARP undoes the knobs; SEQ + REC clears */
     if (fa_seq_stepping() && ((pressed >> panel.btn[B_ARP]) & 1u)) {   /* step record: ARP is a rest */
         fa_seq_rest();
         pressed &= ~(1u << panel.btn[B_ARP]);
@@ -1386,14 +1388,6 @@ static void fa_buttons(uint32_t pressed)
                 TSEL->p[P_AHOLD] = (int16_t)!TSEL->p[P_AHOLD];
                 fa_arp_show();
             }
-        }
-    }
-    if ((pressed >> panel.btn[B_REC]) & 1u) {             /* REC: record on / off (it lights); SEQ + REC: clear */
-        if (fa_sq) {
-            fa_seq_clear();
-            fa_sq_dirty = 1;
-        } else if (!fa_acid) {
-            fa_seq_arm();
         }
     }
     if ((pressed >> panel.btn[B_SAVE]) & 1u) {            /* SAVE: open the dialog; again: write */
@@ -1511,7 +1505,7 @@ static void fa_input(void)
         (void)panel_enc(EN_PRESET);
         if (fa_gl == 1u) {
             if ((s = panel_enc(EN_SELECT)) != 0)
-                fa_gl_row = (uint8_t)((fa_gl_row + 6u + (s > 0 ? 1u : 5u)) % 6u);
+                fa_gl_row = (uint8_t)((fa_gl_row + 7u + (s > 0 ? 1u : 6u)) % 7u);
             if ((s = panel_enc(EN_ALGO)) != 0) {
                 if (fa_gl_row == 0u) {
                     static const uint8_t SRC[3] = {0, 1, 3};
@@ -1529,8 +1523,11 @@ static void fa_input(void)
                     for (ch = 0; ch < 16u; ch++)           /* the bend held now follows the new range */
                         midi_expression_channel(ch);
                     fa_cfg_dirty = 1;
+                } else if (fa_gl_row == 4u) {
+                    fa_knob_rec = (uint8_t)(s > 0);         /* KNOB REC: the knobs recorded with the notes, or not */
+                    fa_cfg_dirty = 1;
                 } else
-                    fa_gl = fa_gl_row == 2u ? 2u : fa_gl_row == 4u ? 4u : 3u;
+                    fa_gl = fa_gl_row == 2u ? 2u : fa_gl_row == 5u ? 4u : 3u;
             }
         } else if (fa_gl == 2u) {
             if ((s = panel_enc(EN_SELECT)) != 0)

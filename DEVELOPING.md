@@ -175,7 +175,8 @@ of meaning matters to users, add a marker byte there and convert on load.
 its header comment is the user's manual. The sequence is track 1's 64 steps in four parts of 16: `seq.c` `fa_parts` (bits 0..3 the parts
 that play, bit 4 HALF) and `seq_nx` / `seq_pv` skip the rest wherever the sequencer, live recording and the slide look at the next step.
 SEQ (and EDIT while the acid line is on) is a key layer through `kb_mask`: keys pressed with it held sound nothing. Step record is the
-`fa_seq_note` / `fa_seq_off` hooks in `seq.c` `input_on` / `input_off`. Manual recording writes no accents; a note pressed while the last
+`fa_seq_note` / `fa_seq_off` hooks in `seq.c` `input_on` / `input_off`. Live recording would also record the knobs (Felucca's automation, `motion_capture`): on FMINI only
+with GLO > KNOB REC ON (`fa_knob_rec`, settings byte 211); REC + ARP restores the motion snapshot taken when REC was armed. Manual recording writes no accents; a note pressed while the last
 recorded one is held sets `SF_SLIDE`. The acid line writes the steps from the main loop (`fa_acid_poll`), never from the ISR, and keeps
 `P_SDIV` / `P_SGATE`. Its settings, the parts and seven favorites are bytes 67..210 of the settings record (`fa_cfg_byte`).
 `tests/fmini_acid_test.c` checks the port against lines the norns Lua built (`tests/fmini_acid_ref.txt`).

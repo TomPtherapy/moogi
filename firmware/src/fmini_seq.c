@@ -11,7 +11,10 @@
  *    ARP there is a rest; a note pressed while the last one is still held slides into it. REC again: done.
  *  - SEQ held (the keys play nothing then, seq.c keyboard_block: kb_mask): a white key moves the cursor to its step;
  *    black keys 1..4 are the parts: a press shows that part on the white keys, a double press turns it on / off (one
- *    stays on); black key 5 is HALF. SEQ + REC clears the sequence. The screen shows the part while SEQ is held.
+ *    stays on); black key 5 is HALF. SEQ + REC clears the sequence (notes and knobs). The screen shows the part while
+ *    SEQ is held.
+ *  - The knobs are recorded with the notes (Felucca's automation, motion.c) only with GLO > KNOB REC ON (off by default).
+ *    REC held + ARP takes the knobs' motion back to how it was when REC was last armed. REC arms when it is let go.
  * THE TEMPO: PLAY held, SELECT turns it (the screen shows it, PLAY blinks in time); a tap of PLAY starts and stops.
  * THE ACID LINE: EDIT twice turns it on (EDIT lights) and off; a tap of EDIT: a new line from the next loop. On, it
  * writes the line into the sequence and keeps it there: SELECT, ALGORITHM, PRESETS are DENSITY, MOVEMENT, TENSION;
@@ -34,6 +37,9 @@ static volatile uint8_t fa_sr_prev = 0xFFu;               /* .. and the step the
 static uint8_t fa_bk_last = 0xFFu;                        /* SEQ + a black key: the last part pressed, and when (a double press) */
 static uint32_t fa_bk_t;
 static uint8_t fa_acid;                                   /* the acid line is on */
+static motion_store_t fa_mo_snap;                         /* the knobs' motion as it was when REC was last armed (REC + ARP) */
+static uint8_t fa_mo_ok;
+static uint8_t fa_rec_down, fa_rec_used;                  /* REC held; a combination used it (no arm on its release) */
 static void fa_ac_changed(void);
 
 static uint32_t fa_seq_last_part(void)
@@ -130,11 +136,14 @@ static void fa_seq_rest(void)
     fa_seq_advance();
     fa_sq_view = (uint8_t)(fa_sq_cur >> 4);
 }
-static void fa_seq_clear(void)                            /* SEQ + REC */
+static void fa_seq_clear(void)                            /* SEQ + REC: the notes and the knobs' motion */
 {
     uint32_t i;
     for (i = 0; i < NSTEP; i++)
         memset(&trk[0].step[i], 0, sizeof trk[0].step[i]);
+    motion_clear(&trk[0]);
+    fa_mo_snap = motion;
+    fa_mo_ok = 1;
     fa_sq_cur = (uint8_t)fa_seq_first();
     fa_sr_prev = 0xFFu;
     fa_ac_changed();                                      /* (the acid line on: it writes itself back) */
@@ -143,11 +152,61 @@ static void fa_seq_arm(void)                              /* REC: on (the cursor
 {
     fa_sq_rec = (uint8_t)!fa_sq_rec;
     if (fa_sq_rec) {
+        fa_mo_snap = motion;                              /* (REC + ARP takes the knobs back to this) */
+        fa_mo_ok = 1;
         fa_sq_cur = (uint8_t)fa_seq_first();
         fa_sq_view = (uint8_t)(fa_sq_cur >> 4);
         fa_sr_n = 0;
         fa_sr_prev = 0xFFu;
     }
+}
+
+/* REC + ARP: the knobs' motion back to how it was when REC was last armed (none armed yet: all of it goes) */
+static void fa_motion_undo(void)
+{
+    track_t *t = &trk[0];
+    uint32_t f;
+    if (!fa_mo_ok) {
+        motion_clear(t);
+    } else {
+        motion_restore(t);
+        f = motion_guard();
+        motion = fa_mo_snap;
+        RING_PUBLISH();
+        motion_unguard(f);
+        motion_rebase(t);
+        motion_full = 0;
+    }
+    str_cpy(fa_msg, "KNOBS UNDONE", 16);
+    fa_msg_until = fm1_ms + 1500u;
+}
+/* REC: armed (or not) when it is let go; held, ARP undoes the knobs' motion; SEQ + REC clears. Returns the presses
+ * left for the other buttons (an ARP REC used is not the arpeggiator's, nor step record's rest) */
+static uint32_t fa_rec_btn(uint32_t pressed)
+{
+    uint32_t down = (fm1_in.buttons >> panel.btn[B_REC]) & 1u;
+    if ((pressed >> panel.btn[B_REC]) & 1u) {
+        if (fa_sq) {
+            fa_seq_clear();
+            fa_sq_dirty = 1;
+            str_cpy(fa_msg, "SEQ CLEARED", 16);
+            fa_msg_until = fm1_ms + 1500u;
+        } else {
+            fa_rec_down = 1;
+            fa_rec_used = 0;
+        }
+    }
+    if (fa_rec_down && ((pressed >> panel.btn[B_ARP]) & 1u)) {
+        fa_motion_undo();
+        fa_rec_used = 1;
+        pressed &= ~(1u << panel.btn[B_ARP]);
+    }
+    if (fa_rec_down && !down) {
+        fa_rec_down = 0;
+        if (!fa_rec_used && !fa_acid)
+            fa_seq_arm();
+    }
+    return pressed;
 }
 
 /* key k pressed with SEQ held */
@@ -1024,7 +1083,8 @@ static void ac_menu_dialog(void)
     fa_ctext(120, 190, &AF_S, ac_pend ? "NEXT LOOP: THE NEW LINE" : "SELECT  ALGO  GLO=BACK", ac_pend ? FA_OR : FA_MU);
 }
 
-/* the settings record (fa_cfg_byte): 67 0xAC, 68 the parts, 69.. the line's values, 102.. its seed, 106.. favorites */
+/* the settings record (fa_cfg_byte): 67 0xAC, 68 the parts, 69.. the line's values, 102.. its seed, 106.. favorites,
+ * 211 KNOB REC */
 static void fa_seq_cfg_load(void)
 {
     uint32_t i;
@@ -1039,6 +1099,7 @@ static void fa_seq_cfg_load(void)
         uint32_t v = *fa_cfg_byte(69u + i);
         ac_v[i] = (uint8_t)(v >= AC_MIN[i] && v <= AC_MAX[i] ? v : AC_DEF[i]);
     }
+    fa_knob_rec = (uint8_t)(*fa_cfg_byte(211) == 1u);
     ac_seed = (uint32_t)*fa_cfg_byte(102) | (uint32_t)*fa_cfg_byte(103) << 8 | (uint32_t)*fa_cfg_byte(104) << 16;
     if (ac_seed > 99999u)
         ac_seed = 0;
@@ -1054,6 +1115,7 @@ static void fa_seq_cfg_save(void)
     *fa_cfg_byte(68) = fa_parts;
     for (i = 0; i < AV_N; i++)
         *fa_cfg_byte(69u + i) = ac_v[i];
+    *fa_cfg_byte(211) = fa_knob_rec;
     *fa_cfg_byte(102) = (uint8_t)ac_seed;
     *fa_cfg_byte(103) = (uint8_t)(ac_seed >> 8);
     *fa_cfg_byte(104) = (uint8_t)(ac_seed >> 16);
@@ -1084,7 +1146,7 @@ static uint32_t fa_seq_sig(uint32_t h)
          (uint32_t)fa_acid << 16 ^ (uint32_t)fa_pl_show() << 17 ^ (uint32_t)fa_ac_show() << 18 ^ (uint32_t)ac_hot << 19) * 16777619u;
     h = (h ^ (song.playing ? t->seq_idx : 0xFFFFu) ^ (uint32_t)song.playing << 16 ^ (uint32_t)(ac_pend != 0u) << 17 ^
          (uint32_t)ac_row << 20) * 16777619u;
-    h = (h ^ ac_hi ^ (uint32_t)ac_fi << 4 ^ (uint32_t)ac_nh << 8 ^ ac_seed << 12) * 16777619u;
+    h = (h ^ ac_hi ^ (uint32_t)ac_fi << 4 ^ (uint32_t)ac_nh << 8 ^ ac_seed << 12 ^ (uint32_t)fa_knob_rec << 30) * 16777619u;
     for (i = 0; i < AV_N; i++)
         h = (h ^ ac_v[i]) * 16777619u;
     for (i = 0; i < 16u; i++) {
