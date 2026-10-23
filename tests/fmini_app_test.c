@@ -277,24 +277,26 @@ int main(int argc, char **argv)
         fa_factory_extras(TSEL, 0);
         TSEL->p[P_AMODE] = 0;
     }
-    {   /* a new preset always goes HOME (CTRL), from any page, with the pop-ups closed: PRESETS, a Program Change, a slot change */
+    {   /* a new preset always goes HOME (moogi: FILT, was CTRL), from any page, with the pop-ups closed: PRESETS, a Program Change, a slot change */
         uint32_t pgi;
         panel_init();
         fa_init();
         fa_gl = 0; fa_ar = 0; fa_sv = 0; fa_sq = 0;
         fframes(160);
-        for (pgi = 1; pgi < 7u; pgi++) {
+        for (pgi = 0; pgi < 7u; pgi++) {
+            if (pgi == FA_HOME_PAGE)
+                continue;
             fa_page = (uint8_t)pgi;
             fmg_force_page = (int8_t)pgi;
             fa_ar = pgi == 3u;                           /* (the ARP pop-up open on one of them) */
             fturn(EN_PRESET, 1);
-            if (fa_page != 0 || fa_ar) { printf("HOME: PRESETS on page %u -> page %d, arp pop-up %d\n", pgi, fa_page, fa_ar); return 1; }
+            if (fa_page != FA_HOME_PAGE || fa_ar) { printf("HOME: PRESETS on page %u -> page %d, arp pop-up %d\n", pgi, fa_page, fa_ar); return 1; }
         }
         fa_page = 4;
         fmg_force_page = 4;
         ui.mpc[0] = (uint8_t)(0x80u | 33u);
         fframes(48);
-        if (TSEL->p[P_E7] != 33 || fa_page != 0) { printf("HOME: Program Change -> slot %d page %d\n", TSEL->p[P_E7], fa_page); return 1; }
+        if (TSEL->p[P_E7] != 33 || fa_page != FA_HOME_PAGE) { printf("HOME: Program Change -> slot %d page %d\n", TSEL->p[P_E7], fa_page); return 1; }
         fa_page = 2;
         fmg_force_page = 2;
         fframes(48);
@@ -328,6 +330,7 @@ int main(int argc, char **argv)
             TSEL->p[P_E7] = 13;
             fa_factory_extras(TSEL, 13);
             fmini_poll();
+            fframes(48);                                  /* (the new preset goes HOME first: moogi's HOME is FILT) */
             fa_page = CASE[c][0];
             fmg_force_page = (int8_t)fa_page;
             fframes(48);
@@ -336,7 +339,7 @@ int main(int argc, char **argv)
             if (TSEL->p[P_E7] != (int16_t)FMINI_OWN) { printf("edit %u: the slot is %d, not OWN\n", c, TSEL->p[P_E7]); return 1; }
             fturn(EN_PRESET, 1);
             fframes(48);
-            if (TSEL->p[P_E7] != 14 || fa_page != 0) { printf("edit %u: PRESETS from 13 -> %d (page %d), not 14\n", c, TSEL->p[P_E7], fa_page); return 1; }
+            if (TSEL->p[P_E7] != 14 || fa_page != FA_HOME_PAGE) { printf("edit %u: PRESETS from 13 -> %d (page %d), not 14\n", c, TSEL->p[P_E7], fa_page); return 1; }
             fa_page = CASE[c][0];
             fmg_force_page = (int8_t)fa_page;
             fturn(EN_K1 + CASE[c][1], 3);
@@ -610,12 +613,12 @@ int main(int argc, char **argv)
         if (fa_page != 1) { printf("SCL -> OSC again (%d)\n", fa_page); return 1; }
         fpress(B_EDIT);                                  /* EDIT: FILT */
         if (fa_page != 3) { printf("EDIT -> FILT (%d)\n", fa_page); return 1; }
-        fpress(B_LFO);                                   /* LFO and HOME: CTRL, both lit */
+        fpress(B_LFO);                                   /* LFO: CTRL */
         fa_leds();
         if (fa_page != 0) { printf("LFO -> CTRL (%d)\n", fa_page); return 1; }
         fpress(B_SCL);
-        fpress(B_HOME);
-        if (fa_page != 0) { printf("HOME -> CTRL (%d)\n", fa_page); return 1; }
+        fpress(B_HOME);                                  /* moogi: HOME is FILT (was CTRL) */
+        if (fa_page != FA_HOME_PAGE) { printf("HOME -> FILT (%d)\n", fa_page); return 1; }
     }
     {   /* 1.8.0: the battery icon bottom right, four bars, red on the last one, a bolt on USB power; no "n/7" any more */
         static const struct { int32_t raw, usb, bars, red, bolt; } B[6] = {
@@ -731,6 +734,57 @@ int main(int argc, char **argv)
             fmini_fine[0][kk] = 0;
         }
         printf("fmini fine knobs: ok\n");
+    }
+    {   /* moogi 1.8.0-m3: the contours' knobs 1 a detent on a slow turn, up to 16 on a flick; MONO is LAST (the newest key
+         * wins, a released one falls back to the key held); HOME is the FILT page */
+        track_t *t0 = &trk[0];
+        static const uint8_t EV[6] = {P_E3, P_E4, P_E5, P_ATK, P_DEC, P_SUS};
+        uint32_t pg, i, j, k;
+        for (j = 0; j < 6u; j++) {
+            uint32_t fp = 99, fi = 0;
+            for (pg = 0; pg < 7u && fp == 99; pg++)
+                for (i = 0; i < 4u; i++)
+                    if (fmg_field(pg, i)->kind == FK_PAR && fmg_field(pg, i)->a == EV[j]) { fp = pg; fi = i; break; }
+            if (fp == 99) { printf("env knob %u: no field\n", j); return 1; }
+            t0->p[EV[j]] = 20;
+            for (i = 0; i < 16u; i++)
+                fmg_tl[i] = 0;
+            fm1_ms = 300000;
+            fmg_turn(fp, fi, 1, EN_K2);
+            for (k = 0; k < 3u; k++) {
+                fm1_ms += 120;
+                fmg_turn(fp, fi, 1, EN_K2);
+            }
+            if (t0->p[EV[j]] != 24) { printf("env knob %u: four slow detents -> %d (want 24)\n", j, (int)t0->p[EV[j]]); return 1; }
+            for (k = 0; k < 4u; k++) {
+                fm1_ms += 5;
+                fmg_turn(fp, fi, 1, EN_K2);
+            }
+            if (t0->p[EV[j]] != 24 + 64) { printf("env knob %u: a flick -> %d (want 88)\n", j, (int)t0->p[EV[j]]); return 1; }
+        }
+        fa_mono();
+        if (t0->p[P_PRIO] != 0) { printf("mono: priority %d, want LAST\n", (int)t0->p[P_PRIO]); return 1; }
+        t0->p[P_VOICE] = V_MONO;
+        trk_all_off(t0);
+        for (i = 0; i < NVOICE; i++)
+            t0->v[i].active = 0;
+        t0->nmono = 0;
+        t0->mono_note = 0;
+        trk_note_on(t0, 60, 100);
+        trk_note_on(t0, 55, 100);                           /* a lower key while 60 is held: the newest wins */
+        if (t0->mono_note != 55) { printf("mono LAST: 60 then 55 sounds %u\n", t0->mono_note); return 1; }
+        trk_note_on(t0, 67, 100);
+        if (t0->mono_note != 67) { printf("mono LAST: then 67 sounds %u\n", t0->mono_note); return 1; }
+        trk_note_off(t0, 67);                               /* back to the newest key still held */
+        if (t0->mono_note != 55 || !t0->v[0].gate) { printf("mono LAST: 67 off sounds %u\n", t0->mono_note); return 1; }
+        trk_note_off(t0, 55);
+        if (t0->mono_note != 60 || !t0->v[0].gate) { printf("mono LAST: 55 off sounds %u\n", t0->mono_note); return 1; }
+        trk_note_off(t0, 60);
+        if (t0->v[0].gate) { printf("mono LAST: all off, still gated\n"); return 1; }
+        fa_page = 0;
+        fa_home();
+        if (fa_page != FA_HOME_PAGE || FA_HOME_PAGE != 3u || strcmp(FA_TAB[fa_page], "FILT")) { printf("HOME: page %u\n", fa_page); return 1; }
+        printf("moogi m3 (contour knobs, mono LAST, HOME = FILT): ok\n");
     }
     {   /* the loudness contour is a Minimoog's ADS: the DECAY knob is the decay and the release; SUSTAIN clamps it */
         track_t *t0 = &trk[0];

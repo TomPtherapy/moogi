@@ -151,6 +151,25 @@ static int32_t fmg_acc_q(uint32_t role, int32_t s)
     return s * m;
 }
 
+/* moogi: the contours' knobs (ATTACK, DECAY, SUSTAIN of the filter and of the loudness): whole values (a time step is
+ * 6..9 % of the time already), 1 a detent on a slow turn (fmg_acc's least is 2), then 2, 4, 8, 16 by the time per
+ * detent: the same feel as the fine knobs' bytes. Same timing state as fmg_acc */
+static int fmg_is_env(uint32_t a) { return a == P_E3 || a == P_E4 || a == P_E5 || a == P_ATK || a == P_DEC || a == P_SUS; }
+static int32_t fmg_acc_env(uint32_t role, int32_t s)
+{
+    uint32_t now = fm1_ms, dt, a = (uint32_t)(s < 0 ? -s : s), last = fmg_tl[role & 15u];
+    int32_t m;
+    if (fmg_force_page < 0 || !s)
+        return s;
+    dt = (now - (last & 0x7FFFFFFFu)) & 0x7FFFFFFFu;
+    fmg_tl[role & 15u] = (now & 0x7FFFFFFFu) | (s > 0 ? 0x80000000u : 0u);
+    if (!last || ((last >> 31) != (s > 0 ? 1u : 0u)) || dt > 150u)
+        return s;
+    dt /= a;
+    m = dt >= 40u ? 1 : dt >= 25u ? 2 : dt >= 15u ? 4 : dt >= 8u ? 8 : 16;
+    return s * m;
+}
+
 /* control i of page pg moved s steps (a knob of the page, or ALGORITHM on the cursor's control) */
 static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
 {
@@ -191,7 +210,7 @@ static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
     case FK_VOICE:                                    /* FMini-1: MONO / POLY (12 voices), kept in the preset */
         if (t->p[P_VOICE] != (s > 0 ? V_POLY : V_MONO)) {
             t->p[P_VOICE] = (int16_t)(s > 0 ? V_POLY : V_MONO);
-            t->p[P_PRIO] = 1;
+            t->p[P_PRIO] = 0;                         /* moogi: LAST (fmini_app.c fa_mono) */
             panic_req |= (uint8_t)(1u << trk_index(t));   /* what sounds is released: the mode changes */
             motion_capture(t, P_VOICE, t->p[P_VOICE]);
         }
@@ -217,7 +236,8 @@ static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
             ml_knob(t, f->a);
             break;
         }
-        *vp = (int16_t)param_turn(d, *vp, fmg_acc(role, s, d->fmt == F_ENUM ? 0 : d->max - d->min));
+        *vp = (int16_t)param_turn(d, *vp, fmg_is_env(f->a) && d->fmt != F_ENUM ? fmg_acc_env(role, s)
+                                                     : fmg_acc(role, s, d->fmt == F_ENUM ? 0 : d->max - d->min));
         motion_capture(t, f->a, *vp);
         ml_knob(t, f->a);
         break;

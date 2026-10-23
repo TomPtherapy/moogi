@@ -1278,6 +1278,8 @@ static void fa_goto(uint32_t pg)
     fa_cfg_save();                                        /* (the FX page's globals) */
 }
 /* HOME: the first screen, CTRL; the pop-ups close. A preset change does the same (fa_input) */
+#define FA_HOME_PAGE 3u                    /* moogi: HOME and power-on show FILT (was CTRL, page 0) */
+
 static void fa_home(void)
 {
     fa_sv = 0;
@@ -1285,7 +1287,7 @@ static void fa_home(void)
     fa_sq = 0;
     fa_sq_rec = 0;
     fa_gl_close();
-    fa_goto(0);
+    fa_goto(FA_HOME_PAGE);
 }
 
 /* SELECT: one control on; past a page's last control the next page's first (the other way: the last) */
@@ -1511,7 +1513,8 @@ static void fa_mono(void)
     for (i = 0; i < NTRK; i++) {
         if (trk[i].p[P_VOICE] != V_POLY)
             trk[i].p[P_VOICE] = V_MONO;
-        trk[i].p[P_PRIO] = 1;
+        trk[i].p[P_PRIO] = 0;                         /* moogi: LAST (was 1, LOW: the Minimoog's): the newest key wins, a
+                                                       * released one falls back to the key still held, as the Volca Bass */
     }
 }
 
@@ -1682,7 +1685,7 @@ static void fa_leds(void)
     {
         static const uint8_t PG_LED[FA_NPAGE] = {B_LFO, B_SCL, B_SCL, B_EDIT, B_ENV, B_ENV, B_FX};
         led_put(nl, panel.btn[PG_LED[fa_page]], 1);          /* the page's button */
-        led_put(nl, panel.btn[B_HOME], fa_page == 0u);        /* CTRL is HOME's: both light */
+        led_put(nl, panel.btn[B_HOME], fa_page == FA_HOME_PAGE);   /* moogi: FILT is HOME's (was CTRL): both light */
     }
     led_put(nl, panel.btn[B_ARP], TSEL->p[P_AMODE] != 0);
     led_put(nl, panel.btn[B_SEQ], fa_sq != 0u);
@@ -1730,7 +1733,7 @@ static void fa_init(void)
     fa_last_user = 0;
     fa_pp_until = 0;
     fa_mono();
-    fa_page = 0;
+    fa_page = FA_HOME_PAGE;                                 /* moogi: power-on on FILT */
     fa_track_preset();                                      /* the patch loaded at power-on: shown, no pop-up */
     fa_primed = 1;
     ui.force = 1;
