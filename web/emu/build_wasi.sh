@@ -16,7 +16,7 @@ mkdir -p "$OUT/fonts"
     -Ibuild/gen -Ifirmware/src -Iweb/emu/wasi_shim \
     -Wl,--export-dynamic -Wl,-z,stack-size=1048576 -Wl,--initial-memory=33554432 \
     web/emu/felucca_web.c -o "$OUT/felucca.wasm" -lm
-sed -e "s/@VERSION@/FMini-1 $VERSION/g" -e "s/@PREVIEW@//g" web/emu/index.html > "$OUT/index.html"
+sed -e "s/@VERSION@/Acid Moogi $VERSION/g" -e "s/@PREVIEW@//g" web/emu/index.html > "$OUT/index.html"
 cp web/emu/worklet.js "$OUT/"
 cp web/emu/fonts/DotGothic16-subset.woff web/emu/fonts/OFL.txt "$OUT/fonts/"
 echo "emu: $OUT ($(wc -c < "$OUT/felucca.wasm" | tr -d ' ') B wasm, $VERSION)"

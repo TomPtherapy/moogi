@@ -23,7 +23,7 @@ def main(pkg, out, version="1.4.2"):
     lib = "\n".join(strip_module((HERE / f).read_text(encoding="utf-8")) for f in ("fm1pkg.js", "fm1ota.js", "fm1backup.js"))
     url = "data:application/octet-stream;base64," + base64.b64encode(raw).decode()
     meta = json.dumps({"version": version, "product": product, "pkg": url})
-    hero = "data:image/jpeg;base64," + base64.b64encode((HERE.parent / "assets" / "fmini-installer-hero.jpg").read_bytes()).decode()
+    hero = "data:image/jpeg;base64," + base64.b64encode((HERE.parent / "assets" / "acid-moogi-hero.jpg").read_bytes()).decode()
     imgs = {p.stem: ("data:image/" + ("webp" if p.suffix == ".webp" else "png") + ";base64,") + base64.b64encode(p.read_bytes()).decode() for p in sorted((HERE.parent / "assets" / "site").glob("*.*"))}
     names = re.findall(r'"([A-Z0-9 .\'/+&-]{2,12})"', (HERE.parent / "firmware" / "src" / "eng_fmini_presets.h").read_text())[:10]
     html = html.replace("/*IMGS*/{}", json.dumps(imgs)).replace("/*PRESETS*/[]", json.dumps(names))
