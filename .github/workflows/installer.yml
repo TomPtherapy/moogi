@@ -41,7 +41,15 @@ jobs:
               https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$HOME/fw-AC79_AIoT_SDK"
 
       - name: Build the firmware
-        run: ./build.sh
+        run: |
+          set -o pipefail
+          ./build.sh 2>&1 | tee build.log || {
+            # the failure as annotations (readable through the API: gh api .../check-runs/ID/annotations)
+            grep -E "FAIL|error|Error|warning: .*fmini|exceeds|headroom" build.log | tail -n 20 | sed 's/^/::error::/'
+            tail -n 5 build.log | sed 's/^/::error::/'
+            exit 1
+          }
+          grep -E "^  ok   image" build.log | sed 's/^/::notice::/' || true
 
       - name: Make the installer page
         run: |

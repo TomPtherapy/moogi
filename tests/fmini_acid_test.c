@@ -28,6 +28,13 @@ int main(int argc, char **argv)
         if (strcmp(out, exp)) { if (bad < 5) printf("seed %u:\n C   %s\n lua %s\n", c[0], out, exp); bad++; }
         n++;
     }
+    {   /* breathe's way back: ac_born gives every die of a 64-step line as drawn */
+        uint32_t i, k;
+        ac_draw(4242u);
+        for (i = 0; i < AC_NS; i++)
+            for (k = 0; k < AC_NF; k++)
+                if (ac_born(i, k) != ac_f[i][k]) { printf("ac_born %u %u\n", i, k); return 1; }
+    }
     if (bad || n != 300) { printf("acid: %d of %d lines differ from the norns mod\n", bad, n); return 1; }
     printf("fmini_acid_test: ok (%d lines as the norns mod builds them)\n", n);
     return 0;

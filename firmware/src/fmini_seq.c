@@ -361,8 +361,8 @@ static const char *const AC_NN[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G",
 #define AC_NS 64u
 #define AC_NF 7u                                          /* the field's on voice note alt tens acc sld */
 enum { AQ_ON, AQ_VOICE, AQ_NOTE, AQ_ALT, AQ_TENS, AQ_ACC, AQ_SLD };
-typedef struct { uint8_t on, hi, iv, oct, acc, sld; } ac_step_t;
-static uint16_t ac_f[AC_NS][AC_NF], ac_f0[AC_NS][AC_NF];  /* the line's dice (0..65535 = 0..1), as born */
+typedef struct { uint16_t on : 1, hi : 1, iv : 4, oct : 2, acc : 1, sld : 1; } ac_step_t;   /* (2 bytes: RAM is short) */
+static uint16_t ac_f[AC_NS][AC_NF];                      /* the line's dice (0..65535 = 0..1); as born: ac_born */
 static uint16_t ac_ma, ac_mb, ac_mn;
 static uint32_t ac_seed, ac_rs;
 static uint8_t ac_pool[6], ac_np;
@@ -418,8 +418,16 @@ static void ac_draw(uint32_t s)                           /* draw_field: 16 step
     for (i = 16; i < AC_NS; i++)
         for (k = 0; k < AC_NF; k++)
             ac_f[i][k] = (uint16_t)ac_r16();
-    memcpy(ac_f0, ac_f, sizeof ac_f0);
     ac_cyc = 0;
+}
+static uint16_t ac_born(uint32_t i, uint32_t k)           /* die k of step i as ac_draw drew it (the seed's sequence again) */
+{
+    uint32_t n = i < 16u ? i * AC_NF + k : 16u * AC_NF + 3u + (i - 16u) * AC_NF + k, r;
+    ac_seed_rng(ac_seed);
+    do
+        r = ac_r16();
+    while (n--);
+    return (uint16_t)r;
 }
 static void ac_select_pool(void)
 {
@@ -703,9 +711,11 @@ static void ac_breathe(void)                              /* every N loops a few
         return;
     for (d = 0; d < ac_v[AV_BDEP]; d++) {
         uint32_t i = 1u + fa_ac_rnd() % (len - 1u);
-        if (fa_ac_rnd() % 100u < ac_v[AV_BRET])
-            memcpy(ac_f[i], ac_f0[i], sizeof ac_f[i]);
-        else
+        if (fa_ac_rnd() % 100u < ac_v[AV_BRET]) {
+            uint32_t k;
+            for (k = 0; k < AC_NF; k++)
+                ac_f[i][k] = ac_born(i, k);
+        } else
             ac_f[i][fa_ac_rnd() % AC_NF] = (uint16_t)fa_ac_rnd();
     }
     ac_build();
