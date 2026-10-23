@@ -65,6 +65,12 @@ static int32_t fmini_want(const track_t *t, uint32_t tr, uint32_t j, uint32_t pa
     int32_t p = clamp(t->p[par], 0, 127), f = fmini_fine[tr][j];
     return f >= 0 && f <= (127 << 16) && ((f + 32768) >> 16) == p ? f : p << 16;
 }
+/* moogi: the 303's accent. An accented step (seq.c sets t->acc_note around its note-ons) adds to the voice's accent level
+ * (fmini_acc_t, Q15: +22000, capped: a run of accents builds up, as the 303's accent sweep), which decays in about 200 ms;
+ * the cutoff follows it smoothed (fmini_acc_e, ~5 ms) by up to FMINI_ACC_16 (1/16 semitones: 2.5 octaves) at full level.
+ * Only an accented step: a key struck hard (velocity) stays loudness only, as 1.7.3 made it (the singing pitch stays) */
+#define FMINI_ACC_16 480
+static int32_t fmini_acc_t[NTRK][NVOICE], fmini_acc_e[NTRK][NVOICE];
 static int32_t fmini_mn[NTRK];                    /* the modulation noise of this block, +-16384 */
 
 /* the highest value of each byte */
@@ -305,6 +311,10 @@ static int32_t fmini_range16(uint32_t r)
 
 static void fmini_note_on(track_t *t, voice_t *v)
 {
+    if (t->acc_note) {                                     /* moogi: an accented step: the 303's accent */
+        int32_t *a = &fmini_acc_t[(uint32_t)(t - trk) % NTRK][(uint32_t)(v - t->v) % NVOICE];
+        *a = *a + 22000 > 32767 ? 32767 : *a + 22000;
+    }
     if (!v->env && !v->env_out) {                          /* from silence: the ladder and the contour from 0 */
         v->s[0] = v->s[1] = v->s[2] = v->s[3] = 0;
         v->s[4] = 0;
@@ -437,6 +447,15 @@ static void fmini_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
             lc += ((FMINI_CUT[i0 + 1] - lc) * fr) >> 8;
     }
     lc += (m->cutoff * 55) >> 10;                                                                           /* the host's steps (1/14 octave) in 1/16 semitones */
+    {   /* moogi: the accent (once a block: rise ~5 ms, fall ~200 ms) */
+        uint32_t vi = (uint32_t)(v - t->v) % NVOICE;
+        int32_t *at = &fmini_acc_t[tr][vi], *ae = &fmini_acc_e[tr][vi];
+        *ae += ((*at - *ae) * 4800) >> 15;
+        *at -= (*at * 120) >> 15;
+        if (*at < 8)
+            *at = 0;
+        lc += (*ae * FMINI_ACC_16) >> 15;
+    }
     lc += (int32_t)(((int64_t)env15 * fmini_sm[tr][2] / (127 * 65536)) * 960) >> 15;                          /* the contour: up to 5 octaves */
     lc += ((v->pitch_cur - FMINI_NOTE0 * 16) * (int32_t)g[FG_KBD] * 516) >> 16;                              /* the keyboard: 1 V/oct at 127, 0 V on F */
     if (sw & FS_MFLT)

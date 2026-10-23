@@ -266,6 +266,99 @@ int main(int argc, char **argv)
     }
 
 
+    /* 3d. moogi: the 303's accent. A saw through a closed ladder (CUTOFF 30), velocity 127 both times: an accented step
+     * (t->acc_note) is brighter in its first 120 ms by at least 4 dB than the same key at 127 without it; the boost is gone
+     * after 1 s (the accent fades); a second accent right after the first builds higher than the first alone */
+    {
+        static double ya[FS], yb[FS];
+        double fa, ra, ta, fb2, rb, tb, r2, rl;
+        int ok = 1;
+        uint32_t k;
+        memset(fmini_acc_t, 0, sizeof fmini_acc_t);
+        memset(fmini_acc_e, 0, sizeof fmini_acc_e);
+        setup(30, 0, 0, FS_O1);
+        trk[0].p[P_VOICE] = V_MONO;
+        play_v(36, 127, yb, FS);
+        analyse(yb, 0, (uint32_t)(0.12 * FS), &fb2, &rb, &tb);
+        setup(30, 0, 0, FS_O1);
+        trk[0].p[P_VOICE] = V_MONO;
+        trk[0].acc_note = 1;
+        trk_note_on(&trk[0], 36, 127);
+        trk[0].acc_note = 0;
+        {
+            static int32_t b[CTL];
+            uint32_t i;
+            for (i = 0; i < FS; i += CTL) {
+                track_render(&trk[0], b, CTL);
+                for (k = 0; k < CTL && i + k < FS; k++)
+                    ya[i + k] = b[k];
+            }
+        }
+        {   /* brightness: the rms of the first difference (a gentle high-pass: the harmonics the ladder lets through) */
+            uint32_t i, e0 = (uint32_t)(0.12 * FS), l0 = (uint32_t)(0.85 * FS);
+            double sa = 0, sb = 0, la = 0, lb = 0;
+            for (i = 1; i < e0; i++) { sa += (ya[i] - ya[i - 1]) * (ya[i] - ya[i - 1]); sb += (yb[i] - yb[i - 1]) * (yb[i] - yb[i - 1]); }
+            for (i = l0; i < FS; i++) { la += (ya[i] - ya[i - 1]) * (ya[i] - ya[i - 1]); lb += (yb[i] - yb[i - 1]) * (yb[i] - yb[i - 1]); }
+            ra = sqrt(sa / e0); rb = sqrt(sb / e0); rl = sqrt(la / (FS - l0)); r2 = sqrt(lb / (FS - l0));
+            (void)fa; (void)ta; (void)fb2; (void)tb;
+        }
+        printf("   accent: brightness in the first 120 ms %.0f (plain 127: %.0f, %+.1f dB); after 0.85 s %.0f (plain %.0f)\n",
+               ra, rb, 20 * log10(ra / rb), rl, r2);
+        ok &= ra > rb * 1.585 && fabs(20 * log10(rl / r2)) < 0.5;
+        {   /* two accents 100 ms apart: the second's level above the first's peak */
+            int32_t peak1, peak2;
+            uint32_t i;
+            static int32_t b[CTL];
+            setup(30, 0, 0, FS_O1);
+            trk[0].p[P_VOICE] = V_MONO;
+            fmini_acc_t[0][0] = fmini_acc_e[0][0] = 0;
+            trk[0].acc_note = 1;
+            trk_note_on(&trk[0], 36, 127);
+            for (i = 0; i < (uint32_t)(0.03 * FS); i += CTL)
+                track_render(&trk[0], b, CTL);
+            peak1 = fmini_acc_e[0][0];
+            for (; i < (uint32_t)(0.1 * FS); i += CTL)
+                track_render(&trk[0], b, CTL);
+            trk_note_off(&trk[0], 36);
+            trk_note_on(&trk[0], 36, 127);
+            for (i = 0; i < (uint32_t)(0.03 * FS); i += CTL)
+                track_render(&trk[0], b, CTL);
+            peak2 = fmini_acc_e[0][0];
+            trk[0].acc_note = 0;
+            printf("   accent: one %d, a second 100 ms later %d (of 32767)\n", (int)peak1, (int)peak2);
+            ok &= peak2 > peak1 + 2000;
+        }
+        check("moogi: an accented step opens the filter (303), a key at 127 does not; it fades, and accents in a row build up", ok);
+    }
+    /* 3e. moogi: a sequenced slide on FMINI in MONO is legato: the second note does not restart the filter contour (it
+     * stays in its decay / sustain stage; a retrigger sends it back to its attack, stage 1) nor the loudness contour, and
+     * the voice moves to the new note. A plain second key (no slide) still retriggers */
+    {
+        static int32_t b[CTL];
+        uint32_t i, st0, st1, st2;
+        int ok;
+        setup(64, 0, 0, FS_O1);
+        trk[0].p[P_VOICE] = V_MONO;
+        trk[0].p[P_E2] = 64; trk[0].p[P_E3] = 0; trk[0].p[P_E4] = 40; trk[0].p[P_E5] = 40;
+        trk_note_on(&trk[0], 48, 100);
+        for (i = 0; i < (uint32_t)(0.3 * FS); i += CTL)
+            track_render(&trk[0], b, CTL);
+        st0 = (uint32_t)trk[0].v[0].s[7] >> 24;
+        trk[0].slide_glide = 1;
+        trk_note_on(&trk[0], 55, 100);                  /* while 48 is held: the slide */
+        trk[0].slide_glide = 0;
+        st1 = (uint32_t)trk[0].v[0].s[7] >> 24;
+        ok = st0 != 1u && st1 == st0 && trk[0].v[0].note == 55 && trk[0].v[0].stage == 2u;
+        trk_note_on(&trk[0], 60, 100);                  /* no slide: a retrigger */
+        st2 = (uint32_t)trk[0].v[0].s[7] >> 24;
+        printf("   slide: the filter contour's stage %u before, %u after the slide, %u after a plain key\n", st0, st1, st2);
+        ok &= st2 == 1u;
+        trk_note_off(&trk[0], 60);
+        trk_note_off(&trk[0], 55);
+        trk_note_off(&trk[0], 48);
+        check("moogi: a slide on FMINI MONO is legato (the contour goes on, the pitch moves to the new note)", ok);
+    }
+
     /* 3a. velocity does not move the cutoff: the mixer silent, EMPHASIS full, CONTOUR 0, the same key at every velocity, and
      * the loudness contour in every stage (before 1.7.3 the host's "accent" added that contour to the cutoff from velocity 111:
      * about 1.7 octaves at full level) */
