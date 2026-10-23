@@ -395,10 +395,11 @@ static void ac_seed_rng(uint32_t s)                       /* acid-mod.lua rng_se
     s %= 2147483647u;
     ac_rs = s ? s : 2147483646u;
 }
-static uint32_t ac_r16(void)                              /* 0..65535 for 0..1 */
+static uint32_t ac_r16(void)                              /* 0..65535 for 0..1 (no 64-bit divide: the device has none) */
 {
-    ac_rs = (uint32_t)((uint64_t)ac_rs * 16807u % 2147483647u);
-    return (uint32_t)(((uint64_t)ac_rs << 16) / 2147483647u);
+    int32_t x = 16807 * (int32_t)(ac_rs % 127773u) - 2836 * (int32_t)(ac_rs / 127773u);   /* Schrage: s x 16807 mod 2^31-1 */
+    ac_rs = (uint32_t)(x > 0 ? x : x + 2147483647);
+    return ac_rs >> 15;                                   /* = floor(s x 65536 / (2^31 - 1)) for every s */
 }
 static uint32_t ac_pick(uint32_t n, uint32_t r) { uint32_t i = (r * n) >> 16; return i < n ? i : n - 1u; }
 /* f < pct / 100 x m / 100 (f a die 0..65535) */
@@ -655,9 +656,9 @@ static void ac_toggle(void)
 
 static int32_t ac_sin(uint32_t p)                         /* p 0..65535 a cycle -> -32767..32767 (Bhaskara) */
 {
-    int64_t h = p & 32767u, q = h * (32768 - h);
-    int32_t v = (int32_t)(q * 16 * 32767 / ((5LL << 30) - 4 * q));
-    return (p & 32768u) ? -v : v;
+    uint32_t h = p & 32767u, q = (h * (32768u - h)) >> 16, v = ((16u * q) << 15) / (5u * 16384u - 4u * q);   /* q: Q14 */
+    v = v > 32767u ? 32767u : v;
+    return (p & 32768u) ? -(int32_t)v : (int32_t)v;
 }
 static int32_t ac_wave(uint32_t n)
 {
