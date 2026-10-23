@@ -261,6 +261,8 @@ if [ -f build/gen/felucca_tables.h ]; then
     mkdir -p "$OUT/fa"
     $CC -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmini_app_test" tests/fmini_app_test.c -lm
     run "FMini-1 app: the screen of every page, SAVE / PRESETS over 100 factory and the user patches, each patch its ARP, LFO, FX, LEVEL and octave, a new preset goes HOME" "$OUT/fmini_app_test" "$OUT/fa"
+    $CC -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmini_acid_test" tests/fmini_acid_test.c -lm
+    run "Acid Moogi: the acid line builds the same 16 steps as the norns acid mod for 300 seeds and settings" "$OUT/fmini_acid_test" tests/fmini_acid_ref.txt
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fmini_filter_test" tests/fmini_filter_test.c -lm
     run "FMini-1 filter (Minimoog ladder): sings a sine from silence (pitch, THD, 1 V/oct over the keys, KBD 0), the CUTOFF dial's singing pitches, the EMPHASIS dial's passband loss and peak, no runaway" "$OUT/fmini_filter_test"
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmini_fx_test" tests/fmini_fx_test.c -lm

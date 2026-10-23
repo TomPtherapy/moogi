@@ -18,6 +18,8 @@ thanks the work below; each keeps its own licence (see [LICENSE](LICENSE), [LICE
 - FMINI filter (FMini-1 1.7.0): the Minimoog ladder's calibration (the singing pitch against the corner, the feedback lag pole, the critical loop gain,
   the cutoff and emphasis dials) read from the circuit notes of [CA-72](https://github.com/idlefoundry/ca-72) by idlefoundry (GPL-3.0-or-later); the
   integer implementation (tools/fmini_filter.py, firmware/src/eng_fmini.c) is written for this firmware
+- Acid Moogi (TomPtherapy's fork of FMini-1): the acid line (firmware/src/fmini_seq.c) is a C port of Tom's own acid mod for norns
+  (the same seed builds the same 16 steps: tests/fmini_acid_test.c holds 300 lines the Lua built); the splash and site art are Tom's
 - Second core: its start, mailbox and guards from [X0X](https://github.com/charlesvestal/fm1-x0x) by [charlesvestal](https://github.com/charlesvestal)
   with the dual-core findings of [Melodee](https://github.com/keremimo/melodee) by [keremimo](https://github.com/keremimo); its audio split,
   measurements and hardening after [Jangada](https://github.com/zednaked/jangada) by [zednaked](https://github.com/zednaked) (all GPL-3.0)

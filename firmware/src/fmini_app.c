@@ -666,81 +666,6 @@ static void fa_ar_dialog(void)
 static uint8_t fa_arp_down, fa_arp_done, fa_ar_last = 1;
 static uint32_t fa_arp_t0, fa_ar_until;
 
-/* ----------------------------------------------------------- SEQ --- */
-/* SEQ: a pop-up with the 16 slots of a sequence of up to 16 notes. REC (it lights) records the notes you play into the
- * next slots (a take of 16 ends by itself; REC again ends it), PLAY / STOP plays the loop at the TEMPO (ALGORITHM
- * changes it); the slot playing is lit, and so are the keys of the notes that sound. The steps are the track's own */
-static uint8_t fa_sq;                                     /* 1: the pop-up is open */
-static uint8_t fa_sq_rec;                                 /* REC armed */
-static uint8_t fa_sq_cur;                                 /* the slot the next note goes into */
-static uint8_t fa_sq_fresh;                               /* armed, nothing played yet: the old take is still there */
-static uint32_t fa_sq_blink(void) { return fa_sq_rec ? (fm1_ms >> 8) & 1u : 0u; }
-
-static void fa_seq_note(track_t *t, uint32_t note)
-{
-    step_t *s;
-    uint32_t i;
-    if (!fa_sq_rec || t != &trk[0] || note > 127u)
-        return;
-    if (fa_sq_fresh) {                                    /* the first note of a take: the old one goes */
-        for (i = 0; i < NSTEP; i++)
-            memset(&t->step[i], 0, sizeof t->step[i]);
-        fa_sq_fresh = 0;
-        fa_sq_cur = 0;
-    }
-    if (fa_sq_cur >= 16u)
-        return;
-    s = &t->step[fa_sq_cur];
-    memset(s, 0, sizeof *s);
-    s->note[0] = (uint8_t)note;
-    s->n = 1;
-    s->time = ST_NOTE;
-    s->vel = 100;
-    fa_sq_cur++;
-    t->p[P_SLEN] = fa_sq_cur;
-    if (fa_sq_cur >= 16u)
-        fa_sq_rec = 0;                                    /* 16 notes: the take is done */
-}
-
-static void fa_note_name(char *b, uint32_t note)
-{
-    static const char NM[12][3] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-    uint32_t n = note % 12u;
-    uint32_t k = 0;
-    b[k++] = NM[n][0];
-    if (NM[n][1])
-        b[k++] = NM[n][1];
-    b[k++] = (char)('0' + (int32_t)(note / 12u) - 1);     /* C4 = 60 */
-    b[k] = 0;
-}
-
-static void fa_seq_dialog(void)
-{
-    const track_t *t = TSEL;
-    uint32_t i, len = (uint32_t)clamp(t->p[P_SLEN], 1, 16), now = song.playing ? t->seq_idx % len : 99u;
-    char b[16];
-    fa_frame("SEQUENCER");
-    for (i = 0; i < 16u; i++) {
-        int32_t x = 15 + (int32_t)(i % 4u) * 53, y = 52 + (int32_t)(i / 4u) * 32;
-        int rec_here = fa_sq_rec && i == fa_sq_cur, playing = i == now;
-        const step_t *s = &t->step[i];
-        uint16_t bg = playing ? FA_OR : FA_RGB(0x2A, 0x25, 0x20), fg = playing ? FA_RGB(0x14, 0x12, 0x10) : FA_CR;
-        cv_rect(x, y, 50, 28, rec_here && fa_sq_blink() ? FA_RED : bg);
-        if (i < len && s->n) {
-            fa_note_name(b, s->note[0]);
-            fa_ctext(x + 25, y + 6, &AF_M, b, fg);
-        } else {
-            fa_ctext(x + 25, y + 6, &AF_M, "-", FA_RGB(0x6A, 0x62, 0x58));
-        }
-    }
-    b[0] = 0;
-    str_cpy(b, fa_sq_rec ? "REC" : song.playing ? "PLAY" : "STOP", 5);
-    fa_ltext(20, 182, &AF_M, b, fa_sq_rec ? FA_RED : song.playing ? FA_OR : FA_MU);
-    fmt_int(b, song.g[G_BPM]);
-    fa_rtext(220, 182, &AF_M, b, FA_CR);
-    fa_ctext(120, 198, &AF_S, "REC  PLAY  ALGO=TEMPO  SEQ=CLOSE", FA_MU);
-}
-
 /* the keys of the notes that sound (the arpeggio, the sequence, MIDI): lit like the keys held */
 static uint32_t fa_sound_keys(void)
 {
@@ -761,11 +686,11 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.8.0-m2"
+#define FMINI_VERSION "v1.8.0-m3"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
-static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT */
-static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 MIDI CC, 3 PITCH BEND, 4 ABOUT */
+static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT, 4 ACID (fmini_seq.c) */
+static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 MIDI CC, 3 PITCH BEND, 4 ACID, 5 ABOUT */
 static uint8_t fa_cc_i;                                   /* the control highlighted in MIDI CC */
 static uint8_t fa_cc[FA_NCC];                             /* its CC, 0 = none */
 static uint8_t fa_cfg_dirty;
@@ -789,9 +714,12 @@ static int fa_cc_valid(uint32_t cc) { return cc == 0u || ml_free_cc(cc); }
 /* the FX pop-ups' other globals (the settings still keep their bytes; a factory patch, a saved one and the autosave set them) */
 static const uint8_t FA_GID2[8] = {G_RTYPE, G_RDAMP, G_DTIME, G_DFDBK, G_ENGGO, G_CDEPTH, G_INFO, G_MIDI};
 static uint8_t *fa_cfg_byte(uint32_t i) { return &favorites.factory[7u + i / 32u][i % 32u]; }
+static void fa_seq_cfg_load(void);
+static void fa_seq_cfg_save(void);
 static void fa_cfg_load(void)
 {
     uint32_t i;
+    fa_seq_cfg_load();
     if (*fa_cfg_byte(0) == 0xA7u && *fa_cfg_byte(1) == 0x4Fu) {
         uint32_t src = *fa_cfg_byte(2), ch = *fa_cfg_byte(3);
         fm_midi_src = (uint8_t)(src == 0u || src == 1u ? src : 3u);   /* (2 was Bluetooth) */
@@ -832,6 +760,7 @@ static void fa_cfg_save(void)
         for (i = 0; i < 8u; i++)
             *fa_cfg_byte(9u + FA_NCC + i) = (uint8_t)song.g[FA_GID2[i]];
     }
+    fa_seq_cfg_save();
     settings_save();                                      /* (deferred while anything plays) */
 }
 static void fa_gl_close(void)
@@ -846,6 +775,8 @@ static void fa_arp_show(void)
     fa_ar = 1;
     fa_ar_until = fm1_ms + 4000u;
 }
+
+#include "fmini_seq.c"                                   /* Acid Moogi: the sequencer, the tempo, the acid line */
 
 /* control n of the list -> its page and place, its tag and name */
 static void fa_ctl_loc(uint32_t n, uint32_t *pg, uint32_t *i)
@@ -970,6 +901,10 @@ static void fa_cc_poll(void)
 static void fa_gl_dialog(void)
 {
     char b[24];
+    if (fa_gl == 4u) {
+        ac_menu_dialog();
+        return;
+    }
     if (fa_gl == 1u) {
         fa_frame("GLOBAL");
         fa_line(62, "MIDI IN", FA_SRC[fm_midi_src == 3u ? 2u : fm_midi_src & 1u], fa_gl_row == 0u);
@@ -980,7 +915,8 @@ static void fa_gl_dialog(void)
         fa_line(84, "MIDI CHANNEL", b, fa_gl_row == 1u);
         fa_line(106, "MIDI CC", ">", fa_gl_row == 2u);
         fa_line(128, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 3u);
-        fa_line(150, "ABOUT", ">", fa_gl_row == 4u);
+        fa_line(150, "ACID", ">", fa_gl_row == 4u);
+        fa_line(172, "ABOUT", ">", fa_gl_row == 5u);
         fa_ctext(120, 198, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
     } else {                                              /* MIDI CC: a window of six lines on the list */
         uint32_t top = fa_cc_i < 3u ? 0u : fa_cc_i - 3u, k;
@@ -1127,17 +1063,15 @@ static void fa_scene(void)
         cv_rect(232, (int32_t)i + 3, 8, 1, FA_RGB(0x42, 0x20, 0x0D));
     }
     cv_rect(8, 0, 224, 22, FA_RGB(0x0E, 0x0D, 0x0C));        /* the header: the name and the seven tabs */
-    {                                                    /* the logo as on the splash: FM and 1 orange, ini- cream */
-        int32_t lx = 12;
-        cv_text_on(lx, 3, &AF_S, "FM", FA_OR, FA_RGB(0x0E, 0x0D, 0x0C));
-        lx += text_w(&AF_S, "FM");
-        cv_text_on(lx, 3, &AF_S, "ini-", FA_CR, FA_RGB(0x0E, 0x0D, 0x0C));
-        lx += text_w(&AF_S, "ini-");
-        cv_text_on(lx, 3, &AF_S, "1", FA_OR, FA_RGB(0x0E, 0x0D, 0x0C));
+    {                                                    /* the logo: Acid orange, Moogi cream (Acid Moogi; was FMini-1) */
+        int32_t lx = 12, ly = 11 - AF_X_CAP_Y - AF_X_CAP_H / 2 + 1;
+        cv_text_on(lx, ly, &AF_X, "Acid", FA_OR, FA_RGB(0x0E, 0x0D, 0x0C));
+        lx += text_w(&AF_X, "Acid") + 3;
+        cv_text_on(lx, ly, &AF_X, "Moogi", FA_CR, FA_RGB(0x0E, 0x0D, 0x0C));
     }
     {
         static const uint8_t TW[FA_NPAGE] = {24, 22, 20, 22, 30, 30, 18};
-        int32_t tx = 60;
+        int32_t tx = 64;                                 /* (after the Acid Moogi logo) */
         for (i = 0; i < FA_NPAGE; i++) {
             uint16_t bgc = i == pg ? FA_OR : FA_RGB(0x1E, 0x1B, 0x19);
             cv_rect(tx, 2, TW[i] - 1, 18, bgc);
@@ -1181,10 +1115,14 @@ static void fa_scene(void)
         fa_ltext(14 + w + 6, 214, &AF_N, nm, FA_CR);
         fa_battery(226, 227);
     }
-    if (fa_gl == 1u || fa_gl == 2u)
+    if (fa_gl == 1u || fa_gl == 2u || fa_gl == 4u)
         fa_gl_dialog();
+    else if (fa_pl_show())
+        fa_tempo_dialog();
     else if (fa_sq)
         fa_seq_dialog();
+    else if (fa_ac_show())
+        fa_ac_dialog();
     else if (fa_ar)
         fa_ar_dialog();
     else if (fa_sv)
@@ -1224,10 +1162,7 @@ static uint32_t fa_signature(void)
     h = (h ^ fa_sv_slot ^ (uint32_t)fa_sv_pos << 8 ^ (uint32_t)t->user << 16 ^ (uint32_t)fa_msg_on() << 24) * 16777619u;
     for (i = 0; i < 12u; i++)
         h = (h ^ (uint8_t)fa_sv_name[i]) * 16777619u;
-    h = (h ^ fa_sq ^ (uint32_t)fa_sq_rec << 1 ^ (uint32_t)fa_sq_cur << 2 ^ (uint32_t)song.playing << 8 ^
-         (uint32_t)(song.playing ? t->seq_idx : 0u) << 9 ^ (uint32_t)fa_sq_blink() << 16) * 16777619u;
-    for (i = 0; i < 16u; i++)
-        h = (h ^ (uint32_t)(t->step[i].n ? t->step[i].note[0] : 0u)) * 16777619u;
+    h = fa_seq_sig(h);                                       /* the sequence, the tempo, the acid line (fmini_seq.c) */
     h = (h ^ fa_batt()) * 16777619u;                         /* the battery icon */
     return (h ^ t->preset) * 16777619u;
 }
@@ -1265,6 +1200,7 @@ static void fa_splash(void)                              /* the picture (assets/
         for (y = band * 120u; y < band * 120u + 120u; y++)
             for (x = 0; x < 240u; x++)
                 cv_pset((int32_t)x, (int32_t)y, FMINI_SPLASH_PAL[FMINI_SPLASH[y * 240u + x]]);
+        cv_rect(228 - text_w(&AF_S, FMINI_VERSION), 217, text_w(&AF_S, FMINI_VERSION) + 8, 18, FA_RGB(0x14, 0x10, 0x1E));   /* (on the busy art: a dark plate) */
         cv_text_on(232 - text_w(&AF_S, FMINI_VERSION), 220, &AF_S, FMINI_VERSION, FA_CR, 0);
         cv_oy = 0;
         cv_blit(0, band * 120u);
@@ -1284,10 +1220,16 @@ static void fa_home(void)
 {
     fa_sv = 0;
     fa_ar = 0;
-    fa_sq = 0;
-    fa_sq_rec = 0;
     fa_gl_close();
     fa_goto(FA_HOME_PAGE);
+}
+static void fa_go_filt(void)                              /* EDIT with the acid line off: FILT, as before */
+{
+    fmg_fx = 0;
+    fa_sv = 0;
+    fa_ar = 0;
+    fa_gl_close();
+    fa_goto(3u);
 }
 
 /* SELECT: one control on; past a page's last control the next page's first (the other way: the last) */
@@ -1389,8 +1331,21 @@ static void fa_tap(void)
 
 static void fa_buttons(uint32_t pressed)
 {
-    static const uint8_t PG_BTN[5] = {B_LFO, B_EDIT, B_SCL, B_FX, B_ENV};   /* (GLO: global, ARP, SEQ, REC, PLAY: their own) */
-    uint32_t i;
+    static const uint8_t PG_BTN[5] = {B_LFO, B_HOME, B_SCL, B_FX, B_ENV};   /* (GLO: global, EDIT, ARP, SEQ, REC, PLAY:
+                                                                             * their own; B_HOME never comes here) */
+    uint32_t i, seq_was = fa_sq;
+    fa_sq = (uint8_t)((fm1_in.buttons >> panel.btn[B_SEQ]) & 1u);   /* SEQ held: the keys' layer, its screen */
+    if (seq_was && !fa_sq && fa_sq_dirty) {               /* (the parts saved when it is let go) */
+        fa_sq_dirty = 0;
+        fa_cfg_dirty = 1;
+        fa_cfg_save();
+    }
+    fa_play_btn(pressed);                                 /* PLAY: a tap; held, the tempo */
+    fa_edit_btn_poll(pressed);                            /* EDIT: the acid line */
+    if (fa_seq_stepping() && ((pressed >> panel.btn[B_ARP]) & 1u)) {   /* step record: ARP is a rest */
+        fa_seq_rest();
+        pressed &= ~(1u << panel.btn[B_ARP]);
+    }
     if ((pressed >> panel.btn[B_HOME]) & 1u) {            /* HOME: the first screen, CTRL; the pop-ups close */
         fa_home();
         return;
@@ -1398,8 +1353,6 @@ static void fa_buttons(uint32_t pressed)
     if ((pressed >> panel.btn[B_GLO]) & 1u) {             /* GLO: the global pop-up; inside a list, one level back */
         fa_sv = 0;
         fa_ar = 0;
-        fa_sq = 0;
-        fa_sq_rec = 0;
         if (!fa_gl)
             fa_gl = 1;
         else if (fa_gl > 1u)
@@ -1435,31 +1388,20 @@ static void fa_buttons(uint32_t pressed)
             }
         }
     }
-    if ((pressed >> panel.btn[B_REC]) & 1u) {             /* REC: the next notes go into the SEQ slots (it lights) */
-        fa_sq_rec = (uint8_t)!fa_sq_rec;
-        if (fa_sq_rec) {
-            fa_sq_cur = 0;
-            fa_sq_fresh = 1;
-            fa_sv = 0;
-            fa_ar = 0;
-            fa_gl_close();
-            fa_sq = 1;
+    if ((pressed >> panel.btn[B_REC]) & 1u) {             /* REC: record on / off (it lights); SEQ + REC: clear */
+        if (fa_sq) {
+            fa_seq_clear();
+            fa_sq_dirty = 1;
+        } else if (!fa_acid) {
+            fa_seq_arm();
         }
     }
-    if ((pressed >> panel.btn[B_PLAY]) & 1u)              /* PLAY / STOP the sequence */
-        transport_req = (song.playing || transport_req == 1u) ? 2u : 1u;
-    if ((pressed >> panel.btn[B_SEQ]) & 1u) {             /* SEQ: the sequencer pop-up */
-        fa_sv = 0;
-        fa_ar = 0;
-        fa_gl_close();
-        fa_sq = (uint8_t)!fa_sq;
-        if (!fa_sq)
-            fa_sq_rec = 0;
-    }
     if ((pressed >> panel.btn[B_SAVE]) & 1u) {            /* SAVE: open the dialog; again: write */
+        if (fa_gl == 4u) {                                /* (GLO > ACID: the line as a favorite) */
+            ac_fav_save();
+            return;
+        }
         fa_ar = 0;
-        fa_sq = 0;
-        fa_sq_rec = 0;
         fa_gl_close();
         if (fa_sv)
             fa_sv_do();
@@ -1476,8 +1418,6 @@ static void fa_buttons(uint32_t pressed)
             if (PG_BTN[i] == B_FX && fa_page == 6u) {     /* FX again: round the four pop-ups, then back to the page */
                 fa_sv = 0;
                 fa_ar = 0;
-                fa_sq = 0;
-                fa_sq_rec = 0;
                 fa_gl_close();
                 fmg_fx = (uint8_t)((fmg_fx + 1u) % 5u);
                 if (!fmg_fx)
@@ -1487,14 +1427,12 @@ static void fa_buttons(uint32_t pressed)
             fmg_fx = 0;
             fa_sv = 0;                                    /* a page button cancels the dialog */
             fa_ar = 0;
-            fa_sq = 0;
-            fa_sq_rec = 0;
             fa_gl_close();
             if (PG_BTN[i] == B_ENV) {
                 fa_env_last = (uint8_t)(fa_page == 4u ? 5u : 4u);
                 fa_goto(fa_env_last);
             } else {
-                static const uint8_t TO[5] = {0, 3, 1, 6, 4};      /* LFO CTRL, EDIT FILT, SCL OSC (again: MIX), FX, ENV */
+                static const uint8_t TO[5] = {0, 3, 1, 6, 4};      /* LFO CTRL, (HOME FILT), SCL OSC (again: MIX), FX, ENV */
                 fa_goto(PG_BTN[i] == B_SCL && fa_page == 1u ? 2u : TO[i]);
             }
         }
@@ -1520,9 +1458,8 @@ static void fa_mono(void)
 
 static void fa_input(void)
 {
-    uint32_t pressed = fm1_input_edges(0), k;
+    uint32_t pressed = fm1_input_edges(0), k, notes = fm1_input_note_edges();
     int32_t s;
-    (void)fm1_input_note_edges();
     midi_take();                                            /* MIDI IN notes */
     midi_pc_poll();                                         /* Program Change: a patch */
     fmini_poll();                                            /* SLOT turned: its patch */
@@ -1537,8 +1474,18 @@ static void fa_input(void)
     fmg_glide_sync();                                       /* the patch's GLIDE switch and time -> the track's */
     fmg_force_page = (int8_t)fa_page;
     fa_buttons(pressed);
-    if ((s = panel_enc(EN_PRESET)) != 0 && !fa_gl)
-        fa_preset(s);
+    if (notes)
+        fa_layer_keys(notes);                               /* keys pressed with SEQ (or EDIT, the acid line on) held */
+    fa_seq_poll();                                          /* the sequence's length, REC, the keys' layer */
+    fa_acid_poll();                                         /* the acid line into the sequence */
+    if (fa_pl_down && (s = panel_enc(EN_SELECT)) != 0)
+        fa_tempo_turn(s);                                   /* PLAY held: SELECT is the tempo */
+    if ((s = panel_enc(EN_PRESET)) != 0 && !fa_gl) {
+        if (fa_acid && !fa_sq && !fa_ar && !fa_sv && !fmg_fx)
+            ac_turn(AV_TENS, s, EN_PRESET);                 /* the acid line: PRESETS is TENSION */
+        else
+            fa_preset(s);
+    }
     if (fa_track_preset())                                  /* a new preset (the knob, a Program Change, a saved one): HOME */
         fa_home();
     fa_cc_poll();                                         /* the CCs the MIDI inputs brought */
@@ -1564,7 +1511,7 @@ static void fa_input(void)
         (void)panel_enc(EN_PRESET);
         if (fa_gl == 1u) {
             if ((s = panel_enc(EN_SELECT)) != 0)
-                fa_gl_row = (uint8_t)((fa_gl_row + 5u + (s > 0 ? 1u : 4u)) % 5u);
+                fa_gl_row = (uint8_t)((fa_gl_row + 6u + (s > 0 ? 1u : 5u)) % 6u);
             if ((s = panel_enc(EN_ALGO)) != 0) {
                 if (fa_gl_row == 0u) {
                     static const uint8_t SRC[3] = {0, 1, 3};
@@ -1583,7 +1530,7 @@ static void fa_input(void)
                         midi_expression_channel(ch);
                     fa_cfg_dirty = 1;
                 } else
-                    fa_gl = fa_gl_row == 2u ? 2u : 3u;
+                    fa_gl = fa_gl_row == 2u ? 2u : fa_gl_row == 4u ? 4u : 3u;
             }
         } else if (fa_gl == 2u) {
             if ((s = panel_enc(EN_SELECT)) != 0)
@@ -1598,15 +1545,19 @@ static void fa_input(void)
                 fa_cc[fa_cc_i] = (uint8_t)c;
                 fa_cfg_dirty = 1;
             }
+        } else if (fa_gl == 4u) {                           /* ACID: the line's settings */
+            if ((s = panel_enc(EN_SELECT)) != 0)
+                ac_row = (uint8_t)((ac_row + AC_NROW + (s > 0 ? 1u : AC_NROW - 1u)) % AC_NROW);
+            if ((s = panel_enc(EN_ALGO)) != 0)
+                ac_menu_turn(s);
         } else {                                            /* ABOUT: either encoder goes back */
             if (panel_enc(EN_SELECT) != 0 || panel_enc(EN_ALGO) != 0)
                 fa_gl = 1;
         }
         return;
     }
-    if (fa_sq) {                                          /* the SEQ pop-up: ALGORITHM is the tempo */
-        if ((s = panel_enc(EN_ALGO)) != 0)
-            song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + fmg_acc(EN_ALGO, s, 200), GP[G_BPM].min, GP[G_BPM].max);
+    if (fa_sq) {                                          /* SEQ held: the wheels and knobs wait */
+        (void)panel_enc(EN_ALGO);
         (void)panel_enc(EN_SELECT);
         for (k = 0; k < 4u; k++)
             (void)panel_enc(EN_K1 + k);
@@ -1656,6 +1607,22 @@ static void fa_input(void)
             (void)panel_enc(EN_K1 + k);
         return;
     }
+    if (fa_acid) {                                        /* the acid line: SELECT DENSITY, ALGORITHM MOVEMENT; EDIT held, the
+                                                           * knobs ACCENTS SLIDES NOTES RANGE */
+        static const uint8_t AK[4] = {AV_ACC, AV_SLD, AV_NOTES, AV_OCT};
+        if ((s = panel_enc(EN_SELECT)) != 0)
+            ac_turn(AV_DENS, s, EN_SELECT);
+        if ((s = panel_enc(EN_ALGO)) != 0)
+            ac_turn(AV_MOVE, s, EN_ALGO);
+        if (fa_ed_down) {
+            for (k = 0; k < 4u; k++)
+                if ((s = panel_enc(EN_K1 + k)) != 0) {
+                    ac_turn(AK[k], s, EN_K1 + k);
+                    fa_ed_used = 1;
+                }
+            return;
+        }
+    }
     if ((s = panel_enc(EN_SELECT)) != 0)
         fa_select(s);
     fmg_force_page = (int8_t)fa_page;
@@ -1683,21 +1650,28 @@ static void fa_leds(void)
     for (k = 0; k < NB; k++)
         led_put(nd, panel.btn[k], 1);                       /* every button's glow */
     {
-        static const uint8_t PG_LED[FA_NPAGE] = {B_LFO, B_SCL, B_SCL, B_EDIT, B_ENV, B_ENV, B_FX};
-        led_put(nl, panel.btn[PG_LED[fa_page]], 1);          /* the page's button */
-        led_put(nl, panel.btn[B_HOME], fa_page == FA_HOME_PAGE);   /* moogi: FILT is HOME's (was CTRL): both light */
+        static const uint8_t PG_LED[FA_NPAGE] = {B_LFO, B_SCL, B_SCL, B_HOME, B_ENV, B_ENV, B_FX};
+        led_put(nl, panel.btn[PG_LED[fa_page]], 1);          /* the page's button (FILT: HOME's) */
     }
+    led_put(nl, panel.btn[B_EDIT], fa_acid);                /* Acid Moogi: EDIT lights while the acid line is on */
     led_put(nl, panel.btn[B_ARP], TSEL->p[P_AMODE] != 0);
     led_put(nl, panel.btn[B_SEQ], fa_sq != 0u);
     led_put(nl, panel.btn[B_REC], fa_sq_rec != 0u);
-    led_put(nl, panel.btn[B_PLAY], song.playing != 0u);
+    led_put(nl, panel.btn[B_PLAY], fa_pl_down ? fa_pl_led() : song.playing != 0u);   /* held: it blinks in time */
     led_put(nl, panel.btn[B_SAVE], fa_sv);
     led_put(nl, panel.btn[B_GLO], fa_gl != 0u);
     led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
     led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
-    c = fm1_in.notes | fa_sound_keys();                     /* the keys held, and the notes sounding: arpeggio, sequence, MIDI */
-    for (k = 0; k < 27u; k++)
-        led_put(nl, 14u + k, (int)((c >> k) & 1u));
+    if (fa_seq_leds(nl, nm)) {                              /* the sequence on the keys (SEQ held, playing, recording) */
+        if (!fa_sq)
+            for (k = 0; k < 27u; k++)
+                if ((fm1_in.notes >> k) & 1u)
+                    led_put(nl, 14u + k, 1);
+    } else {
+        c = fm1_in.notes | fa_sound_keys();                 /* the keys held, and the notes sounding: arpeggio, MIDI */
+        for (k = 0; k < 27u; k++)
+            led_put(nl, 14u + k, (int)((c >> k) & 1u));
+    }
     for (k = 0; k < FM1_NCOL; k++) {
         fm1_led_dim[k] = nd[k];
         fm1_led_breath[k] = nb[k];

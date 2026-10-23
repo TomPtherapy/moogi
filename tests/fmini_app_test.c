@@ -495,41 +495,169 @@ int main(int argc, char **argv)
         fframes(4500);
         if (fa_ar) { printf("arp pop-up stays\n"); return 1; }
         trk[0].p[P_AMODE] = 0;
-        /* the sequencer */
-        fpress(B_SEQ);
-        if (!fa_sq) { printf("seq pop-up\n"); return 1; }
-        fpress(B_REC);
-        if (!fa_sq_rec) { printf("rec\n"); return 1; }
-        input_on(&trk[0], 60, 100); input_on(&trk[0], 64, 100); input_on(&trk[0], 67, 100);
+        /* Acid Moogi: the sequencer on the keys */
+        fa_seq_clear();
+        fa_parts = 1;
+        if (!(kb_mask & (1u << panel.btn[B_SEQ]))) { printf("SEQ is not a key layer\n"); return 1; }
+        fpress(B_REC);                                   /* stopped: step record, the cursor on step 1 */
+        if (!fa_sq_rec || fa_sq_cur != 0 || !fa_seq_stepping()) { printf("step rec arm\n"); return 1; }
+        input_on(&trk[0], 60, 100); input_off(&trk[0], 60);
+        fpress(B_ARP);                                   /* ARP: a rest (the arpeggiator stays off) */
+        if (trk[0].p[P_AMODE] || fa_sq_cur != 2 || trk[0].step[1].time != ST_REST) { printf("step rec rest %d %d\n", fa_sq_cur, trk[0].p[P_AMODE]); return 1; }
+        input_on(&trk[0], 62, 100); input_on(&trk[0], 65, 100);   /* 65 pressed while 62 is held: a slide */
+        input_off(&trk[0], 62); input_off(&trk[0], 65);
+        input_on(&trk[0], 67, 100); input_off(&trk[0], 67);
         trk_all_off(&trk[0]);
-        if (fa_sq_cur != 3 || trk[0].step[0].note[0] != 60 || trk[0].step[2].note[0] != 67 || trk[0].p[P_SLEN] != 3) { printf("seq record %d\n", fa_sq_cur); return 1; }
+        if (trk[0].step[0].note[0] != 60 || trk[0].step[2].note[0] != 62 || trk[0].step[3].note[0] != 65 || trk[0].step[4].note[0] != 67 ||
+            !(trk[0].step[2].flags & SF_SLIDE) || (trk[0].step[3].flags & SF_SLIDE) || fa_sq_cur != 5) { printf("step rec notes / slide (cursor %d)\n", fa_sq_cur); return 1; }
+        ui.force = 1; fa_draw();
+        {   /* SEQ held: a white key moves the cursor, black 2 twice turns part 2 on, black 5 is HALF; the keys play nothing */
+            uint32_t w8 = fa_white_key(8), b2 = fa_black_key(1), b5 = fa_black_key(4);
+            fm1_in.buttons |= 1u << panel.btn[B_SEQ]; host_pressed |= 1u << panel.btn[B_SEQ]; fframe();
+            if (!fa_sq) { printf("SEQ held\n"); return 1; }
+            host_notes |= 1u << w8; fframe();
+            if (fa_sq_cur != 8) { printf("SEQ + white key: cursor %d\n", fa_sq_cur); return 1; }
+            host_notes |= 1u << b2; fframe();
+            if (fa_parts != 1 || fa_sq_view != 1) { printf("SEQ + black 2 once: parts %d view %d\n", fa_parts, fa_sq_view); return 1; }
+            fframes(100);
+            host_notes |= 1u << b2; fframe();
+            if (fa_parts != 3 || trk[0].p[P_SLEN] != 32 || fa_seq_count() != 32) { printf("SEQ + black 2 twice: parts %d len %d\n", fa_parts, trk[0].p[P_SLEN]); return 1; }
+            host_notes |= 1u << b5; fframe();
+            if (fa_parts != 19 || fa_seq_count() != 24 || trk[0].p[P_SLEN] != 32) { printf("HALF: parts %d count %u\n", fa_parts, fa_seq_count()); return 1; }
+            ui.force = 1; fa_draw(); dump(dir, 18);
+            fa_leds();
+            fm1_in.buttons &= ~(1u << panel.btn[B_SEQ]); fframe();
+            if (fa_sq) { printf("SEQ let go\n"); return 1; }
+        }
         fpress(B_REC);
         if (fa_sq_rec) { printf("rec off\n"); return 1; }
-        fpress(B_PLAY);
-        if (transport_req != 1) { printf("play request\n"); return 1; }
-        for (i = 0; i < 400; i++) { events_block(CTL); mix_block((int32_t[2 * CTL]){0}, CTL); }
-        if (!song.playing) { printf("not playing\n"); return 1; }
-        {   uint32_t seen = 0, lit = 0;
-            for (i = 0; i < 1200; i++) {
+        {   /* parts 1 and 3 play, part 2 is skipped; 1, 3 with HALF: 1..16 then 33..40 */
+            uint32_t seen1 = 0, seen2 = 0, seen3 = 0, past = 0, j;
+            for (j = 0; j < 64u; j++) { memset(&trk[0].step[j], 0, sizeof trk[0].step[j]); trk[0].step[j].note[0] = (uint8_t)(40u + j % 24u); trk[0].step[j].n = 1; trk[0].step[j].time = ST_NOTE; }
+            fa_parts = 1 | 4 | 16;
+            fframe();
+            if (trk[0].p[P_SLEN] != 48 || fa_seq_count() != 24) { printf("parts 1+3 half: len %d count %u\n", trk[0].p[P_SLEN], fa_seq_count()); return 1; }
+            fpress(B_PLAY);
+            if (transport_req != 1) { printf("play request\n"); return 1; }
+            for (i = 0; i < 6000; i++) {
                 int32_t o[2 * CTL];
                 mix_block(o, CTL);
-                seen |= 1u << (trk[0].seq_idx % 3u);
-                lit |= fa_sound_keys();
+                if (song.playing) {
+                    uint32_t q = trk[0].seq_idx;
+                    seen1 |= q < 16u; seen2 |= q >= 16u && q < 32u; seen3 |= q >= 32u && q < 40u; past |= q >= 40u;
+                }
             }
-            if (seen != 7u) { printf("seq steps seen %u\n", seen); return 1; }
-            if (!lit) { printf("no key lit while playing\n"); return 1; }
+            if (!song.playing || !seen1 || seen2 || !seen3 || past) { printf("part skip: playing %d 1:%u 2:%u 3:%u past:%u\n", song.playing, seen1, seen2, seen3, past); return 1; }
+            fa_leds();
+            ui.force = 1; fa_draw(); dump(dir, 19);
+            fpress(B_PLAY);
+            events_block(CTL);
+            if (song.playing) { printf("stop\n"); return 1; }
         }
-        ui.force = 1; fa_draw(); dump(dir, 18);
-        fpress(B_PLAY);
-        events_block(CTL);
-        if (song.playing) { printf("stop\n"); return 1; }
-        fpress(B_REC);                                   /* a take of 16 ends by itself */
-        for (k = 0; k < 20u; k++) input_on(&trk[0], 50u + k, 100);
-        trk_all_off(&trk[0]);
-        if (fa_sq_rec || trk[0].p[P_SLEN] != 16 || trk[0].step[15].note[0] != 65) { printf("take of 16 (%d)\n", trk[0].p[P_SLEN]); return 1; }
-        ui.force = 1; fa_draw(); dump(dir, 19);
-        fpress(B_SEQ);
-        if (fa_sq) { printf("seq close\n"); return 1; }
+        {   /* live record: REC while playing; a note pressed while the last is held slides into it; a hard note no accent */
+            uint32_t j, slides = 0, acc = 0, n55 = 0, n48 = 0;
+            fa_seq_clear();
+            fa_parts = 1;
+            fframe();
+            fpress(B_PLAY);
+            for (i = 0; i < 40; i++) { int32_t o[2 * CTL]; mix_block(o, CTL); }
+            fpress(B_REC);
+            if (song.rec != 1 || !fa_sq_rec) { printf("live rec arm (rec %d)\n", song.rec); return 1; }
+            input_on(&trk[0], 48, 127);
+            for (i = 0; i < 400; i++) { int32_t o[2 * CTL]; mix_block(o, CTL); }
+            input_on(&trk[0], 55, 127);
+            input_off(&trk[0], 48);
+            for (i = 0; i < 200; i++) { int32_t o[2 * CTL]; mix_block(o, CTL); }
+            input_off(&trk[0], 55);
+            for (j = 0; j < 16u; j++) {
+                const step_t *st = &trk[0].step[j];
+                slides += (st->flags & SF_SLIDE) != 0;
+                acc += (st->flags & SF_ACCENT) != 0;
+                n55 += st->time == ST_NOTE && st->n && st->note[0] == 55;
+                n48 += st->time == ST_NOTE && st->n && st->note[0] == 48;
+            }
+            if (slides != 1 || acc || n55 != 1 || n48 != 1) { printf("live rec: slides %u accents %u 48:%u 55:%u\n", slides, acc, n48, n55); return 1; }
+            fpress(B_REC);
+            fpress(B_PLAY);
+            events_block(CTL);
+            trk_all_off(&trk[0]);
+            if (song.playing || song.rec) { printf("live rec stop\n"); return 1; }
+        }
+        {   /* the tempo: PLAY held + SELECT; the hold does not start the sequence, a tap does */
+            int32_t b0 = song.g[G_BPM] = 120;
+            fm1_in.buttons |= 1u << panel.btn[B_PLAY]; host_pressed |= 1u << panel.btn[B_PLAY]; fframe();
+            fframes(300);
+            if (!fa_pl_show()) { printf("tempo screen\n"); return 1; }
+            fturn(EN_SELECT, 1); fframes(200); fturn(EN_SELECT, 1); fframes(200); fturn(EN_SELECT, -1); fframes(200); fturn(EN_SELECT, 1);
+            if (song.g[G_BPM] != b0 + 2) { printf("tempo %d -> %d\n", b0, song.g[G_BPM]); return 1; }
+            ui.force = 1; fa_draw(); dump(dir, 41);
+            fm1_in.buttons &= ~(1u << panel.btn[B_PLAY]); fframe();
+            if (transport_req) { printf("tempo hold started the sequence\n"); return 1; }
+            if (fa_page == 0) fa_page = 3;
+        }
+        {   /* the acid line: EDIT twice on (it lights, the line is written), a tap a new line, the wheels and EDIT + knobs */
+            uint32_t j, notes = 0, s0, sig0;
+            uint8_t before[16];
+            fa_parts = 1;
+            fa_seq_clear();
+            fframes(500);
+            fpress(B_EDIT); fframes(100); fpress(B_EDIT);
+            if (!fa_acid) { printf("acid: EDIT twice\n"); return 1; }
+            fframe();
+            for (j = 0; j < 16u; j++) notes += trk[0].step[j].time == ST_NOTE && trk[0].step[j].n;
+            if (!notes || trk[0].step[0].time != ST_NOTE || !(kb_mask & (1u << panel.btn[B_EDIT]))) { printf("acid: no line (%u notes)\n", notes); return 1; }
+            fa_leds();
+            s0 = ac_seed;
+            fframes(500);
+            fpress(B_EDIT); fframes(400);              /* a tap: a new line (stopped: now) */
+            if (ac_seed == s0 || !fa_acid) { printf("acid: new line %u %u\n", s0, ac_seed); return 1; }
+            ac_load(12345u, 0); fframe();
+            for (j = 0; j < 16u; j++) before[j] = trk[0].step[j].n ? trk[0].step[j].note[0] : 0;
+            fturn(EN_SELECT, -1); fframes(100);
+            fturn(EN_SELECT, -1); fframes(100);
+            if (ac_v[AV_DENS] != 58) { printf("acid: SELECT density %d\n", ac_v[AV_DENS]); return 1; }
+            ac_v[AV_DENS] = 60; ac_build(); fframe();
+            for (j = 0; j < 16u; j++) if (before[j] != (trk[0].step[j].n ? trk[0].step[j].note[0] : 0)) { printf("acid: same seed, same line (%u)\n", j); return 1; }
+            fturn(EN_PRESET, 1); fframes(100);
+            if (ac_v[AV_TENS] != 26) { printf("acid: PRESETS tension %d\n", ac_v[AV_TENS]); return 1; }
+            fm1_in.buttons |= 1u << panel.btn[B_EDIT]; host_pressed |= 1u << panel.btn[B_EDIT]; fframe();
+            fturn(EN_K1 + 2, 1); fframes(100);
+            if (ac_v[AV_NOTES] != 4) { printf("acid: EDIT + K3 notes %d\n", ac_v[AV_NOTES]); return 1; }
+            host_notes |= 1u << fa_white_key(2); fframe();
+            if (ac_v[AV_ROOT] != kb_map(&trk[0], fa_white_key(2)) % 12u) { printf("acid: EDIT + key root %d\n", ac_v[AV_ROOT]); return 1; }
+            if (!fa_ac_show()) { printf("acid screen\n"); return 1; }
+            ui.force = 1; fa_draw(); dump(dir, 42);
+            fm1_in.buttons &= ~(1u << panel.btn[B_EDIT]); fframes(500);
+            if (!fa_acid || ac_pend) { printf("acid: EDIT hold with a knob is no tap\n"); return 1; }
+            ac_v[AV_ROOT] = 0;
+            fa_gl = 4; ac_row = 10;                       /* GLO > ACID: LFO 1 on DENSITY; playing, the line moves */
+            fturn(EN_ALGO, 1);
+            if (ac_v[AC_L(0, 0)] != 1) { printf("acid: LFO target %d\n", ac_v[AC_L(0, 0)]); return 1; }
+            ac_v[AC_L(0, 2)] = 0; ac_v[AC_L(0, 3)] = 50;
+            ui.force = 1; fa_draw(); dump(dir, 43);
+            fa_gl = 0;
+            sig0 = 0;
+            fpress(B_PLAY);
+            {   uint32_t moved = 0, d0 = ac_built[0];
+                for (i = 0; i < 3000; i++) {
+                    int32_t o[2 * CTL];
+                    mix_block(o, CTL);
+                    if ((i & 15u) == 0u) { fframe(); moved |= ac_built[0] != d0; }
+                }
+                if (!moved) { printf("acid: the LFO does not move DENSITY\n"); return 1; }
+            }
+            fpress(B_EDIT); fframes(400);              /* playing: the new line waits for the loop's end */
+            (void)sig0;
+            for (i = 0; i < 3000 && ac_pend; i++) { int32_t o[2 * CTL]; mix_block(o, CTL); if ((i & 15u) == 0u) fframe(); }
+            if (ac_pend) { printf("acid: the new line never came\n"); return 1; }
+            ac_v[AC_L(0, 0)] = 0;
+            fpress(B_PLAY);
+            events_block(CTL);
+            fpress(B_EDIT); fframes(100); fpress(B_EDIT);
+            if (fa_acid) { printf("acid: EDIT twice off\n"); return 1; }
+            fframes(500);
+            trk_all_off(&trk[0]);
+        }
         /* the keys of a sounding note light */
         trk_note_on(&trk[0], kb_map(&trk[0], 5), 100);
         if (!((fa_sound_keys() >> 5) & 1u)) { printf("key led\n"); return 1; }
@@ -540,7 +668,7 @@ int main(int argc, char **argv)
         fturn(EN_ALGO, -1); fturn(EN_ALGO, -1); fturn(EN_ALGO, -1);
         if (fm_midi_src != 0) { printf("src min\n"); return 1; }
         fturn(EN_SELECT, -1);
-        if (fa_gl_row != 4) { printf("rows wrap\n"); return 1; }
+        if (fa_gl_row != 5) { printf("rows wrap\n"); return 1; }
         /* GLO: PITCH BEND draws at once, ABOUT closes with either encoder */
         fa_gl = 1; fa_gl_row = 3; fm_bend_mode = 0;
         sig = fa_signature();
@@ -555,6 +683,8 @@ int main(int argc, char **argv)
         fa_gl = 1; fa_gl_row = 2; fturn(EN_SELECT, 1);
         if (fa_gl_row != 3) { printf("PITCH BEND follows MIDI CC\n"); return 1; }
         fa_gl = 1; fa_gl_row = 4; fturn(EN_ALGO, 1);
+        if (fa_gl != 4) { printf("ACID opens\n"); return 1; }
+        fa_gl = 1; fa_gl_row = 5; fturn(EN_ALGO, 1);
         if (fa_gl != 3) { printf("ABOUT opens\n"); return 1; }
         fa_gl = 3; fturn(EN_ALGO, 1);
         if (fa_gl != 1) { printf("about ALGO\n"); return 1; }
@@ -611,7 +741,7 @@ int main(int argc, char **argv)
         if (fa_page != 2) { printf("SCL -> MIX (%d)\n", fa_page); return 1; }
         fpress(B_SCL);
         if (fa_page != 1) { printf("SCL -> OSC again (%d)\n", fa_page); return 1; }
-        fpress(B_EDIT);                                  /* EDIT: FILT */
+        fpress(B_EDIT); fframes(400);                    /* EDIT (the acid line off): FILT, once it is not a double press */
         if (fa_page != 3) { printf("EDIT -> FILT (%d)\n", fa_page); return 1; }
         fpress(B_LFO);                                   /* LFO: CTRL */
         fa_leds();

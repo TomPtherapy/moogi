@@ -451,6 +451,45 @@ static void arp_step(track_t *t, uint32_t n, uint32_t gate_n)
 static void arp_tick(track_t *t, uint32_t n) { arp_step(t, n, n); }
 
 /* -------------------------------------------------------- note input --- */
+#if FELUCCA_FMINI_ONLY
+/* Acid Moogi (fmini_seq.c): the sequence of track 1 is four parts of 16 steps; bits 0..3 of fa_parts are the parts that
+ * play (in order, the others skipped), bit 4 HALF: the last part that plays plays its first 8 steps only. P_SLEN is
+ * 16 x the last part that plays (fmini_seq.c keeps it). seq_nx: the step after idx that plays; seq_pv: the one before */
+static volatile uint8_t fa_parts = 1u;
+static int seq_on_step(uint32_t i, uint32_t len)
+{
+    uint32_t p = i >> 4, m = fa_parts & 15u, last;
+    if (i >= len || !((m >> p) & 1u))
+        return 0;
+    last = (m & 8u) ? 3u : (m & 4u) ? 2u : (m & 2u) ? 1u : 0u;
+    return !((fa_parts & 16u) && p == last && (i & 15u) >= 8u);
+}
+static uint32_t seq_nx(const track_t *t, uint32_t idx, uint32_t len)
+{
+    uint32_t i = idx, n;
+    if (t == &trk[0] && (fa_parts & 15u))
+        for (n = 0; n < NSTEP; n++) {
+            i = (i + 1u) % len;
+            if (seq_on_step(i, len))
+                return i;
+        }
+    return (idx + 1u) % len;
+}
+static uint32_t seq_pv(const track_t *t, uint32_t idx, uint32_t len)
+{
+    uint32_t i = idx % len, n;
+    if (t == &trk[0] && (fa_parts & 15u))
+        for (n = 0; n < NSTEP; n++) {
+            i = i ? i - 1u : len - 1u;
+            if (seq_on_step(i, len))
+                return i;
+        }
+    return (idx % len + len - 1u) % len;
+}
+#else
+#define seq_nx(t, idx, len) (((idx) + 1u) % (len))
+#define seq_pv(t, idx, len) (((idx) % (len) + (len) - 1u) % (len))
+#endif
 /* the length of step idx in samples: SWING (the track's + the global, at most 100) makes the even steps longer
  * and the odd ones shorter, so every odd step starts late */
 static uint32_t step_samples(const track_t *t, uint32_t period, uint32_t idx)
@@ -483,7 +522,7 @@ static void rec_note(track_t *t, uint32_t note, uint32_t vel)
     int32_t off = rec_nudge(t->seq_pos >= cur ? 0 : next ? -(int32_t)(cur - t->seq_pos) : (int32_t)t->seq_pos, period);
     step_t *s;
     if (next)
-        idx = (idx + 1u) % len;
+        idx = seq_nx(t, idx, len);
     s = &t->step[idx];
     /* the step's notes play later in this pass (it is the next one, not played early yet, or the one playing whose
      * nudge has not come yet): what sounds now must not play again there (rskip) */
@@ -538,8 +577,10 @@ static void rec_note(track_t *t, uint32_t note, uint32_t vel)
         s->note[s->n - 1u] = (uint8_t)note;
     }
     s->time = ST_NOTE;
+#if !FELUCCA_FMINI_ONLY                             /* (Acid Moogi: only the acid line writes accents) */
     if (vel > 110)
         s->flags |= SF_ACCENT;
+#endif
     if (vel > s->vel)
         s->vel = (uint8_t)vel;
     t->seq_active = 1;
@@ -551,6 +592,14 @@ static void rec_note(track_t *t, uint32_t note, uint32_t vel)
             t->rskip[t->rskip_n++] = (uint8_t)note;
     }
     if (!t->rh_n || t->rh_start != idx) {           /* a new hold (one in another step ends) */
+#if FELUCCA_FMINI_ONLY
+        if (t->rh_n) {                              /* Acid Moogi: a new note while the last one is held slides into it
+                                                     * (the Volca Bass's way): the step before this one, the hold's */
+            uint32_t pv = seq_pv(t, idx, len);
+            if (t->step[pv].time == ST_TIE || t->step[pv].n)
+                t->step[pv].flags |= SF_SLIDE;
+        }
+#endif
         t->rh_n = 0;
         t->rh_start = (uint8_t)idx;
         t->rh_ties = 0;
@@ -620,7 +669,7 @@ static __attribute__((noinline)) void cin_keep(track_t *t, uint32_t note, uint32
 }
 
 #if FELUCCA_FMINI_ONLY
-static void fa_seq_note(track_t *t, uint32_t note);      /* fmini_app.c: the SEQ pop-up's step recording */
+static void fa_seq_note(track_t *t, uint32_t note);      /* fmini_seq.c: step record */
 #endif
 static void input_on(track_t *t, uint32_t note, uint32_t vel)
 {
@@ -640,10 +689,16 @@ static void input_on(track_t *t, uint32_t note, uint32_t vel)
 
 static int midi_note_held(const track_t *t, uint32_t note);
 static int midi_local_held(const track_t *t, uint32_t note);
+#if FELUCCA_FMINI_ONLY
+static void fa_seq_off(track_t *t, uint32_t note);       /* fmini_seq.c: step record's held keys (a slide) */
+#endif
 static void input_off(track_t *t, uint32_t note)
 {
     if (midi_note_held(t, note))
         return;
+#if FELUCCA_FMINI_ONLY
+    fa_seq_off(t, note);
+#endif
     if (cin_left) {                                 /* a kept note let go before step 1: recorded, then let go */
         uint32_t i = trk_index(t), k;
         for (k = 0; k < cin_n[i]; k++)
@@ -923,10 +978,14 @@ static int seq_miss(const track_t *t, const step_t *s, uint32_t idx)
 static __attribute__((noinline)) void seq_step(track_t *t, const step_t *s, uint32_t idx, uint32_t period, uint32_t skip)
 {
     uint32_t i, j, gate = period * (uint32_t)t->p[P_SGATE] / 128u;
+#if FELUCCA_FMINI_ONLY
+    uint32_t vel = s->vel ? s->vel : (s->flags & SF_ACCENT) ? 127u : 96u;   /* (Acid Moogi: the acid's ACCENT VEL) */
+#else
     uint32_t vel = (s->flags & SF_ACCENT) ? 127u : (s->vel ? s->vel : 96u);
+#endif
     uint32_t slide_in = t->seq_hold && t->seq_n && !(skip & SEQ_REP);
     uint32_t len = t->p[P_SLEN] ? (uint32_t)t->p[P_SLEN] : 1u;
-    uint32_t next_tie = seq_steps(t)[(idx + 1u) % len].time == ST_TIE;
+    uint32_t next_tie = seq_steps(t)[seq_nx(t, idx, len)].time == ST_TIE;
     uint32_t hits = step_ratchet(s);
     uint8_t nn[4 + NLANE], vv[4 + NLANE];           /* the notes it plays: its notes, then its hits */
     uint32_t m = 0, sk = 0;
@@ -1121,7 +1180,7 @@ static __attribute__((noinline)) void seq_nd_due(track_t *t, uint32_t period, ui
         seq_play(t, t->seq_idx, period);
     }
     if (t->nd_early != ND_NONE && t->seq_pos >= t->nd_early - 1u && t->seq_pos != 0x7FFFFFFFu + n) {
-        uint32_t nx = (t->seq_idx + 1u) % len;
+        uint32_t nx = seq_nx(t, t->seq_idx, len);
         t->nd_early = ND_NONE;
         t->nd_fired = (uint8_t)(nx + 1u);
         seq_play(t, nx, period);
@@ -1132,7 +1191,7 @@ static __attribute__((noinline)) void seq_nd_due(track_t *t, uint32_t period, ui
  * next step's early play (not inlined, as seq_nd_due) */
 static __attribute__((noinline)) void seq_nd_start(track_t *t, uint32_t period, uint32_t len)
 {
-    uint32_t nx = (t->seq_idx + 1u) % len;
+    uint32_t nx = seq_nx(t, t->seq_idx, len);
     int32_t d;
     t->nd_early = ND_NONE;
     if (t->nd_fired == t->seq_idx + 1u) {
@@ -1185,7 +1244,7 @@ static void seq_tick(track_t *t, uint32_t n)
             break;
         top = t->seq_pos >= 0x7FFFFFFFu;            /* (PLAY, a SONG section: its first step) */
         t->seq_pos = top ? (chain.running ? chain.carry : 0u) : t->seq_pos - cur_len;
-        t->seq_idx = (uint16_t)((t->seq_idx + 1u) % len);
+        t->seq_idx = (uint16_t)seq_nx(t, t->seq_idx, len);
         seq_enter(t, top, len);
         if (t->p[P_SQNT] && !t->nd_fired)
             seq_play_on(t, period);                 /* QUANTIZE ON: every step on its start, as before 1.2 */
