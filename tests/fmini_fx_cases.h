@@ -401,10 +401,52 @@ static void drive_cases(void)
     }
     (void)base;
 }
+/* moogi: while TIME glides, the delay's time moves every sample, not in a jump every block (CTL samples). A 440 Hz sine
+ * through DIGITAL, P-PONG, MULTI, ANALOG and TAPE (no feedback), TIME from 50 to 100 so the glide runs at its fastest: the
+ * output's mean |second difference| on the samples where a block starts is no more than 1.5 x the one elsewhere (with the
+ * jump of up to 8 samples a block, it was several times) */
+static void delay_glide_case(void)
+{
+    static const uint32_t TY[5] = {1, 3, 4, 0, 2};
+    uint32_t k, i, n = 2u * 44100u;
+    int ok = 1;
+    for (k = 0; k < 5u; k++) {
+        double eb = 0, eo = 0;
+        uint32_t nb = 0, no = 0;
+        delay_setup(TY[k], 200);
+        song.g[G_DFDBK] = 0;
+        for (i = 0; i < n; i++)
+            din[i] = (int32_t)(8000.0 * sin(2 * 3.14159265358979 * 440.0 * i / 44100.0));
+        {   /* run in two halves: TIME 50 for 0.5 s, then 100 (the glide at +25 % speed for the rest) */
+            static int32_t w[CTL], c[CTL], d[CTL], r[CTL];
+            uint32_t t, j;
+            song.g[G_DRREV] = 50;
+            for (t = 0; t + CTL <= n; t += CTL) {
+                if (t == 22050u - 22050u % CTL)
+                    song.g[G_DRREV] = 100;
+                for (j = 0; j < CTL; j++) { c[j] = 0; d[j] = din[t + j]; r[j] = 0; w[j] = 0; }
+                fx_buses(c, d, r, w, CTL);
+                for (j = 0; j < CTL; j++)
+                    outL[t + j] = w[j] + (fx.ds_on ? dside[j] : 0);
+            }
+        }
+        for (i = 26460u; i < 70560u; i++) {               /* 0.6 .. 1.6 s: the glide running */
+            double s2 = fabs((double)outL[i] - 2.0 * outL[i - 1] + outL[i - 2]);
+            if (i % CTL == 0u || i % CTL == 1u) { eb += s2; nb++; } else { eo += s2; no++; }
+        }
+        eb /= nb ? nb : 1;
+        eo /= no ? no : 1;
+        printf("   delay %s, TIME gliding: |2nd difference| at block starts %.1f, elsewhere %.1f\n", DN[TY[k]], eb, eo);
+        ok &= eo > 1.0 && eb < 1.5 * eo;
+    }
+    fxcheck("moogi: a gliding delay TIME moves every sample (no step at the block starts) in DIGITAL P-PONG MULTI ANALOG TAPE", ok);
+}
+
 static void fx_cases(const char *dir)
 {
     reverb_cases(dir);
     delay_cases(dir);
+    delay_glide_case();
     delay_extra();
     chorus_cases(dir);
     drive_cases();

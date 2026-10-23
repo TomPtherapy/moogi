@@ -36,6 +36,8 @@ static struct {
 #if FELUCCA_FMINI_ONLY
     int32_t cho_lp[2];                   /* the chorus's two sides' low-passes (the BBD chain's band) */
     int32_t dl_q;                        /* the delay time, Q8 samples, gliding to the TIME knob (a click-free tape-like bend) */
+    int32_t dl_g;                        /* moogi: the wet's gain over a TYPE change (Q15: fades out, the TYPE switches, fades in) */
+    uint8_t dl_ty, dl_tyok;              /* .. the TYPE running, and whether dl_ty / dl_g are set */
     int32_t dly_hp;                      /* TAPE's low cut in the loop */
     uint32_t dly_ph, dly_ph2;            /* the modulation: wow / BBD drift, flutter */
     uint32_t rv_c[2], rv_n[2], rv_i[2];  /* REVERSE: the two heads' position in their sweep, its length and its triangle's slope (65536 / length) */
@@ -1013,6 +1015,7 @@ static inline void dly_put(int32_t v)                       /* the loop's input 
     fx.dly_w++;
 }
 #define DLY_MAXQ ((int32_t)(DLY_LEN - 4u) << 8)
+#define DLY_FADE 74                                      /* moogi: a TYPE change: 32767 / 74 = 443 samples (~10 ms) out, as many in */
 /* ANALOG: a BBD chain's echo: dark (the loop's low-pass ~2.6 kHz: every repeat darker), a slow drift of the clock (+-12 samples at 1 Hz), the
  *   loop saturating softly (the chain's compander and its clipping). TAPE: wow (+-24 samples at 0.6 Hz) and flutter (+-1.5 at 6.3 Hz), a low
  *   cut in the loop (~110 Hz), darker still (~3.4 kHz), and a harder saturation: repeats compress and blur. DIGITAL: clean, exact, the loop's
@@ -1023,61 +1026,85 @@ static inline void dly_put(int32_t v)                       /* the loop's input 
  *   reach 743 ms (the line's 65 k samples hold 2T). */
 static __attribute__((noinline)) void dly_block(const int32_t *dly_in, int32_t *wet, uint32_t n, int32_t fb)
 {
-    uint32_t i, ty = (uint32_t)song.g[G_DTIME] % 7u, w;
-    int32_t dmix = song.g[G_DMIX] * 258, tgt = (int32_t)delay_samples() << 8, st = tgt - fx.dl_q, slap;
-    fx.dl_q += clamp(st, -2048, 2048);                  /* up to 8 samples a block: +-25 % speed: a quick, smooth bend */
-    slap = (1323 << 8) + (((fx.dl_q >> 6) * 3277) >> 9);   /* SLAP's time, 30 ms + TIME / 10 */
+    /* moogi: the time glides every sample (dq), not once a block: a jump of up to 8 samples every 32 was a click 1378 times a
+     * second while TIME moved, heard as digital noise in the echoes (a recording of the owner's FM-1; the host renders show the
+     * same haze, and it goes with the glide per sample). The bend is the same: up to 8 samples a block, +-25 % speed.
+     * A TYPE change fades the wet out (DLY_FADE: ~10 ms), switches, and fades the new TYPE in: the TYPEs read other taps */
+    uint32_t i, want = (uint32_t)song.g[G_DTIME] % 7u, ty, w;
+    int32_t dmix = song.g[G_DMIX] * 258, tgt = (int32_t)delay_samples() << 8, st = clamp(tgt - fx.dl_q, -2048, 2048), slap = 0, dm;
+    int32_t q0 = fx.dl_q, qinc = (st * 256) / (int32_t)(n ? n : 1u), dq;
+    if (!fx.dl_tyok) {
+        fx.dl_ty = (uint8_t)want;
+        fx.dl_g = 32767;
+        fx.dl_tyok = 1;
+    }
+    ty = fx.dl_ty;
     for (i = 0; i < n; i++) {
         int32_t x, in = dly_in[i] >> 1, y;
+        dq = q0 + ((qinc * (int32_t)(i + 1u)) >> 8);
+        if (want != ty) {                               /* a TYPE change: out, switch, in */
+            fx.dl_g -= DLY_FADE;
+            if (fx.dl_g <= 0) {
+                fx.dl_g = 0;
+                fx.dl_ty = (uint8_t)want;
+                ty = want;
+            }
+        } else if (fx.dl_g < 32767) {
+            fx.dl_g += DLY_FADE;
+            if (fx.dl_g > 32767)
+                fx.dl_g = 32767;
+        }
+        dm = (dmix * fx.dl_g) >> 15;                    /* (both below 2^15: no overflow) */
         switch (ty) {
         case 0u:                                        /* ANALOG */
             fx.dly_ph += 97392u;
-            x = dly_atq((uint32_t)clamp(fx.dl_q + ((osc_sine(fx.dly_ph) * 12) >> 7), 4096, DLY_MAXQ));
+            x = dly_atq((uint32_t)clamp(dq + ((osc_sine(fx.dly_ph) * 12) >> 7), 4096, DLY_MAXQ));
             fx.dly_lp += mulq15(x - fx.dly_lp, 11500);
             dly_put(in + mulq15(softclip(fx.dly_lp), fb));
-            wet[i] += mulq15(fx.dly_lp << 1, dmix);
+            wet[i] += mulq15(fx.dly_lp << 1, dm);
             break;
         case 1u:                                        /* DIGITAL */
-            x = dly_atq((uint32_t)clamp(fx.dl_q, 4096, DLY_MAXQ));
+            x = dly_atq((uint32_t)clamp(dq, 4096, DLY_MAXQ));
             fx.dly_lp += mulq15(x - fx.dly_lp, 28000);
             dly_put(in + mulq15(fx.dly_lp, fb));
-            wet[i] += mulq15(x << 1, dmix);
+            wet[i] += mulq15(x << 1, dm);
             break;
         case 2u:                                        /* TAPE */
             fx.dly_ph += 58437u;
             fx.dly_ph2 += 629846u;
-            x = dly_atq((uint32_t)clamp(fx.dl_q + ((osc_sine(fx.dly_ph) * 24 + osc_sine(fx.dly_ph2) * 3 / 2) >> 7), 4096, DLY_MAXQ));
+            x = dly_atq((uint32_t)clamp(dq + ((osc_sine(fx.dly_ph) * 24 + osc_sine(fx.dly_ph2) * 3 / 2) >> 7), 4096, DLY_MAXQ));
             fx.dly_lp += mulq15(x - fx.dly_lp, 8800);
             fx.dly_hp += (fx.dly_lp - fx.dly_hp) >> 6;
             dly_put(in + mulq15((softclip((fx.dly_lp - fx.dly_hp) * 3 >> 1) * 21845) >> 15, fb));   /* (unity at small signals: the loop's gain stays fb) */
-            wet[i] += mulq15(fx.dly_lp << 1, dmix);
+            wet[i] += mulq15(fx.dly_lp << 1, dm);
             break;
-        case 3u: {                                      /* P-PONG */
-            uint32_t t = (uint32_t)clamp(fx.dl_q >> 8, 16, 32767);
-            int32_t l = dly_at(t), r = dly_at(2u * t);
+        case 3u: {                                      /* P-PONG (moogi: read between samples, as the others) */
+            int32_t t = clamp(dq, 16 << 8, 32766 << 8);
+            int32_t l = dly_atq((uint32_t)t), r = dly_atq((uint32_t)t * 2u);
             fx.dly_lp += mulq15(r - fx.dly_lp, 22000);
             dly_put(in + mulq15(fx.dly_lp, fb));
-            wet[i] += mulq15(l + r, dmix);
-            dside[i] += mulq15(l - r, dmix);
+            wet[i] += mulq15(l + r, dm);
+            dside[i] += mulq15(l - r, dm);
             break;
         }
-        case 4u: {                                      /* MULTI */
-            uint32_t t = (uint32_t)clamp(fx.dl_q >> 8, 64, 65000);
-            int32_t t1 = dly_at(t >> 2), t2 = dly_at(t >> 1), t3 = dly_at((t * 3u) >> 2), t4 = dly_at(t), l, r;
+        case 4u: {                                      /* MULTI (moogi: read between samples) */
+            uint32_t t = (uint32_t)clamp(dq, 64 << 8, 65000 << 8);
+            int32_t t1 = dly_atq(t >> 2), t2 = dly_atq(t >> 1), t3 = dly_atq((t >> 2) * 3u), t4 = dly_atq(t), l, r;
             fx.dly_lp += mulq15(t4 - fx.dly_lp, 24000);
             dly_put(in + mulq15(fx.dly_lp, fb));
             l = (22 * t1 + 16 * t3 + 13 * t4) >> 5;
             r = (19 * t2 + 8 * t3 + 13 * t4) >> 5;
-            wet[i] += mulq15(l + r, dmix);
-            dside[i] += mulq15(l - r, dmix);
+            wet[i] += mulq15(l + r, dm);
+            dside[i] += mulq15(l - r, dm);
             break;
         }
         case 5u:                                        /* SLAP */
             fx.dly_ph += 48696u;
+            slap = (1323 << 8) + (((dq >> 6) * 3277) >> 9);   /* SLAP's time, 30 ms + TIME / 10 */
             x = dly_atq((uint32_t)clamp(slap + ((osc_sine(fx.dly_ph) * 2) >> 7), 4096, DLY_MAXQ));
             fx.dly_lp += mulq15(x - fx.dly_lp, 20000);
             dly_put(in + mulq15(softclip(fx.dly_lp), mulq15(fb, 11000)));
-            wet[i] += mulq15(fx.dly_lp << 1, dmix);
+            wet[i] += mulq15(fx.dly_lp << 1, dm);
             break;
         default: {                                      /* REVERSE */
             int32_t o = 0, k;
@@ -1090,7 +1117,7 @@ static __attribute__((noinline)) void dly_block(const int32_t *dly_in, int32_t *
                 fx.rv_p[k]--;
                 if (++c >= nn) {                        /* a new sweep from the newest sample, the length from TIME now */
                     c = 0;
-                    nn = (uint32_t)clamp(fx.dl_q >> 8, 441, 32000);
+                    nn = (uint32_t)clamp(dq >> 8, 441, 32000);
                     fx.rv_p[k] = w;
                     fx.rv_n[k] = nn;
                     fx.rv_i[k] = 65536u / nn;
@@ -1099,12 +1126,14 @@ static __attribute__((noinline)) void dly_block(const int32_t *dly_in, int32_t *
             }
             fx.dly_lp += mulq15(o - fx.dly_lp, 20000);
             dly_put(in + mulq15(fx.dly_lp, fb));
-            wet[i] += mulq15(o << 1, dmix);
+            wet[i] += mulq15(o << 1, dm);
             break;
         }
         }
         (void)y;
     }
+    fx.dl_q = q0 + st;                                  /* (exactly where the glide meant to be: no drift from the rounding) */
+    (void)slap;
 }
 #endif
 
