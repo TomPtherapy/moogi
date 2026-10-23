@@ -1066,6 +1066,15 @@ pitch from velocity 111 up (`tests/fmini_filter_test.c`, 3a: 0.0 cents from velo
 Felucca's other engines (`voice.c`). A patch played with velocities above 110 sounds darker than on 1.7.2 and older, as it was
 made to; the 100 factory goldens moved for that reason (`regress.c` plays a note at 120).
 
+**moogi 1.8.0-m2 (no new command, INFO unchanged; EMPH changes meaning):** `P_E1` (EMPH, fmt MEMP) keeps its 0..127 range and its
+0.0 .. 10.0 dial, but the dial is the knob's own curve (`tools/fmini_filter.py` EMPH_R), not the Minimoog's (EMPH_R_MOOG): it
+sings from 6.5 (was 8) and its top is 1.85 x the singing gain (was 1.25). The same byte is a stronger emphasis than before: a
+user preset, a sound file or a library entry made earlier sounds more resonant (singing where it did not from about 6.2 up);
+turn EMPHASIS down to where it was (roughly: old 8.0 is new 6.25, old 10 is new 7.7). The factory bank was converted
+(`tools/gen_fmini_presets.py` emp: the byte with the Minimoog dial's loop gain; loudness within 0.08 dB, brightness within
+0.17 semitone of before, `tools/preset_lab.py`). The CUTOFF / EMPH / CNTR knobs of the panel (1.8.0-m1) move in quarter steps
+under the stored byte (`fmini_fine`, not stored, not sent).
+
 The web editor for it is `web/editor_fmini.html` (published at `editor/` on the FMini-1 site).
 
 ## Tagged device preferences v1

@@ -39,9 +39,16 @@ CUT_TRACK = [(0.0, 0.0), (0.1, 0.0582), (0.3, 0.2669), (0.5, 0.5), (0.7, 0.7304)
 CUT_MARKS = [(0.1626, 110.8), (0.2669, 206.6), (0.3835, 472.2), (0.5, 1073.8), (0.6152, 2344.0), (0.7304, 5188.0)]
 CUT_TOP_CORNER = 19000.0            # Hz, the corner at the right stop (the CA-72's 19.0 kHz at 0 V)
 
-# emphasis dial (0..10) -> loop gain as a share of the singing gain
-EMPH_R = [(0, 0.0), (1, 0.007), (2, 0.033), (2.5, 0.10), (3, 0.20), (4, 0.48), (5, 0.58), (6, 0.68), (7, 0.80),
-          (7.5, 0.88), (8, 1.00), (8.5, 1.06), (9, 1.12), (10, 1.25)]
+# the Minimoog's emphasis dial (0..10) -> loop gain as a share of the singing gain: the hardware's (CA-72), the
+# reference the factory bank (tools/fmini_bank.py) and the hardware checks are written in
+EMPH_R_MOOG = [(0, 0.0), (1, 0.007), (2, 0.033), (2.5, 0.10), (3, 0.20), (4, 0.48), (5, 0.58), (6, 0.68), (7, 0.80),
+               (7.5, 0.88), (8, 1.00), (8.5, 1.06), (9, 1.12), (10, 1.25)]
+# moogi: the EMPHASIS knob's own curve (its dial 0..10 on the screen). The Minimoog's first quarter of travel does almost
+# nothing and it sings only from 8: here the range is spread evenly, it sings from 6.5 (its edge at 6.25), and above that it goes past the
+# Minimoog's top (1.25) to 1.85 x the singing gain: a harder, louder, more saturated singing. A factory patch keeps its
+# Minimoog setting (gen_fmini_presets.py emp: the byte whose loop gain is the Minimoog dial's)
+EMPH_R = [(0, 0.0), (1, 0.06), (2, 0.15), (3, 0.30), (4, 0.48), (5, 0.66), (6, 0.90), (6.25, 1.00), (6.5, 1.05),
+          (7, 1.12), (8, 1.30), (9, 1.55), (10, 1.85)]
 # the reference's passband loss (dB) at the dial marks: what the lag-pole model leaves out is given back as a trim
 EMPH_LOSS = [(0, 0.0), (2, -0.8), (2.5, -2.25), (3, -4.0), (4, -8.0), (5, -9.5), (6, -10.43), (7, -11.92), (7.5, -12.5),
              (8.5, -14.67), (10, -15.5)]
@@ -119,10 +126,29 @@ def emph_loss_db(k):
     return -20 * math.log10(1 + k)
 
 
+def moog_dial(r):
+    """a loop gain share -> the Minimoog's dial that gives it (the inverse of EMPH_R_MOOG; past its top: 10)"""
+    if r <= 0:
+        return 0.0
+    for (d0, r0), (d1, r1) in zip(EMPH_R_MOOG, EMPH_R_MOOG[1:]):
+        if r <= r1:
+            return d0 + (d1 - d0) * (r - r0) / (r1 - r0)
+    return 10.0
+
+
+def emph_of_moog(d):
+    """the Minimoog's emphasis dial d (0..10) -> the EMPHASIS byte with the closest loop gain (on the same side of the
+    singing edge: a patch that did not sing does not start to, and the other way round)"""
+    r = lin(EMPH_R_MOOG, d)
+    cands = [v for v in range(128) if (emph_r(v) >= 1.0) == (r >= 1.0)] or list(range(128))
+    return min(cands, key=lambda v: abs(emph_r(v) - r))
+
+
 def emph_trim_db(v):
-    """what the passband still lacks of the hardware's loss at EMPHASIS v (dB, <= 0, at most 1.5 dB)"""
+    """what the passband still lacks of the hardware's loss at EMPHASIS v (dB, <= 0, at most 1.5 dB): the hardware's
+    loss at the Minimoog dial of the same loop gain"""
     k = emph_k(v)
-    want = lin(EMPH_LOSS, emph_dial(v))
+    want = lin(EMPH_LOSS, moog_dial(emph_r(v)))
     have = emph_loss_db(k)
     return max(-1.5, min(0.0, want - have))
 
@@ -176,6 +202,8 @@ def emit(path):
          "#define FMINI_GN %d              /* their length */" % len(G),
          "#define FMINI_NOTE0 %d           /* the keyboard's 0 V: the lowest key, F */" % NOTE0,
          "#define FMINI_FOSC_MAX16 %d      /* the singing pitch's ceiling, MIDI x 16 */" % int(round(midi16(FOSC_MAX))),
+         "#define FMINI_EMPH_SEED %d       /* EMPHASIS from here a note from silence gets a nudge (0.89 of the singing gain) */"
+         % min(v for v in range(128) if emph_r(v) >= 0.89),
          ""]
 
     def arr(name, typ, vals, per=8, comment=""):
@@ -188,6 +216,8 @@ def emit(path):
     arr("FMINI_CUT", "int16_t", cut, 8, "/* CUTOFF 0..127 -> the singing pitch, MIDI x 16 (the dial's -5 .. +5) */")
     arr("FMINI_K", "uint16_t", kq, 8, "/* EMPHASIS 0..127 -> the feedback gain, Q12 */")
     arr("FMINI_TRIM", "uint16_t", trim, 8, "/* EMPHASIS 0..127 -> the passband's extra loss, Q12 */")
+    arr("FMINI_EMOOG", "uint8_t", [emph_of_moog(d / 10.0) for d in range(101)], 16,
+        "/* the Minimoog's emphasis dial x 10 (0..100) -> EMPHASIS 0..127 (the tests' hardware references) */")
     gr = graph_rows()
     L.append("static const int16_t FMINI_GRAPH[17][73] = {   /* the FILT page's response: EMPHASIS 0, 8 .. 120, 127 x the frequency re the singing pitch (-6 .. +3 octaves, 1/8 a column), dB x 8 */")
     for line in gr:

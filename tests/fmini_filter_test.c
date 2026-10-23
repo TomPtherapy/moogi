@@ -8,10 +8,15 @@
  *    quarter tone, each mark about 1.1 octave from the last.
  * 3. EMPHASIS: no singing below the dial's 7.5, singing at 8.5 and 10; the passband falls as the hardware's does
  *    (-2.25 dB at 2.5, -9.5 at 5) and the peak rises with it.
- * 4. no click, no DC, no overflow: every cutoff, emphasis and key, a loud saw in: the output stays bounded. */
+ * 4. no click, no DC, no overflow: every cutoff, emphasis and key, a loud saw in: the output stays bounded.
+ * moogi: the EMPHASIS knob has its own curve (tools/fmini_filter.py EMPH_R): the hardware checks above are made at the
+ * knob positions of the Minimoog's dial (FMINI_EMOOG); 3c checks the knob's own curve (sings from its 6.5, its top louder
+ * than the Minimoog's 10). */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
+#define EM_TOP ((uint32_t)FMINI_EMOOG[100])     /* the Minimoog's dial 10 */
+#define EM_MOOG(d10) ((uint32_t)FMINI_EMOOG[(d10)])   /* the Minimoog's dial x 10 */
 
 static int bad;
 static void check(const char *what, int ok)
@@ -165,18 +170,18 @@ int main(int argc, char **argv)
     (void)argc; (void)argv;
 
     /* 1. sings */
-    setup(64, 127, 127, 0);
+    setup(64, EM_TOP, 127, 0);
     play(41, y, N);
     analyse(y, FS, N, &f, &r, &t);
     f0 = f;
     printf("   dial 0, EMPHASIS 10, F: %.1f Hz, rms %.0f, THD %.2f %%\n", f, r, t * 100);
-    check("the mixer silent, CUTOFF 64, EMPHASIS 127, key F: a sine at about 1.07 kHz", r > 800 && t < 0.02 && fabs(cents(f, 1073.8)) < 60);
+    check("the mixer silent, CUTOFF 64, EMPHASIS at the Minimoog's 10, key F: a sine at about 1.07 kHz", r > 800 && t < 0.02 && fabs(cents(f, 1073.8)) < 60);
     {
         uint32_t keys[6] = {41, 48, 53, 60, 72, 77};
         int ok = 1;
         for (i = 0; i < 6u; i++) {
             double want = f0 * pow(2.0, (keys[i] - 41) / 12.0);
-            setup(64, 127, 127, 0);
+            setup(64, EM_TOP, 127, 0);
             play(keys[i], y, N);
             analyse(y, FS, N, &f, &r, &t);
             printf("   key %u: %.1f Hz (want %.1f, %+.1f cents), rms %.0f, THD %.2f %%\n", keys[i], f, want, cents(f, want), r, t * 100);
@@ -186,11 +191,11 @@ int main(int argc, char **argv)
     }
     {
         int ok = 1;
-        setup(64, 127, 0, 0);
+        setup(64, EM_TOP, 0, 0);
         play(41, y, N);
         analyse(y, FS, N, &f, &r, &t);
         f0 = f;
-        setup(64, 127, 0, 0);
+        setup(64, EM_TOP, 0, 0);
         play(65, y, N);
         analyse(y, FS, N, &f, &r, &t);
         ok = fabs(cents(f, f0)) < 5 && r > 500;
@@ -204,7 +209,7 @@ int main(int argc, char **argv)
         double prev = 0;
         for (i = 0; i < 6u; i++) {
             uint32_t knob = (uint32_t)((M[i].dial + 5.0) * 12.7 + 0.5);
-            setup(knob, 127, 0, 0);
+            setup(knob, EM_TOP, 0, 0);
             play(41, y, N);
             analyse(y, FS, N, &f, &r, &t);
             printf("   dial %+.0f (knob %u): %.1f Hz (hardware %.1f, %+.0f cents)%s\n", M[i].dial, knob, f, M[i].hz, cents(f, M[i].hz),
@@ -217,19 +222,47 @@ int main(int argc, char **argv)
 
     /* 3. EMPHASIS */
     {
-        uint32_t em[8] = {96, 100, 104, 108, 112, 127, 0, 0};
+        static const uint32_t dm[6] = {76, 79, 82, 85, 88, 100};   /* the Minimoog's dial x 10 (the bytes 96 .. 127 before moogi) */
         int ok_off = 1, ok_on = 1;
         for (i = 0; i < 6u; i++) {
-            setup(64, em[i], 127, 0);
+            uint32_t e = EM_MOOG(dm[i]);
+            setup(64, e, 127, 0);
             play(60, y, N);
             analyse(y, FS, N, &f, &r, &t);
-            printf("   EMPHASIS %u (dial %.2f): rms %.0f, %.1f Hz\n", em[i], em[i] * 10.0 / 127, r, f);
-            if (em[i] <= 96)
+            printf("   EMPHASIS %u (Minimoog dial %.1f): rms %.0f, %.1f Hz\n", e, dm[i] / 10.0, r, f);
+            if (dm[i] <= 76)
                 ok_off &= r < 30;
-            if (em[i] >= 108)
+            if (dm[i] >= 85)
                 ok_on &= r > 500;
         }
-        check("EMPHASIS below 7.6 on the dial does not sing, from 8.5 it does", ok_off && ok_on);
+        check("EMPHASIS below the Minimoog's 7.6 does not sing, from its 8.5 it does", ok_off && ok_on);
+    }
+
+    /* 3c. moogi: the knob's own curve. Its dial 6.0 (76) does not sing, from 6.5 (83) it does, and its top (127) sings
+     * louder than the Minimoog's 10 (harder, more saturated) and still at the pitch (within a quarter tone) */
+    {
+        double r_top, f_top, t_top, r_moog;
+        int ok;
+        setup(64, 76, 127, 0);
+        play(60, y, N);
+        analyse(y, FS, N, &f, &r, &t);
+        printf("   EMPHASIS 76 (knob 6.0): rms %.0f\n", r);
+        ok = r < 30;
+        setup(64, 83, 127, 0);
+        play(60, y, N);
+        analyse(y, FS, N, &f, &r, &t);
+        printf("   EMPHASIS 83 (knob 6.5): rms %.0f, %.1f Hz\n", r, f);
+        ok &= r > 300;
+        setup(64, EM_TOP, 127, 0);
+        play(60, y, N);
+        analyse(y, FS, N, &f, &r_moog, &t);
+        setup(64, 127, 127, 0);
+        play(60, y, N);
+        analyse(y, FS, N, &f_top, &r_top, &t_top);
+        printf("   EMPHASIS 127 (knob 10): rms %.0f (the Minimoog's 10: %.0f), %.1f Hz (%+.0f cents from it), THD %.1f %%\n",
+               r_top, r_moog, f_top, cents(f_top, f), t_top * 100);
+        ok &= r_top > r_moog * 1.15 && fabs(cents(f_top, f)) < 50;
+        check("the EMPHASIS knob sings from its 6.5, not at 6.0; its top is louder than the Minimoog's 10, at the pitch", ok);
     }
 
 
@@ -242,7 +275,7 @@ int main(int argc, char **argv)
         double worst = 0;
         for (kb = 0; kb < 2u; kb++) {
             double ref;
-            setup(64, 127, kb ? 127 : 0, 0);
+            setup(64, EM_TOP, kb ? 127 : 0, 0);
             trk[0].p[P_ATK] = 30;
             trk[0].p[P_DEC] = 60;
             trk[0].p[P_SUS] = 90;
@@ -252,7 +285,7 @@ int main(int argc, char **argv)
             printf("   KBD %s, velocity 100: %.1f Hz, rms %.0f\n", kb ? "127" : "0", f, r);
             ok &= r > 200;
             for (i = 0; i < 9u; i++) {
-                setup(64, 127, kb ? 127 : 0, 0);
+                setup(64, EM_TOP, kb ? 127 : 0, 0);
                 trk[0].p[P_ATK] = 30;
                 trk[0].p[P_DEC] = 60;
                 trk[0].p[P_SUS] = 90;
@@ -314,7 +347,7 @@ int main(int argc, char **argv)
                 ref += ps0[q] / 5;
         }
         for (j = 0; j < 6u; j++) {
-            uint32_t emph = (uint32_t)(R[j].dial10 * 12.7 / 10 + 0.5), k, kp = 0, kb = (uint32_t)(70.0 / ((double)FS / NF));
+            uint32_t emph = EM_MOOG(R[j].dial10), k, kp = 0, kb = (uint32_t)(70.0 / ((double)FS / NF));
             double pass = 0, peak = 0, loss, over;
             setup(e0, emph, 0, FS_NZ);
             pv[FG_SW1] = FS_NZ;

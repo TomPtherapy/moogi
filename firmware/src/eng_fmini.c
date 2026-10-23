@@ -309,7 +309,7 @@ static void fmini_note_on(track_t *t, voice_t *v)
         v->s[0] = v->s[1] = v->s[2] = v->s[3] = 0;
         v->s[4] = 0;
         v->s[7] = 0;
-        if (t->p[P_E1] >= 96)                                         /* it will sing: a nudge to start from (the hardware has its own noise) */
+        if (t->p[P_E1] >= FMINI_EMPH_SEED)                            /* it will sing: a nudge to start from (the hardware has its own noise; moogi: from the table, was 96) */
             v->s[0] = (noise32(&fmini_nst[(uint32_t)(t - trk) % NTRK]) & 0x80000000u) ? 700 * 256 : -700 * 256;
         v->s[5] = (int32_t)(noise32(&fmini_nst[(uint32_t)(t - trk) % NTRK]) >> 20) - 2048;   /* the VCOs start a little apart: drift, cents * 256 */
         v->s[6] = (int32_t)(noise32(&fmini_nst[(uint32_t)(t - trk) % NTRK]) >> 20) - 2048;

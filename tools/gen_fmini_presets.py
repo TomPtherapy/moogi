@@ -48,8 +48,9 @@ def cut(f, kbd=0):
 
 
 def emp(d):
-    """EMPHASIS on the Minimoog's dial (0 .. 10) -> 0..127"""
-    return clamp(int(round(d * 127 / 10.0)), 0, 127)
+    """EMPHASIS on the Minimoog's dial (0 .. 10) -> 0..127 (moogi: the knob has its own curve, fmini_filter.EMPH_R; the
+    byte is the one with the Minimoog dial's loop gain, so the patch sounds as it did)"""
+    return FF.emph_of_moog(clamp(d, 0, 10))
 
 
 def dly(t):
