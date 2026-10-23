@@ -647,7 +647,7 @@ int main(int argc, char **argv)
         if (bad) return 1;
     }
     printf("fmini_app_test: ok\n");
-    {   /* the CUTOFF / EMPH / CNTR knobs glide (200 ms): a click is a ramp of tiny steps, silence snaps */
+    {   /* the CUTOFF / EMPH / CNTR knobs glide (moogi: 25 ms, was 200 ms): a click is a ramp of small steps, silence snaps */
         track_t *t0 = &trk[0];
         int32_t last, d, n, kk, big;
         uint32_t vi;
@@ -668,18 +668,69 @@ int main(int argc, char **argv)
                 n++;
                 d = fmini_sm[0][kk] - last;
                 if (d <= 0 || fmini_sm[0][kk] > 65 << 16) { printf("knob glide: not monotonic\n"); return 1; }
-                if (d > 300) big++;
+                if (d > 2048) big++;                     /* no step above 1/32 of a byte (a 0.73 ms block) */
                 last = fmini_sm[0][kk];
-                if (n == 275) at275 = fmini_sm[0][kk] - (64 << 16);
+                if (n == 34) at275 = fmini_sm[0][kk] - (64 << 16);
             }
-            /* one time constant (275 blocks = 200 ms) = 63 % of the click */
+            /* one time constant (34 blocks = 25 ms) = 63 % of the click */
             if (n >= 20000 || big || at275 < 65536 * 55 / 100 || at275 > 65536 * 72 / 100) {
-                printf("knob glide %d: steps %d big %d at 200 ms %d/65536\n", (int)kk, (int)n, (int)big, (int)at275);
+                printf("knob glide %d: steps %d big %d at 25 ms %d/65536\n", (int)kk, (int)n, (int)big, (int)at275);
                 return 1;
             }
             t0->v[0].active = 0;
             fmini_block(t0);
         }
+    }
+    {   /* moogi: the fine knobs. A slow detent moves CUTOFF / EMPH / CNTR a quarter step: the stored byte is the rounded
+         * value, the engine aims at the quarter; a fast turn moves up to 16 bytes a detent; a preset or a CC (any other writer
+         * of the byte) overrides the fine position at once */
+        track_t *t0 = &trk[0];
+        static const uint8_t KN3[3] = {P_E0, P_E1, P_E2};
+        int32_t kk, k, slot = -1, w;
+        uint32_t pg, i;
+        for (pg = 0; pg < 7u && slot < 0; pg++)              /* the FILTER page: the field of CUTOFF */
+            for (i = 0; i < 4u; i++)
+                if (fmg_field(pg, i)->kind == FK_PAR && fmg_field(pg, i)->a == P_E0) { slot = (int32_t)(pg * 4u + i); break; }
+        if (slot < 0) { printf("fine knob: no CUTOFF field\n"); return 1; }
+        for (kk = 0; kk < 3; kk++) {
+            uint32_t fp = 0, fi = 0;
+            for (pg = 0; pg < 7u; pg++)
+                for (i = 0; i < 4u; i++)
+                    if (fmg_field(pg, i)->kind == FK_PAR && fmg_field(pg, i)->a == KN3[kk]) { fp = pg; fi = i; }
+            t0->p[KN3[kk]] = 64;
+            fmini_fine[0][kk] = 0;
+            for (i = 0; i < 16u; i++)
+                fmg_tl[i] = 0;
+            fm1_ms = 100000;
+            fmg_turn(fp, fi, 1, EN_K1);                       /* a new turn: one quarter */
+            w = fmini_want(t0, 0, (uint32_t)kk, KN3[kk]);
+            if (w != (64 << 16) + 16384 || t0->p[KN3[kk]] != 64) {
+                printf("fine knob %d: one detent -> %d (byte %d)\n", (int)kk, (int)w, (int)t0->p[KN3[kk]]); return 1;
+            }
+            for (k = 0; k < 3; k++) {                         /* slow detents (200 ms apart): a quarter each */
+                fm1_ms += 140;
+                fmg_turn(fp, fi, 1, EN_K1);
+            }
+            w = fmini_want(t0, 0, (uint32_t)kk, KN3[kk]);
+            if (w != (65 << 16) || t0->p[KN3[kk]] != 65) {
+                printf("fine knob %d: four slow detents -> %d (byte %d)\n", (int)kk, (int)w, (int)t0->p[KN3[kk]]); return 1;
+            }
+            for (k = 0; k < 10; k++) {                        /* a flick: 5 ms a detent, up to 16 bytes each */
+                fm1_ms += 5;
+                fmg_turn(fp, fi, 1, EN_K1);
+            }
+            if (t0->p[KN3[kk]] != 127) { printf("fine knob %d: a flick reached %d\n", (int)kk, (int)t0->p[KN3[kk]]); return 1; }
+            fm1_ms += 1000;
+            fmg_turn(fp, fi, -1, EN_K1);                      /* back: a quarter below the top */
+            if (fmini_want(t0, 0, (uint32_t)kk, KN3[kk]) != (127 << 16) - 16384 || t0->p[KN3[kk]] != 127) {
+                printf("fine knob %d: one detent back from the top\n", (int)kk); return 1;
+            }
+            t0->p[KN3[kk]] = 30;                              /* a preset / CC writes the byte: it wins */
+            if (fmini_want(t0, 0, (uint32_t)kk, KN3[kk]) != 30 << 16) { printf("fine knob %d: the byte does not win\n", (int)kk); return 1; }
+            t0->p[KN3[kk]] = 64;
+            fmini_fine[0][kk] = 0;
+        }
+        printf("fmini fine knobs: ok\n");
     }
     {   /* the loudness contour is a Minimoog's ADS: the DECAY knob is the decay and the release; SUSTAIN clamps it */
         track_t *t0 = &trk[0];

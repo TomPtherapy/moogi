@@ -56,6 +56,15 @@ static int32_t fmini_pk[NTRK][3];                 /* its pink filter */
 static int32_t fmini_nbuf[NTRK][CTL];             /* the part's noise for this block, +-32768: one source, all its voices */
 static int32_t fmini_sm[NTRK][3];                 /* the smoothed CUTOFF, EMPH, CNTR knobs (Q16): the encoder's steps become ramps */
 static uint8_t fmini_sm_ok;                       /* bit tr: fmini_sm[tr] follows the knobs (clear = snap to them) */
+/* moogi: the panel's fine position of CUTOFF / EMPH / CNTR (Q16, quarter steps). The stored value (t->p, 0..127: presets,
+ * MIDI CC, motion, the editor, the screen) stays the rounded byte; the panel (ui_fmini.c fmg_turn) writes t->p first, then
+ * this. The ISR only reads it, and only while it rounds to t->p: any other writer of t->p (a preset, a CC) wins at once. */
+static volatile int32_t fmini_fine[NTRK][3];
+static int32_t fmini_want(const track_t *t, uint32_t tr, uint32_t j, uint32_t par)
+{
+    int32_t p = clamp(t->p[par], 0, 127), f = fmini_fine[tr][j];
+    return f >= 0 && f <= (127 << 16) && ((f + 32768) >> 16) == p ? f : p << 16;
+}
 static int32_t fmini_mn[NTRK];                    /* the modulation noise of this block, +-16384 */
 
 /* the highest value of each byte */
@@ -192,17 +201,18 @@ static void fmini_block(track_t *t)
     }
     for (i = 0; i < NVOICE && !t->v[i].active; i++)
         ;
-    {   /* the knobs' steps (one encoder click = 1/127) glide: a one-pole per block, time constant 200 ms (275 blocks of
-         * 0.73 ms: 1/275 = 238/65536 of the distance a block), exact landing; silent = snap */
+    {   /* the knobs' steps glide: a one-pole per block, exact landing; silent = snap. moogi: time constant 25 ms (34 blocks
+         * of 0.73 ms: 1/34 = 1928/65536 of the distance a block), was 200 ms: the sound follows the hand. The panel moves
+         * in quarter steps (fmini_fine), so the shorter glide does not step */
         static const uint8_t KN[3] = {P_E0, P_E1, P_E2};
         uint32_t j;
         for (j = 0; j < 3; j++) {
-            int32_t want = (int32_t)clamp(t->p[KN[j]], 0, 127) << 16, d = want - fmini_sm[tr][j], st;
+            int32_t want = fmini_want(t, tr, j, KN[j]), d = want - fmini_sm[tr][j], st;
             if (i == NVOICE || !(fmini_sm_ok & (1u << tr))) {
                 fmini_sm[tr][j] = want;
                 continue;
             }
-            st = d >= 0 ? (int32_t)(((int64_t)d * 238) >> 16) : -(int32_t)(((int64_t)-d * 238) >> 16);
+            st = d >= 0 ? (int32_t)(((int64_t)d * 1928) >> 16) : -(int32_t)(((int64_t)-d * 1928) >> 16);
             if (!st)
                 st = d > 0 ? 1 : d < 0 ? -1 : 0;
             fmini_sm[tr][j] += st;

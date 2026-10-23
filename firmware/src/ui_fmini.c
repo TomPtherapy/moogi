@@ -133,6 +133,24 @@ static int32_t fmg_acc(uint32_t role, int32_t s, int32_t range)
     return s * m;
 }
 
+/* moogi: the fine knobs (CUTOFF, EMPHASIS, CONTOUR): quarter steps a detent, by the time per detent 1, 2, 4, 8, 16, 32,
+ * 64 quarters (a slow turn moves the cutoff about a quarter tone a detent, a flick crosses the range in about 8 detents,
+ * as fast as fmg_acc's 18); a new turn, a reversal or a pause starts at 1. Same timing state as fmg_acc */
+static int32_t fmg_acc_q(uint32_t role, int32_t s)
+{
+    uint32_t now = fm1_ms, dt, a = (uint32_t)(s < 0 ? -s : s), last = fmg_tl[role & 15u];
+    int32_t m;
+    if (fmg_force_page < 0 || !s)
+        return s * 4;
+    dt = (now - (last & 0x7FFFFFFFu)) & 0x7FFFFFFFu;
+    fmg_tl[role & 15u] = (now & 0x7FFFFFFFu) | (s > 0 ? 0x80000000u : 0u);
+    if (!last || ((last >> 31) != (s > 0 ? 1u : 0u)) || dt > 150u)
+        return s;
+    dt /= a;
+    m = dt >= 100u ? 1 : dt >= 60u ? 2 : dt >= 40u ? 4 : dt >= 25u ? 8 : dt >= 15u ? 16 : dt >= 8u ? 32 : 64;
+    return s * m;
+}
+
 /* control i of page pg moved s steps (a knob of the page, or ALGORITHM on the cursor's control) */
 static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
 {
@@ -189,6 +207,16 @@ static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
     case FK_PAR: {
         const param_desc_t *d = track_desc(TSEL, f->a);
         int16_t *vp = &t->p[f->a];
+        if (t->engine == ENGI_FMINI && (f->a == P_E0 || f->a == P_E1 || f->a == P_E2)) {   /* moogi: fine knobs */
+            uint32_t tr = (uint32_t)trk_index(t), j = f->a == P_E0 ? 0u : f->a == P_E1 ? 1u : 2u;
+            int32_t lo = (int32_t)d->min << 16, hi = (int32_t)d->max << 16;
+            int32_t cur = clamp(fmini_want(t, tr, j, f->a) + fmg_acc_q(role, s) * 16384, lo < 0 ? 0 : lo, hi > (127 << 16) ? (127 << 16) : hi);
+            *vp = (int16_t)((cur + 32768) >> 16);                        /* the byte first, then the fine position */
+            fmini_fine[tr][j] = cur;
+            motion_capture(t, f->a, *vp);
+            ml_knob(t, f->a);
+            break;
+        }
         *vp = (int16_t)param_turn(d, *vp, fmg_acc(role, s, d->fmt == F_ENUM ? 0 : d->max - d->min));
         motion_capture(t, f->a, *vp);
         ml_knob(t, f->a);
