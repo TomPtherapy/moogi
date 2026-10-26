@@ -1380,22 +1380,73 @@ static int32_t click_beat_now(void)
     return clk_pos == CLK_START ? 0 : (int32_t)(clk_step >> 2);
 }
 
+#if FELUCCA_FMINI_ONLY
+/* moogi m5: the clock from the norns, over USB. Its pulses make the clock USB by themselves (there is no setting) and
+ * half a second without them INT again. PLAY stays the FM-1's: the norns' START, STOP and CONTINUE start and stop nothing;
+ * START only marks the bar's first pulse (the next one). PLAY from stop waits for the next bar's first pulse (96 pulses,
+ * a 4/4 bar), PLAY blinking; a sequence playing when the norns' clock comes in joins it the same way. Without a START the
+ * bar is counted from the first pulse heard: it may sit a beat or more off the norns' bar */
+#define CK_BAR 96u
+static uint8_t ck_wait, ck_seen;                    /* PLAY waits for the bar; a USB pulse was ever heard */
+static uint32_t ck_idx, ck_last;                    /* the next pulse's place in the bar (0..95); the last pulse's ms */
+static void ck_realtime(uint32_t status, uint32_t ms, uint32_t clock_mode)
+{
+    uint32_t at;
+    if (status == 0xFAu) {                          /* START: a marker, the next pulse is the bar's first */
+        ck_idx = 0;
+        return;
+    }
+    if (status != 0xF8u)                            /* STOP, CONTINUE: PLAY is the FM-1's */
+        return;
+    at = ck_idx;
+    ck_idx = at + 1u < CK_BAR ? at + 1u : 0u;
+    ck_last = ms;
+    ck_seen = 1;
+    if (!clock_mode) {                              /* the first pulses: USB from the next block */
+        song.g[G_CLOCK] = 1;
+        return;
+    }
+    if (ck_wait && at == 0u) {                      /* the bar's first pulse: step 0 with it */
+        ck_wait = 0;
+        midi_clock_transport(0xFAu, ms);
+    }
+    midi_clock_pulse(ms);
+}
+#endif
+
 /* everything that happens between two rendered blocks */
 static void events_block(uint32_t n)
 {
     uint32_t i, pr, seq_n = n;
-    uint32_t clock_mode = (uint32_t)song.g[G_CLOCK];
+    uint32_t clock_mode;
+#if FELUCCA_FMINI_ONLY
+    if (song.g[G_CLOCK] && (!ck_seen || fm1_ms - ck_last > 500u)) {   /* moogi m5: no pulses, the FM-1's own tempo */
+        song.g[G_CLOCK] = 0;
+        ck_wait = 0;
+    }
+#endif
+    clock_mode = (uint32_t)song.g[G_CLOCK];
     if (midi_clock.mode != clock_mode) {
+#if FELUCCA_FMINI_ONLY
+        uint32_t was = song.playing;
+#endif
         seq_stop();
         memset(&midi_clock, 0, sizeof midi_clock);
         midi_clock.mode = (uint8_t)clock_mode;
         midi_beat_samples = 0;
+#if FELUCCA_FMINI_ONLY
+        ck_wait = (uint8_t)(was && clock_mode);     /* moogi m5: playing when the norns came in: on at its next bar */
+#endif
     }
     if (cin_left && !clock_mode)
         cin_block(n);
     if (transport_req == 1u) {
         if (clock_mode)
+#if FELUCCA_FMINI_ONLY
+            ck_wait = 1;                            /* moogi m5: from the next bar of the norns */
+#else
             midi_clock_transport(0xFAu, fm1_ms);
+#endif
         else if (cin_left)
             ;                                       /* counting in already (the UI's PLAY stops it: seq_counting) */
         else if (cin_bars && song.rec && !song.playing && !chain.armed)
@@ -1405,6 +1456,9 @@ static void events_block(uint32_t n)
         transport_req = 0;
     } else if (transport_req == 2u) {
         seq_stop();
+#if FELUCCA_FMINI_ONLY
+        ck_wait = 0;                                /* moogi m5: PLAY again while waiting: not at all */
+#endif
         transport_req = 0;
     } else if (transport_req == 3u) {                 /* GLO + PLAY: from the top without stopping (INT clock) */
         if (!clock_mode) {
@@ -1464,12 +1518,17 @@ static void events_block(uint32_t n)
         uint32_t source = midi_in_source[at] ? midi_in_source[at] : 1u, ms = midi_in_ms[at];
         mi_r++;
         if (status >= 0xF8u) {
+#if FELUCCA_FMINI_ONLY
+            if (source == 1u)                       /* moogi m5: USB (the norns) */
+                ck_realtime(status, ms, clock_mode);
+#else
             if (clock_mode == source) {
                 if (status == 0xF8u)
                     midi_clock_pulse(ms);
                 else
                     midi_clock_transport(status, ms);
             }
+#endif
         } else
 #if FELUCCA_FMINI_ONLY
         if (fm_midi_ok(source, ch))
@@ -1497,7 +1556,11 @@ static void events_block(uint32_t n)
     if (song.playing)
         click_tick(seq_n);
     for (i = 0; i < NPART; i++)
+#if FELUCCA_FMINI_ONLY                              /* moogi m5: stopped, the ARP runs at the norns' tempo all the same */
+        arp_step(&trk[i], clock_mode && song.playing ? seq_n : n, clock_mode && song.playing ? seq_n : n);
+#else
         arp_step(&trk[i], clock_mode ? seq_n : n, clock_mode && song.playing ? seq_n : n);
+#endif
     beat_pos += clock_mode ? seq_n : n;               /* the beat the ARP LED flashes on (ui_leds) */
     if (beat_pos >= beat_samples()) {
         beat_pos -= beat_samples();

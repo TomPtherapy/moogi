@@ -16,9 +16,13 @@
  *  - The knobs are recorded with the notes (Felucca's automation, motion.c) only with GLO > KNOB REC ON (off by default).
  *    REC held + ARP takes the knobs' motion back to how it was when REC was last armed. REC arms when it is let go.
  * THE TEMPO: PLAY held, SELECT turns it (the screen shows it, PLAY blinks in time); a tap of PLAY starts and stops.
+ * THE NORNS' CLOCK (moogi m5): clock pulses on USB set the tempo by themselves (the tempo screen says USB) and half a second
+ *   without them gives the tempo back. PLAY stays the FM-1's: from stop it waits for the norns' next bar (PLAY blinks fast),
+ *   the norns' START only marks the bar's first beat, its STOP stops nothing (seq.c ck_realtime).
  * THE ACID LINE: EDIT twice turns it on (EDIT lights) and off; a tap of EDIT: a new line from the next loop. On, it
- * writes the line into the sequence and keeps it there: SELECT, ALGORITHM, PRESETS are DENSITY, MOVEMENT, TENSION;
- * EDIT held, KNOB 1..4 are ACCENTS, SLIDES, NOTES (in the pool), RANGE (the octave), EDIT held + a key the root.
+ * writes the line into the sequence and keeps it there. EDIT held: SELECT, ALGORITHM, PRESETS are DENSITY, MOVEMENT,
+ * TENSION, KNOB 1..4 ACCENTS, SLIDES, NOTES (in the pool), RANGE (the octave), a key the root (moogi m5: the wheels too only
+ * with EDIT held; without it they are the page's and PRESETS changes the preset, as with the acid line off).
  * GLO > ACID: the scale, note length, step, high range, the velocities, breathe, the four LFOs, the history and the
  * favorites. The line is built as acid-mod.lua builds it (the same seed gives the same 16 steps). */
 
@@ -367,12 +371,14 @@ static void fa_play_btn(uint32_t pressed)                 /* PLAY: a tap starts 
     if (fa_pl_down && !down) {
         fa_pl_down = 0;
         if (!fa_pl_turned)
-            transport_req = (song.playing || transport_req == 1u) ? 2u : 1u;
+            transport_req = (song.playing || transport_req == 1u || ck_wait) ? 2u : 1u;   /* (moogi m5: waiting for the
+                                                                                              * norns' bar, PLAY again: no) */
     }
 }
 static void fa_tempo_turn(int32_t s)
 {
-    song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + fmg_acc_env(EN_SELECT, s), GP[G_BPM].min, GP[G_BPM].max);
+    if (!song.g[G_CLOCK])                                 /* moogi m5: on the norns' clock the tempo is the norns' */
+        song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + fmg_acc_env(EN_SELECT, s), GP[G_BPM].min, GP[G_BPM].max);
     fa_pl_turned = 1;
 }
 static int fa_pl_show(void) { return fa_pl_down && (fa_pl_turned || (uint32_t)(fm1_ms - fa_pl_t0) >= 250u); }
@@ -387,6 +393,11 @@ static void fa_tempo_dialog(void)
     cv_rect(40, 70, 160, 92, FA_OR);
     cv_rect(42, 72, 156, 88, FA_RGB(0x1B, 0x19, 0x17));
     fa_ctext(120, 80, &AF_S, "TEMPO", FA_CR);
+    if (song.g[G_CLOCK]) {                                /* moogi m5: the norns' clock */
+        fa_ctext(120, 100, &AF_L, "USB", FA_OR);
+        fa_ctext(120, 142, &AF_X, "CLOCK FROM USB", FA_MU);
+        return;
+    }
     fmt_int(b, song.g[G_BPM]);
     fa_ctext(120, 100, &AF_L, b, FA_OR);
     fa_ctext(120, 142, &AF_X, "PLAY + SELECT", FA_MU);

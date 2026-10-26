@@ -13,7 +13,7 @@
  * Controls: KNOB 1..4 the page's four knobs. SELECT moves a highlight over every control of every page (the knobs, the
  * switches, the waveforms; past the last control of a page it goes on to the next); ALGORITHM changes the highlighted
  * control (a switch: right = on, left = off). PRESETS: the factory patch F1..F8. Buttons: FX, ENV (F.ENV, again
- * A.ENV), LFO (CTRL), EDIT (OSC), SCL (MIX), GLO (FILT) open a page; OCT- / OCT+ the keys' octave. The keys, MIDI
+ * A.ENV), LFO (CTRL; held, MONO / POLY: moogi m5), EDIT (OSC), SCL (MIX), GLO (FILT) open a page; OCT- / OCT+ the keys' octave. The keys, MIDI
  * and the MASTER pot play and sound as in Felucca. Track 1 is the instrument; the other tracks are muted.
  * Included by felucca.c before main.c. */
 #if FELUCCA_FMINI_ONLY
@@ -626,7 +626,7 @@ static void fa_ar_turn(uint32_t row, int32_t s)
         *vp = (int16_t)param_turn(d, *vp, s);
         motion_capture(t, FA_AR_ID[row], *vp);
         ml_knob(t, FA_AR_ID[row]);
-    } else {
+    } else if (!song.g[G_CLOCK]) {                        /* (moogi m5: the norns' clock: its tempo) */
         song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + fmg_acc(EN_ALGO, s, 200), GP[G_BPM].min, GP[G_BPM].max);
     }
 }
@@ -655,6 +655,8 @@ static void fa_ar_dialog(void)
         const char *un;
         if (i < 5u)
             param_format(track_desc(t, FA_AR_ID[i]), t->p[FA_AR_ID[i]], val, &un);
+        else if (song.g[G_CLOCK])
+            str_cpy(val, "USB", 16);                          /* moogi m5: the norns' clock */
         else
             fmt_int(val, song.g[G_BPM]);
         fa_line(62 + (int32_t)i * 22, FA_AR_LB[i], val, i == fa_ar_row);
@@ -665,6 +667,8 @@ static void fa_ar_dialog(void)
 /* the ARP button: a tap turns it on / off, held HOLD on / off; the pop-up shows the settings for a few seconds */
 static uint8_t fa_arp_down, fa_arp_done, fa_ar_last = 1;
 static uint32_t fa_arp_t0, fa_ar_until;
+static uint8_t fa_lfo_down;                               /* moogi m5: LFO held, MONO <-> POLY */
+static uint32_t fa_lfo_t0;
 
 /* the keys of the notes that sound (the arpeggio, the sequence, MIDI): lit like the keys held */
 static uint32_t fa_sound_keys(void)
@@ -686,7 +690,7 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.8.0-m4"
+#define FMINI_VERSION "v1.8.0-m5"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT, 4 ACID (fmini_seq.c) */
@@ -827,7 +831,7 @@ static void fa_ctl_apply(uint32_t n, uint32_t v)
         n -= FA_NPG;
         if (n < 5u)
             midi_cc_set(t, FA_AR_ID[n], v);
-        else
+        else if (!song.g[G_CLOCK])                            /* (moogi m5: not on the norns' clock) */
             song.g[G_BPM] = (int16_t)(40 + (int32_t)v * 200 / 127);
         return;
     }
@@ -1155,7 +1159,7 @@ static uint32_t fa_signature(void)
     h = (h ^ fa_gl ^ (uint32_t)fa_gl_row << 3 ^ (uint32_t)fa_cc_i << 6 ^ (uint32_t)fm_midi_src << 12 ^ (uint32_t)fm_bt << 17 ^ (uint32_t)fm_midi_ch << 14 ^ (uint32_t)fm_bend_mode << 19) * 16777619u;
     for (i = 0; i < FA_NCC; i++)
         h = (h ^ fa_cc[i]) * 16777619u;
-    h = (h ^ fa_sv ^ (uint32_t)fa_ar << 4 ^ (uint32_t)fa_ar_row << 5 ^ (uint32_t)song.g[G_BPM] << 8) * 16777619u;
+    h = (h ^ fa_sv ^ (uint32_t)fa_ar << 4 ^ (uint32_t)fa_ar_row << 5 ^ (uint32_t)song.g[G_BPM] << 8 ^ (uint32_t)song.g[G_CLOCK] << 24) * 16777619u;
     h = (h ^ (uint32_t)song.g[G_RSIZE] ^ (uint32_t)song.g[G_DRREV] << 7 ^ (uint32_t)song.g[G_CRATE] << 14 ^ (uint32_t)song.g[G_DRLVL] << 21) * 16777619u;   /* FX: DECAY TIME RATE TONE */
     for (i = 0; i < 8u; i++)                                 /* the pop-ups' others, and which pop-up is open */
         h = (h ^ (uint32_t)song.g[FA_GID2[i]]) * 16777619u;
@@ -1390,6 +1394,26 @@ static void fa_buttons(uint32_t pressed)
             }
         }
     }
+    {   /* moogi m5: LFO held half a second: MONO <-> POLY (CTRL's VOICES, kept in the preset), on CTRL with VOICES lit.
+         * The tap still opens CTRL at once (below) */
+        uint32_t down = (fm1_in.buttons >> panel.btn[B_LFO]) & 1u;
+        if ((pressed >> panel.btn[B_LFO]) & 1u) {
+            fa_lfo_down = 1;
+            fa_lfo_t0 = fm1_ms;
+        }
+        if (fa_lfo_down && !down) {
+            fa_lfo_down = 0;
+        } else if (fa_lfo_down && (uint32_t)(fm1_ms - fa_lfo_t0) >= 450u) {
+            fa_lfo_down = 0;
+            fmg_fx = 0;
+            fa_sv = 0;
+            fa_ar = 0;
+            fa_gl_close();
+            fa_goto(0);
+            fmg_turn(0, 8u, TSEL->p[P_VOICE] == V_POLY ? -1 : 1, EN_ALGO);
+            fmg_cur[0] = 8u;
+        }
+    }
     if ((pressed >> panel.btn[B_SAVE]) & 1u) {            /* SAVE: open the dialog; again: write */
         if (fa_gl == 4u) {                                /* (GLO > ACID: the line as a favorite) */
             ac_fav_save();
@@ -1475,9 +1499,10 @@ static void fa_input(void)
     if (fa_pl_down && (s = panel_enc(EN_SELECT)) != 0)
         fa_tempo_turn(s);                                   /* PLAY held: SELECT is the tempo */
     if ((s = panel_enc(EN_PRESET)) != 0 && !fa_gl) {
-        if (fa_acid && !fa_sq && !fa_ar && !fa_sv && !fmg_fx)
-            ac_turn(AV_TENS, s, EN_PRESET);                 /* the acid line: PRESETS is TENSION */
-        else
+        if (fa_acid && fa_ed_down && !fa_sq && !fa_ar && !fa_sv && !fmg_fx) {
+            ac_turn(AV_TENS, s, EN_PRESET);                 /* the acid line: PRESETS is TENSION (moogi m5: EDIT held) */
+            fa_ed_used = 1;
+        } else
             fa_preset(s);
     }
     if (fa_track_preset())                                  /* a new preset (the knob, a Program Change, a saved one): HOME */
@@ -1604,14 +1629,19 @@ static void fa_input(void)
             (void)panel_enc(EN_K1 + k);
         return;
     }
-    if (fa_acid) {                                        /* the acid line: SELECT DENSITY, ALGORITHM MOVEMENT; EDIT held, the
-                                                           * knobs ACCENTS SLIDES NOTES RANGE */
+    if (fa_acid && fa_ed_down) {                          /* the acid line, EDIT held: SELECT DENSITY, ALGORITHM MOVEMENT (and
+                                                           * PRESETS TENSION, above), the knobs ACCENTS SLIDES NOTES RANGE.
+                                                           * moogi m5: without EDIT the wheels are the page's, as with acid off */
         static const uint8_t AK[4] = {AV_ACC, AV_SLD, AV_NOTES, AV_OCT};
-        if ((s = panel_enc(EN_SELECT)) != 0)
+        if ((s = panel_enc(EN_SELECT)) != 0) {
             ac_turn(AV_DENS, s, EN_SELECT);
-        if ((s = panel_enc(EN_ALGO)) != 0)
+            fa_ed_used = 1;
+        }
+        if ((s = panel_enc(EN_ALGO)) != 0) {
             ac_turn(AV_MOVE, s, EN_ALGO);
-        if (fa_ed_down) {
+            fa_ed_used = 1;
+        }
+        {
             for (k = 0; k < 4u; k++)
                 if ((s = panel_enc(EN_K1 + k)) != 0) {
                     ac_turn(AK[k], s, EN_K1 + k);
@@ -1654,7 +1684,9 @@ static void fa_leds(void)
     led_put(nl, panel.btn[B_ARP], TSEL->p[P_AMODE] != 0);
     led_put(nl, panel.btn[B_SEQ], fa_sq != 0u);
     led_put(nl, panel.btn[B_REC], fa_sq_rec != 0u);
-    led_put(nl, panel.btn[B_PLAY], fa_pl_down ? fa_pl_led() : song.playing != 0u);   /* held: it blinks in time */
+    led_put(nl, panel.btn[B_PLAY], fa_pl_down ? fa_pl_led() : ck_wait ? (int)((fm1_ms / 125u) & 1u) : song.playing != 0u);
+                                                          /* held: it blinks in time; moogi m5: waiting for the norns' bar,
+                                                           * it blinks fast */
     led_put(nl, panel.btn[B_SAVE], fa_sv);
     led_put(nl, panel.btn[B_GLO], fa_gl != 0u);
     led_put(nl, panel.btn[B_OCTDN], song.octave < 0);

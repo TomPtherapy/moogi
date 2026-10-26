@@ -48,6 +48,43 @@ static void fturn(uint32_t role, int32_t d)
     fframe();
     host_ticks += 200000u;
 }
+/* moogi m5: the norns' clock. ck_ms runs the audio in blocks with fm1_ms in step, a pulse every pulse_ms when on, the UI
+ * every 16 ms; it counts the pulses sent since the last START */
+static double ck_t, ck_next_pulse;
+static uint32_t ck_sent;
+static void ck_run(double ms, double pulse_ms, int pulses)
+{
+    double end = ck_t + ms, ui = ck_t;
+    while (ck_t < end) {
+        int32_t o[2 * CTL];
+        ck_t += (double)CTL * 1000.0 / (double)FS;
+        fm1_ms = (uint32_t)ck_t;
+        while (pulses && ck_next_pulse <= ck_t) {
+            midi_enqueue(0xFu | 0xF8u << 8, 1u);
+            ck_sent++;
+            ck_next_pulse += pulse_ms;
+        }
+        if (!pulses)
+            ck_next_pulse = ck_t;
+        mix_block(o, CTL);
+        if (ck_t - ui >= 16.0) {
+            ui = ck_t;
+            host_ticks += 16000u;
+            fa_input();
+        }
+    }
+}
+static void ck_button(uint32_t label, int down)
+{
+    if (down) {
+        fm1_in.buttons |= 1u << panel.btn[label];
+        host_pressed |= 1u << panel.btn[label];
+    } else {
+        fm1_in.buttons &= ~(1u << panel.btn[label]);
+    }
+    host_ticks += 16000u;
+    fa_input();
+}
 int main(int argc, char **argv)
 {
     int pg;
@@ -653,14 +690,22 @@ int main(int argc, char **argv)
             if (ac_seed == s0 || !fa_acid) { printf("acid: new line %u %u\n", s0, ac_seed); return 1; }
             ac_load(12345u, 0); fframe();
             for (j = 0; j < 16u; j++) before[j] = trk[0].step[j].n ? trk[0].step[j].note[0] : 0;
+            {   /* moogi m5: without EDIT the wheels are the page's: SELECT does not touch DENSITY, ALGORITHM not MOVEMENT */
+                int16_t d0 = ac_v[AV_DENS], m0 = ac_v[AV_MOVE];
+                fturn(EN_SELECT, -1); fframes(100);
+                fturn(EN_ALGO, 1); fframes(100);
+                if (ac_v[AV_DENS] != d0 || ac_v[AV_MOVE] != m0) { printf("acid: the wheels without EDIT %d %d\n", ac_v[AV_DENS], ac_v[AV_MOVE]); return 1; }
+                fturn(EN_ALGO, -1); fframes(100);
+                fturn(EN_SELECT, 1); fframes(100);
+            }
+            fm1_in.buttons |= 1u << panel.btn[B_EDIT]; host_pressed |= 1u << panel.btn[B_EDIT]; fframe();
             fturn(EN_SELECT, -1); fframes(100);
             fturn(EN_SELECT, -1); fframes(100);
-            if (ac_v[AV_DENS] != 58) { printf("acid: SELECT density %d\n", ac_v[AV_DENS]); return 1; }
+            if (ac_v[AV_DENS] != 58) { printf("acid: EDIT + SELECT density %d\n", ac_v[AV_DENS]); return 1; }
             ac_v[AV_DENS] = 60; ac_build(); fframe();
             for (j = 0; j < 16u; j++) if (before[j] != (trk[0].step[j].n ? trk[0].step[j].note[0] : 0)) { printf("acid: same seed, same line (%u)\n", j); return 1; }
             fturn(EN_PRESET, 1); fframes(100);
-            if (ac_v[AV_TENS] != 26) { printf("acid: PRESETS tension %d\n", ac_v[AV_TENS]); return 1; }
-            fm1_in.buttons |= 1u << panel.btn[B_EDIT]; host_pressed |= 1u << panel.btn[B_EDIT]; fframe();
+            if (ac_v[AV_TENS] != 26) { printf("acid: EDIT + PRESETS tension %d\n", ac_v[AV_TENS]); return 1; }
             fturn(EN_K1 + 2, 1); fframes(100);
             if (ac_v[AV_NOTES] != 4) { printf("acid: EDIT + K3 notes %d\n", ac_v[AV_NOTES]); return 1; }
             host_notes |= 1u << fa_white_key(2); fframe();
@@ -959,6 +1004,83 @@ int main(int argc, char **argv)
         fa_home();
         if (fa_page != FA_HOME_PAGE || FA_HOME_PAGE != 3u || strcmp(FA_TAB[fa_page], "FILT")) { printf("HOME: page %u\n", fa_page); return 1; }
         printf("moogi m3 (contour knobs, mono LAST, HOME = FILT): ok\n");
+    }
+    {   /* moogi m5: LFO held: MONO <-> POLY on CTRL with VOICES lit; a tap opens CTRL and changes nothing */
+        track_t *t0 = &trk[0];
+        t0->p[P_VOICE] = V_MONO;
+        fa_home();
+        fpress(B_LFO);
+        if (fa_page != 0u || t0->p[P_VOICE] != V_MONO) { printf("LFO tap: page %u voice %d\n", fa_page, t0->p[P_VOICE]); return 1; }
+        fa_home();
+        fhold(B_LFO);
+        if (fa_page != 0u || t0->p[P_VOICE] != V_POLY || fmg_cur[0] != 8u) { printf("LFO hold: page %u voice %d cur %u\n", fa_page, t0->p[P_VOICE], fmg_cur[0]); return 1; }
+        fa_mono();
+        if (t0->p[P_VOICE] != V_POLY) { printf("LFO hold: POLY not kept\n"); return 1; }
+        ui.force = 1; fa_draw(); dump(dir, 44);
+        fhold(B_LFO);
+        if (t0->p[P_VOICE] != V_MONO) { printf("LFO hold again: voice %d\n", t0->p[P_VOICE]); return 1; }
+        {   /* held long: one flip, not one per half second */
+            uint32_t k;
+            fm1_in.buttons |= 1u << panel.btn[B_LFO]; host_pressed |= 1u << panel.btn[B_LFO];
+            for (k = 0; k < 200u; k++) fframe();
+            fm1_in.buttons &= ~(1u << panel.btn[B_LFO]); fframe();
+            if (t0->p[P_VOICE] != V_POLY) { printf("LFO long hold: voice %d\n", t0->p[P_VOICE]); return 1; }
+        }
+        t0->p[P_VOICE] = V_MONO;
+        trk_all_off(t0);
+        fa_home();
+        printf("moogi m5 (LFO held: MONO / POLY): ok\n");
+    }
+    {   /* moogi m5: the norns' clock over USB: it takes the tempo by itself; PLAY waits for its bar; its START marks the bar,
+         * its STOP stops nothing; half a second without it, the FM-1's tempo again; playing when it comes in: on at its bar */
+        const double pq = 60000.0 / 120.0 / 24.0;          /* 120 BPM: a pulse every 20.8 ms */
+        uint32_t at;
+        ck_t = (double)fm1_ms;
+        ck_next_pulse = ck_t;
+        if (song.playing) { transport_req = 2u; ck_run(20.0, pq, 0); }
+        song.g[G_CLOCK] = 0;
+        song.g[G_BPM] = 90;
+        ck_run(600.0, pq, 0);
+        if (song.g[G_CLOCK]) { printf("norns clock: USB with no pulses\n"); return 1; }
+        ck_run(400.0, pq, 1);
+        if (song.g[G_CLOCK] != 1 || song.g[G_BPM] != 120 || song.playing) { printf("norns clock: clock %d bpm %d playing %d\n", song.g[G_CLOCK], song.g[G_BPM], song.playing); return 1; }
+        ck_button(B_PLAY, 1); ck_run(300.0, pq, 1);
+        if (!fa_pl_show()) { printf("norns clock: tempo screen\n"); return 1; }
+        ui.force = 1; fa_draw(); dump(dir, 45);
+        host_enc[panel.enc[EN_SELECT]] += 3 * panel.dir[EN_SELECT]; ck_run(50.0, pq, 1);
+        if (song.g[G_BPM] != 120) { printf("norns clock: SELECT turned the tempo %d\n", song.g[G_BPM]); return 1; }
+        ck_button(B_PLAY, 0); ck_run(20.0, pq, 1);
+        if (song.playing || ck_wait || transport_req) { printf("norns clock: the tempo hold started it\n"); return 1; }
+        midi_enqueue(0xFu | 0xFAu << 8, 1u);               /* the norns' START: the next pulse is the bar's first */
+        ck_sent = 0;
+        ck_run(30.0 * pq, pq, 1);                          /* into the bar */
+        if (song.playing) { printf("norns clock: START started it\n"); return 1; }
+        ck_button(B_PLAY, 1); ck_run(20.0, pq, 1);
+        ck_button(B_PLAY, 0); ck_run(20.0, pq, 1);
+        if (!ck_wait || song.playing) { printf("norns clock: PLAY mid-bar: wait %d playing %d\n", ck_wait, song.playing); return 1; }
+        fa_leds();
+        at = 0;
+        while (!song.playing && ck_sent < 200u) { ck_run(1.0, pq, 1); at = ck_sent; }
+        if (at != 97u || ck_wait) { printf("norns clock: PLAY started with pulse %u (want 97, the next bar's first)\n", at); return 1; }
+        midi_enqueue(0xFu | 0xFCu << 8, 1u);               /* the norns' STOP */
+        ck_run(200.0, pq, 1);
+        if (!song.playing) { printf("norns clock: the norns' STOP stopped it\n"); return 1; }
+        ck_button(B_PLAY, 1); ck_run(20.0, pq, 1);
+        ck_button(B_PLAY, 0); ck_run(20.0, pq, 1);
+        if (song.playing || ck_wait) { printf("norns clock: PLAY did not stop it\n"); return 1; }
+        ck_run(700.0, pq, 0);                              /* the norns gone: the FM-1's own tempo */
+        if (song.g[G_CLOCK]) { printf("norns clock: still USB without pulses\n"); return 1; }
+        transport_req = 1u; ck_run(300.0, pq, 0);
+        if (!song.playing) { printf("norns clock: INT PLAY\n"); return 1; }
+        ck_sent = 0;
+        while (ck_sent < 300u && !(song.g[G_CLOCK] && song.playing && !ck_wait)) ck_run(1.0, pq, 1);
+        if (!song.g[G_CLOCK] || !song.playing || ck_sent > 100u) { printf("norns clock: playing when it came in: clock %d playing %d after %u pulses\n", song.g[G_CLOCK], song.playing, ck_sent); return 1; }
+        transport_req = 2u; ck_run(20.0, pq, 1);
+        ck_run(700.0, pq, 0);
+        song.g[G_BPM] = 120;
+        trk_all_off(&trk[0]);
+        fframes(100);
+        printf("moogi m5 (the norns' clock: USB, PLAY on its bar, START a marker, STOP nothing): ok\n");
     }
     {   /* the loudness contour is a Minimoog's ADS: the DECAY knob is the decay and the release; SUSTAIN clamps it */
         track_t *t0 = &trk[0];
