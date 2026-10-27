@@ -16,6 +16,7 @@
  *  - The knobs are recorded with the notes (Felucca's automation, motion.c) only with GLO > KNOB REC ON (off by default).
  *    REC held + ARP takes the knobs' motion back to how it was when REC was last armed. REC arms when it is let go.
  * THE TEMPO: PLAY held, SELECT turns it (the screen shows it, PLAY blinks in time); a tap of PLAY starts and stops.
+ * THE DRUMS (moogi m6): SEQ twice is the drum mode, fmini_drum.c (its header is their manual).
  * THE NORNS' CLOCK (moogi m5): clock pulses on USB set the tempo by themselves (the tempo screen says USB) and half a second
  *   without them gives the tempo back. PLAY stays the FM-1's: from stop it waits for the norns' next bar (PLAY blinks fast),
  *   the norns' START only marks the bar's first beat, its STOP stops nothing (seq.c ck_realtime).
@@ -207,7 +208,7 @@ static uint32_t fa_rec_btn(uint32_t pressed)
     }
     if (fa_rec_down && !down) {
         fa_rec_down = 0;
-        if (!fa_rec_used && !fa_acid)
+        if (!fa_rec_used && !fa_acid && !fa_dr)           /* (moogi m6: REC does nothing in the drum mode) */
             fa_seq_arm();
     }
     return pressed;
@@ -1141,6 +1142,8 @@ static void fa_layer_keys(uint32_t edges)
             continue;
         if (seq)
             fa_seq_key(k);
+        else if (fa_dr)
+            fa_dr_key(k);                                 /* moogi m6: the drum mode (fmini_drum.c) */
         else if (ed && fa_acid) {
             ac_root(k);
             fa_ed_used = 1;

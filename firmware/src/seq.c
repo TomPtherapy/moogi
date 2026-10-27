@@ -486,6 +486,31 @@ static uint32_t seq_pv(const track_t *t, uint32_t idx, uint32_t len)
         }
     return (idx % len + len - 1u) % len;
 }
+/* moogi m6: the drum machine (fmini_drum.c). Track 2 plays DRUM; its 16 steps hold the hits of the euclidean beat (written
+ * from the main loop). Here, in the audio ISR: a lane's mute toggles on the next quarter (fa_dr_pend, applied as a step
+ * 1, 5, 9 or 13 starts: seq_enter; at once when stopped: seq_stop), a lane plays with its CHANCE (0..100, rolled each
+ * hit), and a black key auditions its lane while stopped (fa_dr_aud: lane + 1; fa_dr_audition) */
+#define FA_DR_TRK 1u
+static volatile uint8_t fa_dr_mute, fa_dr_pend, fa_dr_aud;
+static volatile uint8_t fa_dr_chance[NLANE] = {100, 100, 100, 100, 100, 100, 100, 100};
+static void fa_dr_quarter(const track_t *t)
+{
+    if (t == &trk[FA_DR_TRK] && !(t->seq_idx & 3u)) {
+        fa_dr_mute ^= fa_dr_pend;
+        fa_dr_pend = 0;
+    }
+}
+static uint32_t fa_dr_heard(const track_t *t, uint32_t hit)   /* the hits of a drum step that sound now */
+{
+    uint32_t l;
+    if (t != &trk[FA_DR_TRK] || !song.playing)
+        return hit;                                 /* (an audition, stopped: as it is) */
+    hit &= ~(uint32_t)fa_dr_mute;
+    for (l = 0; l < NLANE; l++)
+        if (((hit >> l) & 1u) && fa_dr_chance[l] < 100u && rng() % 100u >= fa_dr_chance[l])
+            hit &= ~(1u << l);
+    return hit;
+}
 #else
 #define seq_nx(t, idx, len) (((idx) + 1u) % (len))
 #define seq_pv(t, idx, len) (((idx) % (len) + (len) - 1u) % (len))
@@ -934,6 +959,10 @@ static void seq_stop(void)
     }
     chain_stop();
     motion_end();
+#if FELUCCA_FMINI_ONLY
+    fa_dr_mute ^= fa_dr_pend;                       /* moogi m6: a drum mute waiting for its quarter: now */
+    fa_dr_pend = 0;
+#endif
 }
 
 /* play one step: TIE extends, REST releases, NOTE (re)triggers its notes, then its lane hits (their GM
@@ -989,6 +1018,9 @@ static __attribute__((noinline)) void seq_step(track_t *t, const step_t *s, uint
     uint32_t hits = step_ratchet(s);
     uint8_t nn[4 + NLANE], vv[4 + NLANE];           /* the notes it plays: its notes, then its hits */
     uint32_t m = 0, sk = 0;
+#if FELUCCA_FMINI_ONLY
+    uint32_t hm = fa_dr_heard(t, s->hit);           /* moogi m6: the drums' mutes and CHANCE */
+#endif
     /* QNT SEQ: the step's notes (not the lane hits) snap to the scale as they play; never on a drum kit, the slices
      * or another engine that maps the keys itself. SEQ+T (#218): moved by TRN first, as the keys are. seq_notes keeps
      * the notes that sound: their note-offs match */
@@ -1033,7 +1065,11 @@ static __attribute__((noinline)) void seq_step(track_t *t, const step_t *s, uint
         m++;
     }
     for (i = 0; i < NLANE; i++)
+#if FELUCCA_FMINI_ONLY
+        if ((hm >> i) & 1u) {
+#else
         if ((s->hit >> i) & 1u) {
+#endif
             nn[m] = DRUM_LANE_NOTE[i];
             vv[m] = (uint8_t)((s->acc >> i) & 1u ? 127u : vel);
             sk |= ((skip >> (8u + i)) & 1u) << m;
@@ -1084,6 +1120,24 @@ static __attribute__((noinline)) void seq_audition(void)
     t->seq_hold = 0;
     t->rat_left = 0;
 }
+#if FELUCCA_FMINI_ONLY
+/* moogi m6: a black key in the drum mode, stopped: its lane sounds once, as a step of the drums would play it */
+static __attribute__((noinline)) void fa_dr_audition(void)
+{
+    uint32_t l = (uint32_t)fa_dr_aud - 1u;
+    track_t *t = &trk[FA_DR_TRK];
+    step_t s;
+    fa_dr_aud = 0;
+    if (song.playing || cin_left || l >= NLANE)
+        return;
+    memset(&s, 0, sizeof s);
+    s.time = ST_NOTE;
+    s.hit = (uint8_t)(1u << l);
+    seq_step(t, &s, t->seq_idx, div_samples(2), SEQ_ROLLED);
+    t->seq_hold = 0;
+    t->rat_left = 0;
+}
+#endif
 
 /* RATCH: the next part of the playing step once the sequencer is that far into it (seq_step played the first).
  * The step is read again: an edit to fewer parts (or another source in a song) ends the repeats */
@@ -1218,6 +1272,9 @@ static __attribute__((noinline)) void seq_enter(track_t *t, uint32_t top, uint32
 {
     if (!t->seq_idx)
         t->cond_loop = (uint8_t)(top || t->cond_loop + 1u >= COND_LOOPS ? 0u : t->cond_loop + 1u);
+#if FELUCCA_FMINI_ONLY
+    fa_dr_quarter(t);                               /* moogi m6: the drums' mutes on the quarter */
+#endif
     rec_hold(t, t->seq_idx, len);
 }
 
@@ -1548,6 +1605,10 @@ static void events_block(uint32_t n)
     }
     if (aud_req)
         seq_audition();                               /* (STEP PREVIEW: a step sounds, stopped) */
+#if FELUCCA_FMINI_ONLY
+    if (fa_dr_aud)
+        fa_dr_audition();                             /* moogi m6: a drum's black key, stopped */
+#endif
     chain_tick(seq_n);
     for (i = 0; i < NTRK; i++)
         seq_tick(&trk[i], seq_n);

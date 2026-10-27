@@ -1103,6 +1103,11 @@ Both u28 signatures are four least-significant-first 7-bit bytes; compare them
 to refresh changed favorites and user slots. Factory references use stable
 engine/preset ids; engine NENGINES denotes a user slot. An empty user slot
 cannot be marked. Factory DRUM sounds use the same favorite path.
+Acid Moogi (moogi m6): on the FMINI build the favourite rows of engines 0..6 (`favorites.factory[0..6]`, which FMINI never
+shows) hold the drum machine's saved beat (`firmware/src/fmini_drum.c` `fa_dr_byte`: byte 0 is 0xD7 when one is stored, then
+the kit, each lane's volume and chance, HITS, ROTATE and quarters). FAV_GET of those engines reads those bytes as favourite
+bits, and FAV_SET on them would change the drums' saved beat: the FMINI editor sends neither. Every value is checked when
+it loads, so a wrong one is its default.
 
 rc 0 = applied and saved; 1 = invalid arguments; 2 = unsupported feature;
 3 = applied in RAM but not saved (no flash or a failed write);

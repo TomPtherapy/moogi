@@ -181,6 +181,14 @@ recorded one is held sets `SF_SLIDE`. The acid line writes the steps from the ma
 `P_SDIV` / `P_SGATE`. Its settings, the parts and seven favorites are bytes 67..210 of the settings record (`fa_cfg_byte`).
 `tests/fmini_acid_test.c` checks the port against lines the norns Lua built (`tests/fmini_acid_ref.txt`).
 
+The drum machine (moogi m6) is `firmware/src/fmini_drum.c` (its header comment is the manual): track 2 is set to Felucca's DRUM
+engine at power-on (`fa_dr_setup`, and again whenever another engine lands there) and plays its own 16 steps of 1/16, which hold
+the hits of the euclidean beat (`fa_dr_write`, from the main loop: lane HITS / ROTATE over 16 steps, or a quarter's own over 4).
+In the audio ISR, `seq.c` masks a drum step's hits with the lane mutes and rolls each lane's CHANCE (`fa_dr_heard` in `seq_step`),
+applies a waiting mute as a quarter starts (`fa_dr_quarter` in `seq_enter`) or at STOP, and plays a black key's lane once while
+stopped (`fa_dr_audition`). The drum mode (SEQ twice) locks the keys through `kb_lock` and keeps FILT under the four knobs.
+Its saved bytes are rows 0..6 of `favorites.factory` (`fa_dr_byte`, not `fa_cfg_byte`: that record has 12 bytes left).
+
 ## 8. Tests
 
 `tests/run_tests.sh` after `./build.sh`, with the toolchain variables set (the package test needs `AC79_SDK`). It takes 20 to

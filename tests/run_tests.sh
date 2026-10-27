@@ -260,7 +260,7 @@ if [ -f build/gen/felucca_tables.h ]; then
     run "chord keys: diatonic and fixed chords, voicings, MONO root, releases, recording, ARP, MIDI IN, kits" "$OUT/chord_test"
     mkdir -p "$OUT/fa"
     $CC -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmini_app_test" tests/fmini_app_test.c -lm
-    run "FMini-1 app: the screen of every page, SAVE / PRESETS over 100 factory and the user patches, each patch its ARP, LFO, FX, LEVEL and octave, a new preset goes HOME" "$OUT/fmini_app_test" "$OUT/fa"
+    run "FMini-1 app: the screen of every page, SAVE / PRESETS over 100 factory and the user patches, each patch its ARP, LFO, FX, LEVEL and octave, a new preset goes HOME, the drum machine (moogi m6)" "$OUT/fmini_app_test" "$OUT/fa"
     $CC -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/fmini_acid_test" tests/fmini_acid_test.c -lm
     run "Acid Moogi: the acid line builds the same 16 steps as the norns acid mod for 300 seeds and settings" "$OUT/fmini_acid_test" tests/fmini_acid_ref.txt
     $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fmini_filter_test" tests/fmini_filter_test.c -lm

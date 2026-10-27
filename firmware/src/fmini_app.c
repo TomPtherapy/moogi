@@ -183,11 +183,13 @@ static void fa_val(char *s, int32_t ratio, const fmgf_t *f)
     fa_num(s, ratio);
 }
 
-static void fa_knob_col(uint32_t pg, uint32_t i, int32_t cx, int hot)
+/* moogi m6: a knob column at any height (the drum screen's smaller one: cy, the label's row ylab, the value's yval, no K1..K4
+ * when kn_on is 0); fa_knob_col is the page's, as before */
+static void fa_knob_col_at(uint32_t pg, uint32_t i, int32_t cx, int hot, int32_t cy, int32_t ylab, int32_t yval, int kn_on)
 {
     const char *lb, *un;
     char val[16];
-    int32_t ratio, k, cy = 84, n = 11, a;
+    int32_t ratio, k, n = 11, a;
     uint32_t ic;
     const fmgf_t *f = fmg_field(pg, i);
     uint16_t lab = hot ? FA_OR : FA_CR;
@@ -217,20 +219,21 @@ static void fa_knob_col(uint32_t pg, uint32_t i, int32_t cx, int hot)
         int32_t ai = a % 360 * 1024 / 360, px = cx + SINE[ai & 1023] * 12 / 32768, py = cy - SINE[(ai + 256) & 1023] * 12 / 32768;
         cv_rect(px - 1, py - 1, 3, 3, FA_RGB(0xF6, 0xF1, 0xE3));
     }
-    fa_ctext(cx, 38, &AF_X, f->lb, lab);
+    fa_ctext(cx, ylab, &AF_X, f->lb, lab);
     if (f->kind == FK_NAME && f->b == FN_RANGE) {
         str_cpy(val, FMG_RANGE[clamp((int32_t)fmg_byte(f->a), 0, 5)], 16);
     } else {
         fa_val(val, ratio, f);
     }
-    fa_ctext(cx, 112, &AF_S, val, FA_OR);
-    {
+    fa_ctext(cx, yval, &AF_S, val, FA_OR);
+    if (kn_on) {
         char kn[5] = {'K', (char)('1' + i), 0, 0, 0};
         if (pg == 6u)                                      /* FX: the parameter each knob sets (the effect is the label above) */
             str_cpy(kn, i == 3u ? "GAIN" : "MIX", 5);
         fa_ctext(cx, 127, &AF_X, kn, FA_RGB(0x5D, 0x55, 0x4A));
     }
 }
+static void fa_knob_col(uint32_t pg, uint32_t i, int32_t cx, int hot) { fa_knob_col_at(pg, i, cx, hot, 84, 38, 112, 1); }
 
 static void fa_switch(uint32_t pg, uint32_t ex, int32_t cx, int hot)
 {
@@ -690,11 +693,13 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.8.0-m5"
+#define FMINI_VERSION "v1.8.0-m6"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT, 4 ACID (fmini_seq.c) */
-static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 MIDI CC, 3 PITCH BEND, 4 KNOB REC, 5 ACID, 6 ABOUT */
+static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 MIDI CC, 3 PITCH BEND, 4 KNOB REC, 5 ACID,
+                                                           * 6 DRUM KIT (moogi m6), 7 ABOUT */
+#define FA_GL_N 8u
 static uint8_t fa_cc_i;                                   /* the control highlighted in MIDI CC */
 static uint8_t fa_cc[FA_NCC];                             /* its CC, 0 = none */
 static uint8_t fa_cfg_dirty;
@@ -720,10 +725,13 @@ static const uint8_t FA_GID2[8] = {G_RTYPE, G_RDAMP, G_DTIME, G_DFDBK, G_ENGGO, 
 static uint8_t *fa_cfg_byte(uint32_t i) { return &favorites.factory[7u + i / 32u][i % 32u]; }
 static void fa_seq_cfg_load(void);
 static void fa_seq_cfg_save(void);
+static void fa_dr_cfg_load(void);                         /* moogi m6: the drums (fmini_drum.c) */
+static void fa_dr_cfg_save(void);
 static void fa_cfg_load(void)
 {
     uint32_t i;
     fa_seq_cfg_load();
+    fa_dr_cfg_load();
     if (*fa_cfg_byte(0) == 0xA7u && *fa_cfg_byte(1) == 0x4Fu) {
         uint32_t src = *fa_cfg_byte(2), ch = *fa_cfg_byte(3);
         fm_midi_src = (uint8_t)(src == 0u || src == 1u ? src : 3u);   /* (2 was Bluetooth) */
@@ -765,6 +773,7 @@ static void fa_cfg_save(void)
             *fa_cfg_byte(9u + FA_NCC + i) = (uint8_t)song.g[FA_GID2[i]];
     }
     fa_seq_cfg_save();
+    fa_dr_cfg_save();                                     /* moogi m6: the drums */
     settings_save();                                      /* (deferred while anything plays) */
 }
 static void fa_gl_close(void)
@@ -780,7 +789,10 @@ static void fa_arp_show(void)
     fa_ar_until = fm1_ms + 4000u;
 }
 
+static uint8_t fa_dr;                                     /* moogi m6: the drum mode is on (fmini_drum.c) */
+static void fa_dr_key(uint32_t k);
 #include "fmini_seq.c"                                   /* Acid Moogi: the sequencer, the tempo, the acid line */
+#include "fmini_drum.c"                                  /* moogi m6: the drum machine on track 2 */
 
 /* control n of the list -> its page and place, its tag and name */
 static void fa_ctl_loc(uint32_t n, uint32_t *pg, uint32_t *i)
@@ -911,17 +923,18 @@ static void fa_gl_dialog(void)
     }
     if (fa_gl == 1u) {
         fa_frame("GLOBAL");
-        fa_line(56, "MIDI IN", FA_SRC[fm_midi_src == 3u ? 2u : fm_midi_src & 1u], fa_gl_row == 0u);
+        fa_line(52, "MIDI IN", FA_SRC[fm_midi_src == 3u ? 2u : fm_midi_src & 1u], fa_gl_row == 0u);
         if (fm_midi_ch)
             fmt_int(b, fm_midi_ch);
         else
             str_cpy(b, "ALL", 4);
-        fa_line(76, "MIDI CHANNEL", b, fa_gl_row == 1u);
-        fa_line(96, "MIDI CC", ">", fa_gl_row == 2u);
-        fa_line(116, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 3u);
-        fa_line(136, "KNOB REC", fa_knob_rec ? "ON" : "OFF", fa_gl_row == 4u);
-        fa_line(156, "ACID", ">", fa_gl_row == 5u);
-        fa_line(176, "ABOUT", ">", fa_gl_row == 6u);
+        fa_line(70, "MIDI CHANNEL", b, fa_gl_row == 1u);
+        fa_line(88, "MIDI CC", ">", fa_gl_row == 2u);
+        fa_line(106, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 3u);
+        fa_line(124, "KNOB REC", fa_knob_rec ? "ON" : "OFF", fa_gl_row == 4u);
+        fa_line(142, "ACID", ">", fa_gl_row == 5u);
+        fa_line(160, "DRUM KIT", N_DRUM_KIT[fa_dr_kit % DK_COUNT], fa_gl_row == 6u);   /* moogi m6 */
+        fa_line(178, "ABOUT", ">", fa_gl_row == 7u);
         fa_ctext(120, 198, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
     } else {                                              /* MIDI CC: a window of six lines on the list */
         uint32_t top = fa_cc_i < 3u ? 0u : fa_cc_i - 3u, k;
@@ -1067,58 +1080,62 @@ static void fa_scene(void)
         cv_rect(0, (int32_t)i + 3, 8, 1, FA_RGB(0x42, 0x20, 0x0D));
         cv_rect(232, (int32_t)i + 3, 8, 1, FA_RGB(0x42, 0x20, 0x0D));
     }
-    cv_rect(8, 0, 224, 22, FA_RGB(0x0E, 0x0D, 0x0C));        /* the header: the name and the seven tabs */
-    {                                                    /* the logo: Acid orange, Moogi cream (Acid Moogi; was FMini-1) */
-        int32_t lx = 12, ly = 11 - AF_X_CAP_Y - AF_X_CAP_H / 2 + 1;
-        cv_text_on(lx, ly, &AF_X, "Acid", FA_OR, FA_RGB(0x0E, 0x0D, 0x0C));
-        lx += text_w(&AF_X, "Acid") + 3;
-        cv_text_on(lx, ly, &AF_X, "Moogi", FA_CR, FA_RGB(0x0E, 0x0D, 0x0C));
-    }
-    {
-        static const uint8_t TW[FA_NPAGE] = {24, 22, 20, 22, 30, 30, 18};
-        int32_t tx = 64;                                 /* (after the Acid Moogi logo) */
-        for (i = 0; i < FA_NPAGE; i++) {
-            uint16_t bgc = i == pg ? FA_OR : FA_RGB(0x1E, 0x1B, 0x19);
-            cv_rect(tx, 2, TW[i] - 1, 18, bgc);
-            cv_text_on(tx + (TW[i] - 1) / 2 - text_w(&AF_X, FA_TAB[i]) / 2, 11 - AF_X_CAP_Y - AF_X_CAP_H / 2 + 1, &AF_X,
-                       FA_TAB[i], i == pg ? FA_RGB(0x1A, 0x0F, 0x06) : FA_MU, bgc);
-            tx += TW[i];
-        }
-    }
-    cv_rect(14, 30, 212, 1, FA_RULE);                         /* the section title on its rule */
-    {
-        int32_t w = text_w(&AF_S, FMG_PAGE[pg].name) + 14;
-        cv_rect(120 - w / 2, 24, w, 13, FA_RGB(0x1B, 0x19, 0x17));
-        cv_text_on(120 - text_w(&AF_S, FMG_PAGE[pg].name) / 2, 24 - AF_S_CAP_Y + 2, &AF_S, FMG_PAGE[pg].name, FA_CR,
-                   FA_RGB(0x1B, 0x19, 0x17));
-    }
-    for (i = 0; i < 4u; i++)
-        fa_knob_col(pg, i, 36 + (int32_t)i * 56, cur == i);
-    if (pg == 1u) {
-        fa_wave_boxes(pg, cur);
-    } else if (pg == 3u || pg == 4u || pg == 5u) {
-        fa_graph(pg);
-    } else if (pg == 6u) {                                   /* FX: DECAY TEMPO RATE TONE under their sends, a thin bar between the four sections */
-        for (i = 0; i < 4u; i++)
-            fa_edit_btn(36 + (int32_t)i * 56, cur == 4u + i);
-        for (i = 1; i < 4u; i++) {                         /* the bars between the sections: a bright core with a faint glow */
-            cv_rect(7 + (int32_t)i * 56, 38, 3, 168, FA_RGB(0x4A, 0x40, 0x32));
-            cv_rect(8 + (int32_t)i * 56, 38, 1, 168, FA_RGB(0xD2, 0xC2, 0xA2));
-        }
+    if (fa_dr) {
+        fa_dr_draw();                                        /* moogi m6: the drum screen (fmini_drum.c) */
     } else {
-        for (i = 0; i < ex; i++)
-            fa_switch(pg, i, 36 + (int32_t)i * 56, cur == 4u + i);
-        if (pg == 0u)
-            fa_voices(cur == 8u);
-    }
-    {   /* the foot: the patch's number (00..99, or U01.. of a saved one) and name, the battery at the right */
-        int32_t w;
-        char nm[16];
-        fa_preset_label(b, nm);
-        w = text_w(&AF_N, b);
-        fa_ltext(14, 214, &AF_N, b, FA_OR);
-        fa_ltext(14 + w + 6, 214, &AF_N, nm, FA_CR);
-        fa_battery(226, 227);
+        cv_rect(8, 0, 224, 22, FA_RGB(0x0E, 0x0D, 0x0C));        /* the header: the name and the seven tabs */
+        {                                                    /* the logo: Acid orange, Moogi cream (Acid Moogi; was FMini-1) */
+            int32_t lx = 12, ly = 11 - AF_X_CAP_Y - AF_X_CAP_H / 2 + 1;
+            cv_text_on(lx, ly, &AF_X, "Acid", FA_OR, FA_RGB(0x0E, 0x0D, 0x0C));
+            lx += text_w(&AF_X, "Acid") + 3;
+            cv_text_on(lx, ly, &AF_X, "Moogi", FA_CR, FA_RGB(0x0E, 0x0D, 0x0C));
+        }
+        {
+            static const uint8_t TW[FA_NPAGE] = {24, 22, 20, 22, 30, 30, 18};
+            int32_t tx = 64;                                 /* (after the Acid Moogi logo) */
+            for (i = 0; i < FA_NPAGE; i++) {
+                uint16_t bgc = i == pg ? FA_OR : FA_RGB(0x1E, 0x1B, 0x19);
+                cv_rect(tx, 2, TW[i] - 1, 18, bgc);
+                cv_text_on(tx + (TW[i] - 1) / 2 - text_w(&AF_X, FA_TAB[i]) / 2, 11 - AF_X_CAP_Y - AF_X_CAP_H / 2 + 1, &AF_X,
+                           FA_TAB[i], i == pg ? FA_RGB(0x1A, 0x0F, 0x06) : FA_MU, bgc);
+                tx += TW[i];
+            }
+        }
+        cv_rect(14, 30, 212, 1, FA_RULE);                         /* the section title on its rule */
+        {
+            int32_t w = text_w(&AF_S, FMG_PAGE[pg].name) + 14;
+            cv_rect(120 - w / 2, 24, w, 13, FA_RGB(0x1B, 0x19, 0x17));
+            cv_text_on(120 - text_w(&AF_S, FMG_PAGE[pg].name) / 2, 24 - AF_S_CAP_Y + 2, &AF_S, FMG_PAGE[pg].name, FA_CR,
+                       FA_RGB(0x1B, 0x19, 0x17));
+        }
+        for (i = 0; i < 4u; i++)
+            fa_knob_col(pg, i, 36 + (int32_t)i * 56, cur == i);
+        if (pg == 1u) {
+            fa_wave_boxes(pg, cur);
+        } else if (pg == 3u || pg == 4u || pg == 5u) {
+            fa_graph(pg);
+        } else if (pg == 6u) {                                   /* FX: DECAY TEMPO RATE TONE under their sends, a thin bar between the four sections */
+            for (i = 0; i < 4u; i++)
+                fa_edit_btn(36 + (int32_t)i * 56, cur == 4u + i);
+            for (i = 1; i < 4u; i++) {                         /* the bars between the sections: a bright core with a faint glow */
+                cv_rect(7 + (int32_t)i * 56, 38, 3, 168, FA_RGB(0x4A, 0x40, 0x32));
+                cv_rect(8 + (int32_t)i * 56, 38, 1, 168, FA_RGB(0xD2, 0xC2, 0xA2));
+            }
+        } else {
+            for (i = 0; i < ex; i++)
+                fa_switch(pg, i, 36 + (int32_t)i * 56, cur == 4u + i);
+            if (pg == 0u)
+                fa_voices(cur == 8u);
+        }
+        {   /* the foot: the patch's number (00..99, or U01.. of a saved one) and name, the battery at the right */
+            int32_t w;
+            char nm[16];
+            fa_preset_label(b, nm);
+            w = text_w(&AF_N, b);
+            fa_ltext(14, 214, &AF_N, b, FA_OR);
+            fa_ltext(14 + w + 6, 214, &AF_N, nm, FA_CR);
+            fa_battery(226, 227);
+        }
     }
     if (fa_gl == 1u || fa_gl == 2u || fa_gl == 4u)
         fa_gl_dialog();
@@ -1168,6 +1185,7 @@ static uint32_t fa_signature(void)
     for (i = 0; i < 12u; i++)
         h = (h ^ (uint8_t)fa_sv_name[i]) * 16777619u;
     h = fa_seq_sig(h);                                       /* the sequence, the tempo, the acid line (fmini_seq.c) */
+    h = fa_dr_sig(h);                                        /* moogi m6: the drums (fmini_drum.c) */
     h = (h ^ fa_batt()) * 16777619u;                         /* the battery icon */
     return (h ^ t->preset) * 16777619u;
 }
@@ -1221,12 +1239,36 @@ static void fa_goto(uint32_t pg)
 /* HOME: the first screen, CTRL; the pop-ups close. A preset change does the same (fa_input) */
 #define FA_HOME_PAGE 3u                    /* moogi: HOME and power-on show FILT (was CTRL, page 0) */
 
+static void fa_dr_leave(void)                             /* moogi m6: out of the drum mode (the drums play on) */
+{
+    fa_dr = 0;
+    if (fa_dr_dirty)
+        fa_dr_save_now();
+}
 static void fa_home(void)
 {
     fa_sv = 0;
     fa_ar = 0;
     fa_gl_close();
+    fa_dr_leave();
     fa_goto(FA_HOME_PAGE);
+}
+/* moogi m6: SEQ twice: the drum mode on (the FILT page under it: KNOB 1..4 the filter; the dialogs close, REC disarms) or off
+ * (HOME's screen) */
+static void fa_dr_toggle(void)
+{
+    if (fa_dr) {
+        fa_home();
+        return;
+    }
+    fmg_fx = 0;
+    fa_sv = 0;
+    fa_ar = 0;
+    fa_gl_close();
+    if (fa_sq_rec)
+        fa_seq_arm();                                     /* (REC off: the keys record nothing in the drum mode) */
+    fa_goto(FA_HOME_PAGE);
+    fa_dr = 1;
 }
 static void fa_go_filt(void)                              /* EDIT with the acid line off: FILT, as before */
 {
@@ -1340,6 +1382,14 @@ static void fa_buttons(uint32_t pressed)
                                                                              * their own; B_HOME never comes here) */
     uint32_t i, seq_was = fa_sq;
     fa_sq = (uint8_t)((fm1_in.buttons >> panel.btn[B_SEQ]) & 1u);   /* SEQ held: the keys' layer, its screen */
+    if ((pressed >> panel.btn[B_SEQ]) & 1u) {            /* moogi m6: SEQ twice within 0.4 s: the drum mode on / off */
+        if (fa_dr_sq_t && (uint32_t)(fm1_ms - fa_dr_sq_t) < 400u) {
+            fa_dr_sq_t = 0;
+            fa_dr_toggle();
+        } else {
+            fa_dr_sq_t = fm1_ms ? fm1_ms : 1u;
+        }
+    }
     if (seq_was && !fa_sq && fa_sq_dirty) {               /* (the parts saved when it is let go) */
         fa_sq_dirty = 0;
         fa_cfg_dirty = 1;
@@ -1446,6 +1496,7 @@ static void fa_buttons(uint32_t pressed)
             fa_sv = 0;                                    /* a page button cancels the dialog */
             fa_ar = 0;
             fa_gl_close();
+            fa_dr_leave();                                /* moogi m6: and leaves the drum mode */
             if (PG_BTN[i] == B_ENV) {
                 fa_env_last = (uint8_t)(fa_page == 4u ? 5u : 4u);
                 fa_goto(fa_env_last);
@@ -1495,6 +1546,7 @@ static void fa_input(void)
     if (notes)
         fa_layer_keys(notes);                               /* keys pressed with SEQ (or EDIT, the acid line on) held */
     fa_seq_poll();                                          /* the sequence's length, REC, the keys' layer */
+    fa_dr_poll();                                           /* moogi m6: the drums' track, the keys' lock, saving */
     fa_acid_poll();                                         /* the acid line into the sequence */
     if (fa_pl_down && (s = panel_enc(EN_SELECT)) != 0)
         fa_tempo_turn(s);                                   /* PLAY held: SELECT is the tempo */
@@ -1502,11 +1554,14 @@ static void fa_input(void)
         if (fa_acid && fa_ed_down && !fa_sq && !fa_ar && !fa_sv && !fmg_fx) {
             ac_turn(AV_TENS, s, EN_PRESET);                 /* the acid line: PRESETS is TENSION (moogi m5: EDIT held) */
             fa_ed_used = 1;
+        } else if (fa_dr) {
+            if (!fa_sq && !fa_ar && !fa_sv)
+                fa_dr_turn_preset(s);                       /* moogi m6: VOLUME, or a black key held: its CHANCE */
         } else
             fa_preset(s);
     }
-    if (fa_track_preset())                                  /* a new preset (the knob, a Program Change, a saved one): HOME */
-        fa_home();
+    if (fa_track_preset() && !fa_dr)                        /* a new preset (the knob, a Program Change, a saved one): HOME */
+        fa_home();                                          /* (moogi m6: the drum mode stays) */
     fa_cc_poll();                                         /* the CCs the MIDI inputs brought */
     if (fa_gl || fa_sq || fa_ar || fa_sv || fa_page != 6u)
         fmg_fx = 0;                                       /* the FX pop-up lives on the FX page alone, under no other dialog */
@@ -1530,7 +1585,7 @@ static void fa_input(void)
         (void)panel_enc(EN_PRESET);
         if (fa_gl == 1u) {
             if ((s = panel_enc(EN_SELECT)) != 0)
-                fa_gl_row = (uint8_t)((fa_gl_row + 7u + (s > 0 ? 1u : 6u)) % 7u);
+                fa_gl_row = (uint8_t)((fa_gl_row + FA_GL_N + (s > 0 ? 1u : FA_GL_N - 1u)) % FA_GL_N);
             if ((s = panel_enc(EN_ALGO)) != 0) {
                 if (fa_gl_row == 0u) {
                     static const uint8_t SRC[3] = {0, 1, 3};
@@ -1551,6 +1606,8 @@ static void fa_input(void)
                 } else if (fa_gl_row == 4u) {
                     fa_knob_rec = (uint8_t)(s > 0);         /* KNOB REC: the knobs recorded with the notes, or not */
                     fa_cfg_dirty = 1;
+                } else if (fa_gl_row == 6u) {
+                    fa_dr_kit_turn(s);                      /* moogi m6: DRUM KIT */
                 } else
                     fa_gl = fa_gl_row == 2u ? 2u : fa_gl_row == 5u ? 4u : 3u;
             }
@@ -1650,11 +1707,20 @@ static void fa_input(void)
             return;
         }
     }
-    if ((s = panel_enc(EN_SELECT)) != 0)
-        fa_select(s);
+    if (fa_dr) {                                          /* moogi m6: the drum mode: SELECT HITS, ALGORITHM ROTATE (a white key
+                                                           * held: its quarter's); KNOB 1..4 the filter, below */
+        if ((s = panel_enc(EN_SELECT)) != 0)
+            fa_dr_turn_hits(s);
+        if ((s = panel_enc(EN_ALGO)) != 0)
+            fa_dr_turn_rot(s);
+    } else {
+        if ((s = panel_enc(EN_SELECT)) != 0)
+            fa_select(s);
+        fmg_force_page = (int8_t)fa_page;
+        if ((s = panel_enc(EN_ALGO)) != 0)
+            fmg_algo(s);
+    }
     fmg_force_page = (int8_t)fa_page;
-    if ((s = panel_enc(EN_ALGO)) != 0)
-        fmg_algo(s);
     for (k = 0; k < 4u; k++)
         if ((s = panel_enc(EN_K1 + k)) != 0) {
             fmg_force_page = (int8_t)fa_page;
@@ -1678,11 +1744,12 @@ static void fa_leds(void)
         led_put(nd, panel.btn[k], 1);                       /* every button's glow */
     {
         static const uint8_t PG_LED[FA_NPAGE] = {B_LFO, B_SCL, B_SCL, B_HOME, B_ENV, B_ENV, B_FX};
-        led_put(nl, panel.btn[PG_LED[fa_page]], 1);          /* the page's button (FILT: HOME's) */
+        if (!fa_dr)                                          /* (moogi m6: none in the drum mode, SEQ lights) */
+            led_put(nl, panel.btn[PG_LED[fa_page]], 1);      /* the page's button (FILT: HOME's) */
     }
     led_put(nl, panel.btn[B_EDIT], fa_acid);                /* Acid Moogi: EDIT lights while the acid line is on */
     led_put(nl, panel.btn[B_ARP], TSEL->p[P_AMODE] != 0);
-    led_put(nl, panel.btn[B_SEQ], fa_sq != 0u);
+    led_put(nl, panel.btn[B_SEQ], fa_sq != 0u || fa_dr);
     led_put(nl, panel.btn[B_REC], fa_sq_rec != 0u);
     led_put(nl, panel.btn[B_PLAY], fa_pl_down ? fa_pl_led() : ck_wait ? (int)((fm1_ms / 125u) & 1u) : song.playing != 0u);
                                                           /* held: it blinks in time; moogi m5: waiting for the norns' bar,
@@ -1691,7 +1758,9 @@ static void fa_leds(void)
     led_put(nl, panel.btn[B_GLO], fa_gl != 0u);
     led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
     led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
-    if (fa_seq_leds(nl, nm)) {                              /* the sequence on the keys (SEQ held, playing, recording) */
+    if (fa_dr && !fa_sq) {
+        fa_dr_leds(nl, nm);                                 /* moogi m6: the drums on the keys */
+    } else if (fa_seq_leds(nl, nm)) {                       /* the sequence on the keys (SEQ held, playing, recording) */
         if (!fa_sq)
             for (k = 0; k < 27u; k++)
                 if ((fm1_in.notes >> k) & 1u)
@@ -1715,6 +1784,8 @@ static void fa_init(void)
     uint32_t i;
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
+        if (i == FA_DR_TRK)
+            continue;                                     /* moogi m6: track 2 is the drums (fa_dr_setup, below) */
         if (t->eng_req != ENGI_FMINI || i) {              /* track 1 keeps its autosaved sound; the rest start fresh and muted */
             set_engine_of(t, ENGI_FMINI);
             apply_preset_to(t, 0);
@@ -1731,6 +1802,8 @@ static void fa_init(void)
     }
     song.sel = 0;
     fa_cfg_load();
+    fa_dr = 0;
+    fa_dr_setup();                                        /* moogi m6: the drums, from the saved beat and kit */
     fa_primed = 0;
     fa_last_sl = -2;
     fa_last_user = 0;
