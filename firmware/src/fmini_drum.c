@@ -9,18 +9,22 @@
  *   steps of 1/16, whatever the bass's length and STEP. No hits by hand: the steps are computed (fa_dr_write).
  * THE DRUM MODE: SEQ twice (within 0.4 s) turns it on and off; HOME or a page button leaves it too. The drums play in it or
  *   out of it. In it the keys play no notes (seq.c kb_lock):
- *   - black keys 1..8 the lanes: a press selects (stopped, it sounds); twice: mute / unmute, on the next quarter while playing.
+ *   - black keys 1..8 the lanes (moogi m7): a tap mutes / unmutes its lane, on the next quarter while playing; several keys
+ *     tapped together all turn on that quarter. Held (FA_DR_HOLD ms, or a wheel turned meanwhile): the lane is selected
+ *     and the wheels edit it; the tap does not move the selection. Stopped, every press sounds its lane.
  *   - SELECT HITS, ALGORITHM ROTATE of the selected lane, PRESETS its VOLUME (the lane's LEVEL, P_LN0..7).
  *   - a white key held: SELECT and ALGORITHM are its quarter's (HITS below 0: "=").
- *   - a black key held: PRESETS is its lane's CHANCE (0..100).
+ *   - a black key held: the wheels are its lane's, PRESETS its CHANCE (0..100).
  *   - KNOB 1..4 the filter (FILT's), as on HOME. SEQ held: the bass's layer. EDIT held, the acid line on: the acid line.
  *   The screen: the filter's four knobs above, the 8 x 16 beat below, the selected lane's values at the foot (no step
  *   marker: the step playing shows on the white keys). The LEDs: the white keys the selected lane's hits (dim) and the step
  *   playing (lit); the black keys 1..8 the lanes heard (blinking: a mute waiting for its quarter).
- * GLO > DRUM KIT: the kit (STD, 80 10 66 55 77, DEEP TIGHT PERC).
+ * GLO > DRUMS (moogi m7): KIT (STD, 80 10 66 55 77, DEEP TIGHT PERC), SIDECHAIN (0 OFF .. 100 %: each kick heard ducks the
+ *   synth, fx.c fa_sc_*) and its RELEASE (20 .. 600 ms).
  * SAVED at power-off (fa_dr_byte: rows 0..6 of favorites.factory, the favourites of engines 0..6, which FMINI never shows):
  *   0 0xD7, 1 the kit, 2..9 VOLUME, 10..17 CHANCE, 18.. 5 bytes a lane: HITS, ROTATE, the quarters (5 bits each: HITS + 1
- *   in bits 0..2, 0 = "=", ROTATE in bits 3..4), 58..217 kept for the fills (stage 2). Each value is checked on load: a wrong
+ *   in bits 0..2, 0 = "=", ROTATE in bits 3..4), 58..217 kept for the fills (stage 2), 218 SIDECHAIN, 219 its RELEASE (m7).
+ *   Each value is checked on load: a wrong
  *   one is its default. The mutes are not saved (power-on: every lane heard). */
 
 /* fa_dr (the drum mode is on): fmini_app.c, above the include of fmini_seq.c */
@@ -32,8 +36,12 @@ static uint8_t fa_dr_lv[NLANE];                           /* VOLUME: the lane's 
 static uint8_t fa_dr_kit;                                 /* the kit, eng_drum.c's stored KIT value */
 static uint8_t fa_dr_dirty;                               /* changed: saved a moment after the last change */
 static uint32_t fa_dr_t_ch;
-static uint8_t fa_dr_bk = 0xFFu;                          /* the last black key pressed, and when (twice: the mute) */
-static uint32_t fa_dr_bk_t;
+#define FA_DR_HOLD 300u                                   /* ms: a black key held this long selects (shorter: a tap, the mute) */
+static uint8_t fa_dr_down, fa_dr_used;                    /* black keys 1..8 pressed in the mode and not let go; .. held or
+                                                           * turned with (no mute on their release) */
+static uint32_t fa_dr_t0[NLANE];                          /* when each was pressed */
+static uint8_t fa_dr_row;                                 /* GLO > DRUMS: 0 KIT, 1 SIDECHAIN, 2 RELEASE */
+#define FA_DR_NROW 3u
 static uint32_t fa_dr_sq_t;                               /* SEQ's last press (twice: the mode) */
 
 /* the script's starting beat: KICK 4, SNARE 2 on beats 2 and 4, HAT CL 8, its PERC (3) on RIM */
@@ -121,6 +129,8 @@ static void fa_dr_cfg_load(void)
     fa_dr_kit = DK_STD;
     if (ok && fa_dr_kit_ok(*fa_dr_byte(1)))
         fa_dr_kit = *fa_dr_byte(1);
+    fa_sc_amt = (uint8_t)(ok && *fa_dr_byte(218) <= 100u ? *fa_dr_byte(218) : 0u);   /* moogi m7: the sidechain, off at first */
+    fa_sc_rel = (uint8_t)(ok && *fa_dr_byte(219) <= 100u ? *fa_dr_byte(219) : 40u);
     for (l = 0; l < NLANE; l++) {
         uint32_t lv = *fa_dr_byte(2u + l), ch = *fa_dr_byte(10u + l), n = *fa_dr_byte(18u + 5u * l),
                  r = *fa_dr_byte(19u + 5u * l), pk = (uint32_t)*fa_dr_byte(20u + 5u * l) |
@@ -141,6 +151,8 @@ static void fa_dr_cfg_save(void)
     uint32_t l, q;
     *fa_dr_byte(0) = 0xD7;
     *fa_dr_byte(1) = fa_dr_kit;
+    *fa_dr_byte(218) = fa_sc_amt;
+    *fa_dr_byte(219) = fa_sc_rel;
     for (l = 0; l < NLANE; l++) {
         uint32_t pk = 0;
         *fa_dr_byte(2u + l) = fa_dr_lv[l];
@@ -207,10 +219,22 @@ static void fa_dr_q_now(uint32_t l, uint32_t q, int32_t *hits, uint32_t *rot)
         }
     }
 }
+/* a wheel turned with a black key held: that lane is the one edited (and selected), its release mutes nothing */
+static void fa_dr_take_held(void)
+{
+    int32_t l = fa_dr_held_lane();
+    if (l >= 0) {
+        fa_dr_sel = (uint8_t)l;
+        fa_dr_used |= (uint8_t)(1u << l);
+    }
+}
 static void fa_dr_turn_hits(int32_t s)                    /* SELECT */
 {
-    uint32_t l = fa_dr_sel;
-    int32_t q = fa_dr_held_q(), h;
+    uint32_t l;
+    int32_t q, h;
+    fa_dr_take_held();
+    l = fa_dr_sel;
+    q = fa_dr_held_q();
     if (q < 0) {
         fa_dr_n[l] = (uint8_t)clamp((int32_t)fa_dr_n[l] + s, 0, 16);
     } else if (fa_dr_qn[l][q] < 0) {                      /* "=": locked from what it plays now */
@@ -231,8 +255,11 @@ static void fa_dr_turn_hits(int32_t s)                    /* SELECT */
 }
 static void fa_dr_turn_rot(int32_t s)                     /* ALGORITHM */
 {
-    uint32_t l = fa_dr_sel;
-    int32_t q = fa_dr_held_q();
+    uint32_t l;
+    int32_t q;
+    fa_dr_take_held();
+    l = fa_dr_sel;
+    q = fa_dr_held_q();
     if (q < 0)
         fa_dr_r[l] = (uint8_t)(((int32_t)fa_dr_r[l] + s % 16 + 16) % 16);
     else if (fa_dr_qn[l][q] >= 0)
@@ -244,6 +271,7 @@ static void fa_dr_turn_rot(int32_t s)                     /* ALGORITHM */
 static void fa_dr_turn_preset(int32_t s)                  /* PRESETS: VOLUME, or a black key held: its CHANCE */
 {
     int32_t l = fa_dr_held_lane();
+    fa_dr_take_held();
     if (l >= 0) {
         fa_dr_chance[l] = (uint8_t)clamp((int32_t)fa_dr_chance[l] + 5 * s, 0, 100);
     } else {
@@ -252,7 +280,50 @@ static void fa_dr_turn_preset(int32_t s)                  /* PRESETS: VOLUME, or
     }
     fa_dr_changed();
 }
-static void fa_dr_kit_turn(int32_t s)                     /* GLO > DRUM KIT */
+static void fa_dr_kit_turn(int32_t s);
+static void fa_dr_menu_turn(int32_t s)                    /* GLO > DRUMS: ALGORITHM on the row */
+{
+    if (fa_dr_row == 0u) {
+        fa_dr_kit_turn(s);
+        return;
+    }
+    if (fa_dr_row == 1u)
+        fa_sc_amt = (uint8_t)clamp((int32_t)fa_sc_amt + 5 * fa_dr_sgn(s), 0, 100);
+    else
+        fa_sc_rel = (uint8_t)clamp((int32_t)fa_sc_rel + 5 * fa_dr_sgn(s), 0, 100);
+    fa_dr_dirty = 1;
+    fa_dr_t_ch = fm1_ms;
+}
+static void fa_dr_menu_val(uint32_t r, char *b)
+{
+    if (r == 0u) {
+        str_cpy(b, N_DRUM_KIT[fa_dr_kit % DK_COUNT], 8);
+    } else if (r == 1u) {
+        if (!fa_sc_amt) {
+            str_cpy(b, "OFF", 4);
+        } else {
+            fmt_int(b, fa_sc_amt);
+            str_cpy(b + str_len(b), "%", 2);
+        }
+    } else {
+        fmt_int(b, (int32_t)(20u + (uint32_t)fa_sc_rel * fa_sc_rel * 58u / 1000u));   /* (seq.c fa_sc_block's) */
+        str_cpy(b + str_len(b), " MS", 4);
+    }
+}
+static void fa_dr_menu_dialog(void)
+{
+    static const char *const NM[FA_DR_NROW] = {"KIT", "SIDECHAIN", "RELEASE"};
+    uint32_t r;
+    char v[16];
+    fa_frame("DRUMS");
+    for (r = 0; r < FA_DR_NROW; r++) {
+        fa_dr_menu_val(r, v);
+        fa_line(64 + (int32_t)r * 24, NM[r], v, r == fa_dr_row);
+    }
+    fa_ctext(120, 150, &AF_S, "EACH KICK DUCKS THE SYNTH", FA_MU);
+    fa_ctext(120, 190, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
+}
+static void fa_dr_kit_turn(int32_t s)                     /* GLO > DRUMS > KIT */
 {
     uint32_t i, at = 0;
     for (i = 0; i < FA_DR_NKIT; i++)
@@ -272,23 +343,39 @@ static void fa_dr_mute_toggle(uint32_t l)
         fa_dr_mute ^= (uint8_t)(1u << l);
     fm1_irq_on();
 }
-/* key k pressed in the drum mode: a black key 1..8 selects its lane (stopped: it sounds), twice mutes it. The white keys
- * act while held (fa_dr_held_q); black 9..11 are free */
+/* key k pressed in the drum mode: a black key 1..8 is down (its tap or hold is decided as it is held / let go: fa_dr_poll);
+ * stopped, it sounds. The white keys act while held (fa_dr_held_q); black 9..11 are free */
 static void fa_dr_key(uint32_t k)
 {
     uint32_t p = key_place(k);
     if (!key_black(k) || p >= NLANE)
         return;
-    if (fa_dr_bk == p && (uint32_t)(fm1_ms - fa_dr_bk_t) < 400u) {
-        fa_dr_mute_toggle(p);
-        fa_dr_bk = 0xFFu;
-    } else {
-        fa_dr_bk = (uint8_t)p;
-        fa_dr_bk_t = fm1_ms;
-    }
-    fa_dr_sel = (uint8_t)p;
+    fa_dr_down |= (uint8_t)(1u << p);
+    fa_dr_used &= (uint8_t)~(1u << p);
+    fa_dr_t0[p] = fm1_ms;
     if (!song.playing)
         fa_dr_aud = (uint8_t)(p + 1u);
+}
+/* the black keys down: held FA_DR_HOLD, a key selects its lane; let go before that (no wheel turned), it mutes / unmutes it */
+static void fa_dr_keys_poll(void)
+{
+    uint32_t l;
+    for (l = 0; l < NLANE; l++) {
+        uint32_t b = 1u << l;
+        if (!(fa_dr_down & b))
+            continue;
+        if ((fm1_in.notes >> fa_black_key(l)) & 1u) {
+            if (!(fa_dr_used & b) && (uint32_t)(fm1_ms - fa_dr_t0[l]) >= FA_DR_HOLD) {
+                fa_dr_sel = (uint8_t)l;
+                fa_dr_used |= (uint8_t)b;
+            }
+            continue;
+        }
+        fa_dr_down &= (uint8_t)~b;
+        if (!(fa_dr_used & b))
+            fa_dr_mute_toggle(l);
+        fa_dr_used &= (uint8_t)~b;
+    }
 }
 /* each frame: track 2 stays the drums, the keys are the mode's while it is on, the beat saved a moment after a change */
 static void fa_dr_poll(void)
@@ -296,6 +383,10 @@ static void fa_dr_poll(void)
     if (trk[FA_DR_TRK].eng_req != ENGI_DRUM)
         fa_dr_setup();
     kb_lock = (uint8_t)(fa_dr ? 1u : 0u);
+    if (fa_dr)
+        fa_dr_keys_poll();
+    else
+        fa_dr_down = fa_dr_used = 0;                      /* (out of the mode: a key let go later mutes nothing) */
     if (fa_dr_dirty && (uint32_t)(fm1_ms - fa_dr_t_ch) >= 2000u)
         fa_dr_save_now();
 }
@@ -351,11 +442,17 @@ static void fa_dr_draw(void)
     }
     {   /* the foot: the lane, then what the wheels set now */
         uint32_t s = fa_dr_sel;
+        if (hl >= 0 && hq < 0)
+            s = (uint32_t)hl;                             /* (a black key held: its lane's) */
         str_cpy(b, FA_DR_NAME[s], 8);
         fa_ltext(14, 210, &AF_S, b, FA_CR);
-        if (hl >= 0) {
-            str_cpy(b, "CHANCE ", 8);
-            fmt_int(b + 7, fa_dr_chance[hl]);
+        if (hl >= 0 && hq < 0) {
+            str_cpy(b, "HITS ", 6);
+            fmt_int(b + 5, fa_dr_n[s]);
+            str_cpy(b + str_len(b), " ROT ", 6);
+            fmt_int(b + str_len(b), fa_dr_r[s]);
+            str_cpy(b + str_len(b), " CH ", 5);
+            fmt_int(b + str_len(b), fa_dr_chance[s]);
             str_cpy(b + str_len(b), "%", 2);
         } else if (hq >= 0) {
             b[0] = 'Q';
@@ -403,6 +500,7 @@ static void fa_dr_leds(uint8_t *nl, uint8_t *nm)
 static uint32_t fa_dr_sig(uint32_t h)
 {
     uint32_t l, q;
+    h = (h ^ fa_dr_row ^ (uint32_t)fa_sc_amt << 2 ^ (uint32_t)fa_sc_rel << 9) * 16777619u;
     h = (h ^ fa_dr ^ (uint32_t)fa_dr_sel << 1 ^ (uint32_t)fa_dr_kit << 4 ^ (uint32_t)fa_dr_mute << 8 ^ (uint32_t)fa_dr_pend << 16 ^
          (uint32_t)(fa_dr_held_q() + 1) << 24 ^ (uint32_t)(fa_dr_held_lane() + 1) << 27) * 16777619u;
     for (l = 0; l < NLANE; l++) {

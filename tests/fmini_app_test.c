@@ -807,13 +807,31 @@ int main(int argc, char **argv)
         if (fa_knob_rec) { printf("KNOB REC off\n"); return 1; }
         fa_gl = 1; fa_gl_row = 5; fturn(EN_ALGO, 1);
         if (fa_gl != 4) { printf("ACID opens\n"); return 1; }
-        {   /* moogi m6: GLO > DRUM KIT (row 6): ALGORITHM steps through the kits, the drums' track takes it, GLO stays open */
+        {   /* moogi m7: GLO > DRUMS (row 6) opens its page: KIT steps through the kits (the drums' track takes it), SIDECHAIN
+             * 0..100 by 5 (0 OFF), RELEASE 0..100; GLO goes back to the list */
             uint8_t was = fa_dr_kit;
             fa_gl = 1; fa_gl_row = 6; fa_dr_kit = DK_STD; trk[FA_DR_TRK].p[P_E0] = DK_STD;
             fturn(EN_ALGO, 1);
-            if (fa_gl != 1 || fa_dr_kit != DK_80 || trk[FA_DR_TRK].p[P_E0] != DK_80) { printf("DRUM KIT: %d\n", fa_dr_kit); return 1; }
+            if (fa_gl != 5) { printf("GLO > DRUMS does not open (%d)\n", fa_gl); return 1; }
+            fa_dr_row = 0;
+            fturn(EN_ALGO, 1);
+            if (fa_dr_kit != DK_80 || trk[FA_DR_TRK].p[P_E0] != DK_80) { printf("DRUMS > KIT: %d\n", fa_dr_kit); return 1; }
             fturn(EN_ALGO, -1); fturn(EN_ALGO, -1);
-            if (fa_dr_kit != DK_STD) { printf("DRUM KIT stops at STD\n"); return 1; }
+            if (fa_dr_kit != DK_STD) { printf("DRUMS > KIT stops at STD\n"); return 1; }
+            fturn(EN_SELECT, 1); fa_sc_amt = 0;
+            fturn(EN_ALGO, 1); fturn(EN_ALGO, 1);
+            if (fa_dr_row != 1u || fa_sc_amt != 10u) { printf("DRUMS > SIDECHAIN %u\n", fa_sc_amt); return 1; }
+            fturn(EN_ALGO, -1); fturn(EN_ALGO, -1); fturn(EN_ALGO, -1);   /* (5 a detent, whatever the speed) */
+            if (fa_sc_amt != 0u) { printf("DRUMS > SIDECHAIN stops at OFF\n"); return 1; }
+            fturn(EN_SELECT, 1); fa_sc_rel = 40;
+            fturn(EN_ALGO, 1);
+            if (fa_dr_row != 2u || fa_sc_rel != 45u) { printf("DRUMS > RELEASE %u\n", fa_sc_rel); return 1; }
+            fa_sc_rel = 40;
+            fturn(EN_SELECT, 1);
+            if (fa_dr_row != 0u) { printf("DRUMS rows wrap\n"); return 1; }
+            fa_pp_until = 0; ui.force = 1; fa_draw(); dump(dir, 25);
+            fpress(B_GLO);
+            if (fa_gl != 1) { printf("GLO from DRUMS: back to the list (%d)\n", fa_gl); return 1; }
             fa_dr_kit = was; trk[FA_DR_TRK].p[P_E0] = was;
         }
         fa_gl = 1; fa_gl_row = 7; fturn(EN_ALGO, 1);
@@ -1156,10 +1174,15 @@ int main(int argc, char **argv)
         for (i = 0; i < NVOICE; i++)
             if (trk[0].v[i].active && trk[0].v[i].gate) { printf("drums: a key played the bass in the drum mode\n"); return 1; }
         trk_all_off(&trk[0]);
-        /* a black key selects its lane and, stopped, sounds it */
+        /* moogi m7: a black key held selects its lane (no mute when let go) and, stopped, sounds it */
         fframes(30);
-        fkey(fa_black_key(1));
-        if (fa_dr_sel != 1u) { printf("drums: black key 2 selects SNARE (%u)\n", fa_dr_sel); return 1; }
+        fm1_in.notes = 1u << fa_black_key(1); host_notes = fm1_in.notes;
+        fframes(200);
+        if (fa_dr_sel == 1u) { printf("drums: a short hold selected\n"); return 1; }
+        fframes(200);
+        fm1_in.notes = 0;
+        fframe();
+        if (fa_dr_sel != 1u || fa_dr_mute) { printf("drums: black key 2 held selects SNARE (%u, mute %x)\n", fa_dr_sel, fa_dr_mute); return 1; }
         ck_t = (double)fm1_ms; ck_run(10.0, 1000.0, 0);
         for (m = 0, i = 0; i < NVOICE; i++)
             m |= d->v[i].active;
@@ -1202,14 +1225,18 @@ int main(int argc, char **argv)
         if (fa_dr_qn[1][0] != -1) { printf("drums: Q1 back to = (%d)\n", fa_dr_qn[1][0]); return 1; }
         fm1_in.notes = 0;
         fframe();
-        /* a black key held: PRESETS is its CHANCE */
+        /* a black key held: the wheels are its lane's (it is selected, at once), PRESETS its CHANCE; let go: no mute */
         fm1_in.notes = 1u << fa_black_key(3); host_notes = fm1_in.notes;
         fframe();
         fturn(EN_PRESET, -2);
-        if (fa_dr_chance[3] != 90u || fa_dr_lv[3] != 127u) { printf("drums: black held + PRESETS: CHANCE %u\n", fa_dr_chance[3]); return 1; }
+        if (fa_dr_chance[3] != 90u || fa_dr_lv[3] != 127u || fa_dr_sel != 3u) { printf("drums: black held + PRESETS: CHANCE %u\n", fa_dr_chance[3]); return 1; }
+        fturn(EN_SELECT, 1);
+        if (fa_dr_n[3] != 9u) { printf("drums: black held + SELECT: its HITS %u\n", fa_dr_n[3]); return 1; }
         ui.force = 1; fa_draw(); dump(dir, 22);
         fm1_in.notes = 0;
         fframes(40);
+        if (fa_dr_mute) { printf("drums: a black key held and turned muted on release\n"); return 1; }
+        fturn(EN_SELECT, -1);
         fa_dr_chance[3] = 100;
         /* playing: the beat as the steps hold it, 16 steps whatever the bass's length */
         fa_parts = 15u;                                    /* (the bass: 64 steps) */
@@ -1234,8 +1261,11 @@ int main(int argc, char **argv)
         fm1_in.buttons &= ~(1u << panel.btn[B_SEQ]);
         fframes(500);
         if (fa_dr_sel != k || !fa_dr) { printf("drums: SEQ held: the key went to the drums (%u)\n", fa_dr_sel); return 1; }
-        /* twice on a black key while playing: the mute waits for the next quarter, then the lane is silent */
-        fkey(fa_black_key(0)); fkey(fa_black_key(0));
+        /* a tap on a black key while playing: the mute waits for the next quarter, then the lane is silent; the selection
+         * stays */
+        k = fa_dr_sel;
+        fkey(fa_black_key(0));
+        if (fa_dr_sel != k) { printf("drums: a tap moved the selection\n"); return 1; }
         if (!(fa_dr_pend & 1u) || (fa_dr_mute & 1u)) { printf("drums: the mute is not waiting (%x %x)\n", fa_dr_pend, fa_dr_mute); return 1; }
         for (k = 0; k < 4u && (fa_dr_pend & 1u); k++) {
             if (d->seq_idx % 4u == 3u && (fa_dr_pend & 1u)) {
@@ -1249,13 +1279,25 @@ int main(int argc, char **argv)
         for (i = 0; i < 16u; i++)
             if (dr_step() & 1u) { printf("drums: a muted KICK played\n"); return 1; }
         ui.force = 1; fa_draw(); dump(dir, 23);
-        /* STOP: a waiting mute applies at once; stopped, twice is at once */
-        fkey(fa_black_key(0)); fkey(fa_black_key(0));
+        /* two keys tapped together: both wait for the same quarter */
+        fm1_in.notes = 1u << fa_black_key(1) | 1u << fa_black_key(2); host_notes = fm1_in.notes;
+        fframe(); fframe();
+        fm1_in.notes = 0;
+        fframe();
+        if ((fa_dr_pend & 6u) != 6u) { printf("drums: two keys together: pending %x\n", fa_dr_pend); return 1; }
+        while (fa_dr_pend)
+            got = dr_step();
+        if ((fa_dr_mute & 6u) != 6u || d->seq_idx % 4u) { printf("drums: two keys together: not on one quarter (%x)\n", fa_dr_mute); return 1; }
+        fkey(fa_black_key(1)); fkey(fa_black_key(2));
+        while (fa_dr_pend)
+            got = dr_step();
+        /* STOP: a waiting mute applies at once; stopped, a tap is at once */
+        fkey(fa_black_key(0));
         fpress(B_PLAY);
         ck_t = (double)fm1_ms; ck_run(30.0, 1000.0, 0);   /* (the audio takes the stop) */
         if (song.playing || fa_dr_pend || (fa_dr_mute & 1u)) { printf("drums: STOP did not apply the mute (%x %x)\n", fa_dr_pend, fa_dr_mute); return 1; }
         fframes(30);
-        fkey(fa_black_key(2)); fkey(fa_black_key(2));
+        fkey(fa_black_key(2));
         if (!(fa_dr_mute & 4u) || fa_dr_pend) { printf("drums: stopped, the mute is not at once\n"); return 1; }
         fa_dr_mute = 0;
         /* CHANCE 0: never; the other lanes as before */
@@ -1306,7 +1348,51 @@ int main(int argc, char **argv)
             fa_dr_n[2] = 0;
             if (h0 == h1) { printf("drums: the screen does not see HITS\n"); return 1; }
         }
-        fa_gl = 1; fa_gl_row = 6; fa_pp_until = 0; ui.force = 1; fa_draw(); dump(dir, 24); fa_gl = 0;   /* (GLO > DRUM KIT) */
+        fa_gl = 1; fa_gl_row = 6; fa_pp_until = 0; ui.force = 1; fa_draw(); dump(dir, 24); fa_gl = 0;   /* (GLO > DRUMS) */
+        {   /* moogi m7: the sidechain: a kick heard ducks the synth by AMOUNT and it comes back over RELEASE; muted, OFF: not */
+            track_t *t0 = &trk[0];
+            static int32_t pk[1400], gb[1400];
+            int32_t o[2 * CTL], j, b, b0 = -1, pre = 0, post = 0, mq = (int32_t)song.master_q12, sus = t0->p[P_SUS];
+            song.master_q12 = MASTER_FULL;
+            t0->p[P_SUS] = 127; t0->p[P_ATK] = 0;
+            esync_coef(t0);
+            fa_sc_amt = 100; fa_sc_rel = 40;
+            fa_dr_mute = 0;
+            d->p[P_MUTE] = 1;                              /* (the drums unheard here: the kick still ducks) */
+            trk_note_on(t0, 45, 100);
+            for (b = 0; b < 1400; b++) {
+                if (b == 100)
+                    transport_req = 1;
+                mix_block(o, CTL);
+                for (pk[b] = 0, j = 0; j < 2 * CTL; j++)
+                    pk[b] = o[j] > pk[b] ? o[j] : -o[j] > pk[b] ? -o[j] : pk[b];
+                gb[b] = fa_sc_g1;
+                if (b0 < 0 && gb[b] < 4096)
+                    b0 = b;
+            }
+            for (b = 60; b < 100; b++) pre = pk[b] > pre ? pk[b] : pre;
+            for (b = b0 + 3; b < b0 + 7; b++) post = pk[b] > post ? pk[b] : post;   /* (2..5 ms after: the bottom, the release
+                                                                                     * already on its way) */
+            if (b0 < 100 || b0 > 104 || pre < 1000 || post * 6 > pre) { printf("sidechain: kick at block %d, before %d, after %d\n", (int)b0, (int)pre, (int)post); return 1; }
+            if (gb[b0 + 200] < 3500 || gb[b0 + 40] > 3500) { printf("sidechain: release (40): %d after 29 ms, %d after 146 ms\n", (int)gb[b0 + 40], (int)gb[b0 + 200]); return 1; }
+            for (b = b0 + 300; b < b0 + 700; b++)
+                if (gb[b] < 4096 && gb[b - 1] == 4096) break;
+            if (b >= b0 + 700 || b < b0 + 670) { printf("sidechain: the next kick (block %d)\n", (int)(b - b0)); return 1; }
+            fa_dr_mute = 1;                                /* a muted kick: no duck */
+            for (b = 0; b < 1400; b++) { mix_block(o, CTL); if (fa_sc_g1 < 4000 && b > 200) break; }
+            if (b < 1400) { printf("sidechain: a muted kick ducked\n"); return 1; }
+            fa_dr_mute = 0; fa_sc_amt = 0;                 /* OFF */
+            for (b = 0; b < 1400; b++) { mix_block(o, CTL); if (fa_sc_g1 != 4096) break; }
+            if (b < 1400) { printf("sidechain: OFF ducked\n"); return 1; }
+            transport_req = 2;
+            mix_block(o, CTL);
+            trk_all_off(t0);
+            t0->p[P_SUS] = (int16_t)sus;
+            esync_coef(t0);
+            d->p[P_MUTE] = 0;
+            song.master_q12 = (uint32_t)mq;
+            fa_sc_rel = 40;
+        }
         /* REC does nothing in the drum mode */
         fpress(B_REC); fframes(30);
         if (fa_sq_rec) { printf("drums: REC armed in the drum mode\n"); return 1; }
@@ -1321,7 +1407,7 @@ int main(int argc, char **argv)
         fmg_fx = 0;
         fa_parts = 1u;
         fframes(100);
-        printf("moogi m6 (the drum machine: track 2, the mode, the wheels, quarters, mutes on the quarter, chance, saved): ok\n");
+        printf("moogi m6, m7 (the drum machine: track 2, the mode, the wheels, quarters, mutes on a tap and the quarter, hold to select, chance, saved; the sidechain): ok\n");
     }
     {   /* the loudness contour is a Minimoog's ADS: the DECAY knob is the decay and the release; SUSTAIN clamps it */
         track_t *t0 = &trk[0];

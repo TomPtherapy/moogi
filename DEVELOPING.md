@@ -188,6 +188,10 @@ In the audio ISR, `seq.c` masks a drum step's hits with the lane mutes and rolls
 applies a waiting mute as a quarter starts (`fa_dr_quarter` in `seq_enter`) or at STOP, and plays a black key's lane once while
 stopped (`fa_dr_audition`). The drum mode (SEQ twice) locks the keys through `kb_lock` and keeps FILT under the four knobs.
 Its saved bytes are rows 0..6 of `favorites.factory` (`fa_dr_byte`, not `fa_cfg_byte`: that record has 12 bytes left).
+m7: a black key's tap mutes (on its release, `fa_dr_keys_poll`; several keys at once each toggle), held 300 ms or with a wheel
+turned it selects. The sidechain: a kick heard (`seq_step`, lane 0 of track 2) sets `fa_sc_hit`; `seq.c` `fa_sc_block` moves the
+envelope once a block (2 ms down, a first-order rise over RELEASE) and `fx.c` `mix_part` ramps track 1's dry sound by it
+(`fa_sc_apply`, before LEVEL and the sends). GLO > DRUMS holds KIT, SIDECHAIN (AMOUNT) and RELEASE, saved in bytes 218, 219.
 
 ## 8. Tests
 

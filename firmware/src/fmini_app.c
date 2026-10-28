@@ -693,12 +693,13 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.8.0-m6"
+#define FMINI_VERSION "v1.8.0-m7"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
-static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT, 4 ACID (fmini_seq.c) */
+static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT, 4 ACID (fmini_seq.c),
+                                                           * 5 DRUMS (moogi m7, fmini_drum.c) */
 static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 MIDI CC, 3 PITCH BEND, 4 KNOB REC, 5 ACID,
-                                                           * 6 DRUM KIT (moogi m6), 7 ABOUT */
+                                                           * 6 DRUMS (moogi m6 DRUM KIT; m7 a page), 7 ABOUT */
 #define FA_GL_N 8u
 static uint8_t fa_cc_i;                                   /* the control highlighted in MIDI CC */
 static uint8_t fa_cc[FA_NCC];                             /* its CC, 0 = none */
@@ -921,6 +922,10 @@ static void fa_gl_dialog(void)
         ac_menu_dialog();
         return;
     }
+    if (fa_gl == 5u) {
+        fa_dr_menu_dialog();                              /* moogi m7: GLO > DRUMS */
+        return;
+    }
     if (fa_gl == 1u) {
         fa_frame("GLOBAL");
         fa_line(52, "MIDI IN", FA_SRC[fm_midi_src == 3u ? 2u : fm_midi_src & 1u], fa_gl_row == 0u);
@@ -933,7 +938,7 @@ static void fa_gl_dialog(void)
         fa_line(106, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 3u);
         fa_line(124, "KNOB REC", fa_knob_rec ? "ON" : "OFF", fa_gl_row == 4u);
         fa_line(142, "ACID", ">", fa_gl_row == 5u);
-        fa_line(160, "DRUM KIT", N_DRUM_KIT[fa_dr_kit % DK_COUNT], fa_gl_row == 6u);   /* moogi m6 */
+        fa_line(160, "DRUMS", ">", fa_gl_row == 6u);        /* moogi m7: KIT, SIDECHAIN, RELEASE */
         fa_line(178, "ABOUT", ">", fa_gl_row == 7u);
         fa_ctext(120, 198, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
     } else {                                              /* MIDI CC: a window of six lines on the list */
@@ -1137,7 +1142,7 @@ static void fa_scene(void)
             fa_battery(226, 227);
         }
     }
-    if (fa_gl == 1u || fa_gl == 2u || fa_gl == 4u)
+    if (fa_gl == 1u || fa_gl == 2u || fa_gl == 4u || fa_gl == 5u)
         fa_gl_dialog();
     else if (fa_pl_show())
         fa_tempo_dialog();
@@ -1607,7 +1612,7 @@ static void fa_input(void)
                     fa_knob_rec = (uint8_t)(s > 0);         /* KNOB REC: the knobs recorded with the notes, or not */
                     fa_cfg_dirty = 1;
                 } else if (fa_gl_row == 6u) {
-                    fa_dr_kit_turn(s);                      /* moogi m6: DRUM KIT */
+                    fa_gl = 5;                              /* moogi m7: GLO > DRUMS */
                 } else
                     fa_gl = fa_gl_row == 2u ? 2u : fa_gl_row == 5u ? 4u : 3u;
             }
@@ -1624,6 +1629,11 @@ static void fa_input(void)
                 fa_cc[fa_cc_i] = (uint8_t)c;
                 fa_cfg_dirty = 1;
             }
+        } else if (fa_gl == 5u) {                           /* moogi m7: DRUMS: KIT, SIDECHAIN, RELEASE */
+            if ((s = panel_enc(EN_SELECT)) != 0)
+                fa_dr_row = (uint8_t)((fa_dr_row + FA_DR_NROW + (s > 0 ? 1u : FA_DR_NROW - 1u)) % FA_DR_NROW);
+            if ((s = panel_enc(EN_ALGO)) != 0)
+                fa_dr_menu_turn(s);
         } else if (fa_gl == 4u) {                           /* ACID: the line's settings */
             if ((s = panel_enc(EN_SELECT)) != 0)
                 ac_row = (uint8_t)((ac_row + AC_NROW + (s > 0 ? 1u : AC_NROW - 1u)) % AC_NROW);

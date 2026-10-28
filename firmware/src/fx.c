@@ -1537,6 +1537,23 @@ static const uint16_t ENG_VCOST[NENGINES] = {163, FELUCCA_FM4 ? 181 : 0, 162, 67
 
 /* one synth part into the dry mix and the sends of sm (mx[0]; mx[1] on the second core); a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
+#if FELUCCA_FMINI_ONLY
+/* moogi m7: the sidechain. Each kick of the drums (seq.c seq_step, track 2's lane 0, as heard: not a muted one) ducks track 1,
+ * the synth: its gain falls by AMOUNT (0..100 %, 0 off) over ~2 ms, then comes back over RELEASE (a first-order rise, ~95 % back
+ * after 20..600 ms). seq.c fa_sc_block moves the envelope once a block (the trigger is set in that block's events, before the
+ * parts render); mix_part ramps the gain across the block, on the dry sound before LEVEL, PAN and the sends. GLO > DRUMS sets
+ * both (fmini_drum.c) */
+static volatile uint8_t fa_sc_amt, fa_sc_rel = 40;      /* AMOUNT, RELEASE 0..100 */
+static volatile uint8_t fa_sc_hit;                      /* a kick sounded in this block's events */
+static int32_t fa_sc_g0 = 4096, fa_sc_g1 = 4096;        /* the synth's gain (Q12) at the block's start and end */
+static __attribute__((noinline)) void fa_sc_apply(int32_t *b, uint32_t n)
+{
+    uint32_t i;
+    int32_t g = fa_sc_g0 << 12, dg = ((fa_sc_g1 - fa_sc_g0) << 12) / (int32_t)(n ? n : 1u);
+    for (i = 0; i < n; i++, g += dg)
+        b[i] = ((b[i] >> 2) * (g >> 12)) >> 10;         /* (as the LEVEL below: room for 8 loud voices) */
+}
+#endif
 static void mix_part(track_t *t, uint32_t n SM_DECL)
 {
     int32_t *b = SM(b);
@@ -1572,6 +1589,10 @@ static void mix_part(track_t *t, uint32_t n SM_DECL)
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
         if ((pf.mute >> (t - trk)) & 1u)
             perf_mute((uint32_t)(t - trk), b, n);       /* perform.c: a black key in the FX layer */
+#if FELUCCA_FMINI_ONLY
+        if (t == &trk[0] && (fa_sc_g0 < 4096 || fa_sc_g1 < 4096))
+            fa_sc_apply(b, n);                          /* moogi m7: the sidechain ducks the synth */
+#endif
     }
     if (!T_SPREAD(t)) {                                /* (the mix's values read after the calls: none is held over
                                                          * them, no spill in the loop: the ISR's cost as before 1.5) */

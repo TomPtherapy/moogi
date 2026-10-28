@@ -500,6 +500,32 @@ static void fa_dr_quarter(const track_t *t)
         fa_dr_pend = 0;
     }
 }
+/* moogi m7: the sidechain's envelope (fx.c fa_sc_*), once a block after the steps: a kick heard starts it (~2 ms down), then it
+ * comes back over RELEASE; the gain the block ends on */
+#define FA_SC_ATK 88u                               /* samples: ~2 ms */
+static int32_t fa_sc_env;                           /* Q15 */
+static uint8_t fa_sc_att;
+static void fa_sc_block(uint32_t n)
+{
+    int32_t amt = (int32_t)fa_sc_amt * 4096 / 100;
+    fa_sc_g0 = fa_sc_g1;
+    if (fa_sc_hit) {
+        fa_sc_hit = 0;
+        fa_sc_att = 1;
+    }
+    if (fa_sc_att) {
+        fa_sc_env += (int32_t)(32768u * n / FA_SC_ATK);
+        if (fa_sc_env >= 32768) {
+            fa_sc_env = 32768;
+            fa_sc_att = 0;
+        }
+    } else if (fa_sc_env) {
+        uint32_t r = fa_sc_rel, ms = 20u + r * r * 58u / 1000u;   /* 20 .. 600 ms to ~95 % back */
+        int32_t tau = (int32_t)(ms * 147u / 10u), d = fa_sc_env * (int32_t)n / tau;   /* (tau: a third of it, samples) */
+        fa_sc_env = fa_sc_env > (d ? d : 1) ? fa_sc_env - (d ? d : 1) : 0;
+    }
+    fa_sc_g1 = 4096 - ((amt * fa_sc_env) >> 15);
+}
 static uint32_t fa_dr_heard(const track_t *t, uint32_t hit)   /* the hits of a drum step that sound now */
 {
     uint32_t l;
@@ -1067,6 +1093,8 @@ static __attribute__((noinline)) void seq_step(track_t *t, const step_t *s, uint
     for (i = 0; i < NLANE; i++)
 #if FELUCCA_FMINI_ONLY
         if ((hm >> i) & 1u) {
+            if (!i && t == &trk[FA_DR_TRK])
+                fa_sc_hit = 1;                      /* moogi m7: a kick heard: the sidechain */
 #else
         if ((s->hit >> i) & 1u) {
 #endif
@@ -1612,6 +1640,9 @@ static void events_block(uint32_t n)
     chain_tick(seq_n);
     for (i = 0; i < NTRK; i++)
         seq_tick(&trk[i], seq_n);
+#if FELUCCA_FMINI_ONLY
+    fa_sc_block(n);                                 /* moogi m7: the sidechain's envelope for this block */
+#endif
     if (cin_flush)
         cin_record();
     if (song.playing)
