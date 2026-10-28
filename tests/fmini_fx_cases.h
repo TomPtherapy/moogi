@@ -191,7 +191,7 @@ static void delay_cases(const char *dir)
     int ok;
     for (ty = 0; ty < 7; ty++) {
         delay_setup(ty, 200);
-        T = dly_ms(song.g[G_DRREV]);
+        T = (double)delay_samples() * 1000.0 / FS;           /* (moogi m8: TIME is a note of the tempo; was dly_ms) */
         din[0] = 100000;
         run_fx(n);
         if (dir) {

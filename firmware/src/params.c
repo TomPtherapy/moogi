@@ -193,6 +193,25 @@ static const param_desc_t *ins_desc(int32_t type, uint32_t k)
 
 /* FMini-1: the delay time in ms of G_DRREV's 0..127: 10 ms .. 1.4 s, a squared curve (fine at the short end) */
 static int32_t dly_ms(int32_t v) { v = v < 0 ? 0 : v > 127 ? 127 : v; return 10 + v * v * 1390 / 16129; }
+#if FELUCCA_FMINI_ONLY
+/* moogi m8: the delay's TIME in note values of the tempo (fx.c delay_samples; the norns' when it clocks). The TIME knob keeps
+ * its stored values (G_DRREV 0..127, dly_ms's law), so every factory patch, saved sound and autosave keeps its number: a value
+ * plays the note nearest its milliseconds at 120 BPM (by ratio; FA_DLY_TOP, worked out in tools/ by hand from dly_ms), and a
+ * turn of the knob steps one note (ui_fmini.c fmg_turn: to the note's own value, FA_DLY_V) */
+#define FA_DLY_N 11u
+static const char *const FA_DLY_NAME[FA_DLY_N] = {"1/32", "1/16T", "1/16", "1/8T", "1/16D", "1/8", "1/4T", "1/8D", "1/4",
+                                                  "1/4D", "1/2"};
+static const uint8_t FA_DLY_48[FA_DLY_N] = {6, 8, 12, 16, 18, 24, 32, 36, 48, 72, 96};   /* the note in 48ths of a beat */
+static const uint8_t FA_DLY_TOP[FA_DLY_N - 1u] = {28, 33, 40, 45, 50, 57, 64, 71, 84, 100};   /* the first value of the next */
+static const uint8_t FA_DLY_V[FA_DLY_N] = {25, 29, 37, 43, 45, 53, 61, 65, 75, 93, 107};     /* each note's own value */
+static uint32_t fa_dly_note(int32_t v)
+{
+    uint32_t k = 0;
+    while (k < FA_DLY_N - 1u && v >= FA_DLY_TOP[k])
+        k++;
+    return k;
+}
+#endif
 
 static const param_desc_t GP[G_COUNT] = {
     [G_BPM] = PD("BPM", F_BPM, 40, 240, 120),
@@ -254,7 +273,8 @@ static const param_desc_t GP[G_COUNT] = {
      * on any part). On no page; kept so the ids and G_COUNT, which the project format and the
      * editor protocol depend on, do not move */
     [G_DRLVL] = PD("TONE", F_PCT, 0, 127, 64),   /* FMini-1: the DRIVE's tone (fx.c track_dist), 64 = as before; was inert */
-    [G_DRREV] = PD("DLY", F_INT, 0, 127, 65),   /* FMini-1: the delay's TIME in ms (dly_ms; fx.c delay_samples); was inert */
+    [G_DRREV] = PD("DLY", F_INT, 0, 127, 65),   /* FMini-1: the delay's TIME in ms (dly_ms; fx.c delay_samples); was inert.
+                                                 * moogi m8: a note value of the tempo (fa_dly_note) */
 };
 
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)

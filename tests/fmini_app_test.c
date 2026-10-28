@@ -879,14 +879,37 @@ int main(int argc, char **argv)
                     if (GP[TY[n].id].max + 1 != TY[n].n || strcmp(v, TY[n].last)) { printf("type list %u: %d '%s'\n", n, GP[TY[n].id].max + 1, v); return 1; }
                 }
             }
-            {   /* TAP TEMPO (SCL in the delay pop-up): two taps 500 ms apart set the delay TIME to ~500 ms and do not leave the page */
-                int32_t ms;
-                fmg_fx = 2; fa_page = 6;
+            {   /* moogi m8: the delay's TIME is a note value of the tempo: a stored value plays the note nearest its ms at 120 BPM,
+                 * a detent steps a note, the time follows the tempo; SCL in the pop-up taps nothing (it is the page button) */
+                static const struct { uint8_t v; uint8_t n48; } OLD[6] = {{0, 6}, {37, 12}, {53, 24}, {65, 36}, {75, 48}, {127, 96}};
+                uint32_t q, bpm = (uint32_t)song.g[G_BPM];
+                char v[16]; const char *u; int32_t ratio; uint32_t ic; const char *lb;
+                song.g[G_BPM] = 120;
+                for (q = 0; q < 6u; q++) {
+                    song.g[G_DRREV] = OLD[q].v;
+                    if (delay_samples() != 22050u * OLD[q].n48 / 48u) { printf("delay: value %u plays %u samples\n", OLD[q].v, delay_samples()); return 1; }
+                }
+                song.g[G_DRREV] = 65;                       /* 1/8D (the default; was 374 ms) */
+                song.g[G_BPM] = 90;
+                if (delay_samples() != 29400u * 36u / 48u) { printf("delay: 1/8D at 90 BPM: %u\n", delay_samples()); return 1; }
+                song.g[G_BPM] = 120;
+                fmg_fx = 2; fa_page = 6; fmg_cur[8] = 2;   /* (the delay pop-up: KNOB 3 is TIME) */
+                fmg_force_page = 8;
+                fmg_card_at(8, 2, -1, &lb, v, &u, &ratio, &ic);
+                if (strcmp(v, "1/8D")) { printf("delay: TIME shows '%s'\n", v); return 1; }
+                fturn(EN_K1 + 2, 1);
+                if (fa_dly_note(song.g[G_DRREV]) != 8u) { printf("delay: a detent up: note %u\n", fa_dly_note(song.g[G_DRREV])); return 1; }
+                fturn(EN_K1 + 2, 1); fturn(EN_K1 + 2, 1); fturn(EN_K1 + 2, 1);
+                if (fa_dly_note(song.g[G_DRREV]) != FA_DLY_N - 1u) { printf("delay: the top is 1/2\n"); return 1; }
+                fturn(EN_K1 + 2, -1);
+                fmg_card_at(8, 2, -1, &lb, v, &u, &ratio, &ic);
+                if (strcmp(v, "1/4D")) { printf("delay: a detent down shows '%s'\n", v); return 1; }
+                song.g[G_DRREV] = 65;
                 fm1_ms += 3000u; fpress(B_SCL);
-                fm1_ms += 500u - 32u; fpress(B_SCL);
-                ms = dly_ms(song.g[G_DRREV]);
-                if (fa_page != 6 || ms < 480 || ms > 520) { printf("tap tempo: page %d, %d ms\n", fa_page, (int)ms); return 1; }
+                if (song.g[G_DRREV] != 65) { printf("delay: SCL still taps\n"); return 1; }
                 fmg_fx = 0;
+                song.g[G_BPM] = (int16_t)bpm;
+                fa_page = 6;
             }
         }
         fpress(B_SCL);                                   /* SCL: OSC, then MIX, then OSC */
@@ -1415,7 +1438,7 @@ int main(int argc, char **argv)
         fmg_fx = 0;
         fa_parts = 1u;
         fframes(100);
-        printf("moogi m6, m7 (the drum machine: track 2, the mode, the wheels, quarters, mutes on a tap and the quarter, hold to select, chance, saved; the sidechain): ok\n");
+        printf("moogi m6..m8 (the drum machine: track 2, the mode, the wheels, quarters, mutes on a tap and the quarter, hold to select, chance, saved; the sidechain pump, its echoes too): ok\n");
     }
     {   /* the loudness contour is a Minimoog's ADS: the DECAY knob is the decay and the release; SUSTAIN clamps it */
         track_t *t0 = &trk[0];

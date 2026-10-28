@@ -477,7 +477,7 @@ static void fa_fx_dialog(void)
     cv_rect(20, 66, 200, 1, FA_RULE);
     for (i = 0; i < 4u; i++)
         fa_pop_knob(pg, i, 39 + (int32_t)i * 54, 112, fmg_cur[pg] == i);
-    fa_ctext(120, 190, &AF_X, fmg_fx == 2u ? "K1-K4  SCL=TAP  FX=NEXT" : "K1-K4  SELECT  ALGO  FX=NEXT", FA_MU);
+    fa_ctext(120, 190, &AF_X, "K1-K4  SELECT  ALGO  FX=NEXT", FA_MU);   /* (moogi m8: no TAP: the delay follows the tempo) */
 }
 
 static void fa_wave_boxes(uint32_t pg, uint32_t cur)
@@ -693,7 +693,7 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.8.0-m7"
+#define FMINI_VERSION "v1.8.0-m8"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT, 4 ACID (fmini_seq.c),
@@ -1360,27 +1360,6 @@ static void fa_preset(int32_t s)
 }
 
 /* a page button: the tap opens it */
-/* the delay pop-up's TAP TEMPO (the SCL button): the time between two taps is the delay TIME (taps further apart than 1.4 s start again) */
-static uint32_t fa_tap_t;
-static void fa_tap(void)
-{
-    uint32_t now = fm1_ms, dt = now - fa_tap_t;
-    fa_tap_t = now;
-    if (dt >= 100u && dt <= 1400u) {
-        int32_t v, best = 0, bd = 1 << 30;
-        for (v = 0; v < 128; v++) {                       /* the TIME knob value whose milliseconds are the nearest */
-            int32_t d = dly_ms(v) - (int32_t)dt;
-            d = d < 0 ? -d : d;
-            if (d < bd) {
-                bd = d;
-                best = v;
-            }
-        }
-        song.g[G_DRREV] = (int16_t)best;
-        fmg_gdirty = 1;
-    }
-}
-
 static void fa_buttons(uint32_t pressed)
 {
     static const uint8_t PG_BTN[5] = {B_LFO, B_HOME, B_SCL, B_FX, B_ENV};   /* (GLO: global, EDIT, ARP, SEQ, REC, PLAY:
@@ -1482,10 +1461,7 @@ static void fa_buttons(uint32_t pressed)
             fa_sv_open();
         return;
     }
-    if (fmg_fx == 2u && ((pressed >> panel.btn[B_SCL]) & 1u)) {   /* the delay pop-up: SCL taps the tempo, it does not leave */
-        fa_tap();
-        pressed &= ~(1u << panel.btn[B_SCL]);
-    }
+    /* (moogi m8: SCL no longer taps the delay's time in its pop-up: the time follows the tempo) */
     for (i = 0; i < 5u; i++)
         if ((pressed >> panel.btn[PG_BTN[i]]) & 1u) {
             if (PG_BTN[i] == B_FX && fa_page == 6u) {     /* FX again: round the four pop-ups, then back to the page */

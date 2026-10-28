@@ -192,6 +192,10 @@ m7: a black key's tap mutes (on its release, `fa_dr_keys_poll`; several keys at 
 turned it selects. The sidechain: a kick heard (`seq_step`, lane 0 of track 2) sets `fa_sc_hit`; `seq.c` `fa_sc_block` moves the
 envelope once a block (2 ms down, a first-order rise over RELEASE) and `fx.c` `mix_part` ramps track 1's dry sound by it
 (`fa_sc_apply`, before LEVEL and the sends). GLO > DRUMS holds KIT, SIDECHAIN (AMOUNT) and RELEASE, saved in bytes 218, 219.
+m8: the sidechain is a pump: down in ~2 ms, held for the first quarter of RELEASE, back along 1 - u^2 by its end; RELEASE is
+1..8 sixteenths of the tempo. It ducks the FX returns too (`mix_block`: `wet`, `dside`, `rev_side`; the drums send nothing).
+The delay's TIME (`G_DRREV`, its stored values unchanged) plays a note value of the tempo: `params.c` `fa_dly_note` takes the
+note nearest the value's old milliseconds at 120 BPM; a detent steps a note (`ui_fmini.c` `fmg_turn`). SCL no longer taps it.
 
 ## 8. Tests
 

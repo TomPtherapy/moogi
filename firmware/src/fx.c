@@ -306,8 +306,8 @@ static const uint8_t DIV_DOT[3] = {2, 3, 1};           /* 3 quarters >> this */
 static uint32_t delay_samples(void)
 {
 #if FELUCCA_FMINI_ONLY
-    {   /* FMini-1: the time in ms (FX > TIME) */
-        uint32_t m = (uint32_t)dly_ms(song.g[G_DRREV]) * (uint32_t)FS / 1000u;
+    {   /* FMini-1: FX > TIME. moogi m8: a note value of the tempo (params.c fa_dly_note; was dly_ms's milliseconds) */
+        uint32_t m = beat_samples() * FA_DLY_48[fa_dly_note(song.g[G_DRREV])] / 48u;
         return m < 16u ? 16u : m >= DLY_LEN ? DLY_LEN - 1u : m;
     }
 #endif
@@ -1751,6 +1751,14 @@ static void mix_block(int32_t *out, uint32_t n)
         perf_pre(mix_l, mix_r, send_d, send_r, n);
     fx_buses(send_c, send_d, send_r, wet, n);
 #if FELUCCA_FMINI_ONLY
+    if (fa_sc_g0 < 4096 || fa_sc_g1 < 4096) {         /* moogi m8: the pump takes the synth's echoes too: the delay, reverb and
+                                                         * chorus returns (the drums send nothing to them), their stereo */
+        fa_sc_apply(wet, n);
+        if (fx.ds_on)
+            fa_sc_apply(dside, n);
+        if (hl.side)
+            fa_sc_apply(rev_side, n);
+    }
     if (hl.side || fx.ds_on)
         rev_side_mix(mix_l, mix_r, n);                  /* the reverb's, the delay's / chorus's stereo */
 #else

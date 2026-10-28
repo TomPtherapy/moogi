@@ -200,6 +200,14 @@ static void fmg_turn(uint32_t pg, uint32_t i, int32_t s, uint32_t role)
     }
     case FK_GLB: {                                    /* a global (reverb decay, delay tempo, chorus rate, drive tone) */
         const param_desc_t *d = &GP[f->a];
+#if FELUCCA_FMINI_ONLY
+        if (f->a == G_DRREV) {                        /* moogi m8: the delay's TIME, a note a detent */
+            int32_t k = (int32_t)fa_dly_note(song.g[G_DRREV]) + (s > 0 ? 1 : -1);
+            song.g[G_DRREV] = (int16_t)FA_DLY_V[clamp(k, 0, (int32_t)FA_DLY_N - 1)];
+            fmg_gdirty = 1;
+            break;
+        }
+#endif
         song.g[f->a] = (int16_t)param_turn(d, song.g[f->a], fmg_acc(role, s, d->fmt == F_ENUM ? 0 : d->max - d->min));
         fmg_gdirty = 1;
         break;
@@ -331,9 +339,13 @@ static void fmg_card_at(uint32_t pg, uint32_t i, int32_t vo, const char **label,
     case FK_GLB: {
         const param_desc_t *d = &GP[f->a];
         v = vo >= 0 ? vo : song.g[f->a];
-        if (f->a == G_DRREV) {                        /* the delay time in ms */
+        if (f->a == G_DRREV) {                        /* the delay time (moogi m8: a note value; was ms) */
+#if FELUCCA_FMINI_ONLY
+            str_cpy(val, FA_DLY_NAME[fa_dly_note(v)], 8);
+#else
             fmt_int(val, dly_ms(v));
             str_cpy(val + str_len(val), "ms", 4);
+#endif
             *ratio = RATIO(d, v);
             return;
         }
