@@ -500,31 +500,47 @@ static void fa_dr_quarter(const track_t *t)
         fa_dr_pend = 0;
     }
 }
-/* moogi m7: the sidechain's envelope (fx.c fa_sc_*), once a block after the steps: a kick heard starts it (~2 ms down), then it
- * comes back over RELEASE; the gain the block ends on */
+/* moogi m7, m8: the sidechain's envelope (fx.c fa_sc_*), once a block after the steps. A kick heard: down to the full dip in
+ * ~2 ms (from where it is), held there for the first quarter of RELEASE, then back up over the rest along 1 - u^2 (slow at
+ * first, faster to the end: the pump). RELEASE is in 1/16 notes of the tempo (the norns' when it clocks): at 1/4 a kick on
+ * every beat lets the synth back just as the next one falls. The dip is Q15; the gain the block ends on, Q12 */
 #define FA_SC_ATK 88u                               /* samples: ~2 ms */
-static int32_t fa_sc_env;                           /* Q15 */
-static uint8_t fa_sc_att;
+static uint32_t fa_sc_pos;                          /* samples since the kick */
+static int32_t fa_sc_dip, fa_sc_d0;                 /* the dip now (0 none, 32768 the full AMOUNT), and at the kick */
+static uint8_t fa_sc_on;
 static void fa_sc_block(uint32_t n)
 {
     int32_t amt = (int32_t)fa_sc_amt * 4096 / 100;
     fa_sc_g0 = fa_sc_g1;
     if (fa_sc_hit) {
         fa_sc_hit = 0;
-        fa_sc_att = 1;
+        fa_sc_on = 1;
+        fa_sc_pos = 0;
+        fa_sc_d0 = fa_sc_dip;
     }
-    if (fa_sc_att) {
-        fa_sc_env += (int32_t)(32768u * n / FA_SC_ATK);
-        if (fa_sc_env >= 32768) {
-            fa_sc_env = 32768;
-            fa_sc_att = 0;
+    if (fa_sc_on) {
+        uint32_t len = (uint32_t)clamp(fa_sc_rel, 1, 8) * (beat_samples() / 4u), hold = len / 4u;
+        uint32_t rise = len > hold + FA_SC_ATK ? len - hold - FA_SC_ATK : 1u;
+        fa_sc_pos += n;
+        if (fa_sc_pos < FA_SC_ATK) {
+            fa_sc_dip = fa_sc_d0 + (int32_t)((uint32_t)(32768 - fa_sc_d0) * fa_sc_pos / FA_SC_ATK);
+        } else if (fa_sc_pos < FA_SC_ATK + hold) {
+            fa_sc_dip = 32768;
+        } else if (fa_sc_pos < FA_SC_ATK + hold + rise) {
+            uint32_t x = fa_sc_pos - FA_SC_ATK - hold, r = rise;
+            int32_t u;
+            while (r > 65535u) {                    /* (32 bits: the device has no 64-bit divide) */
+                r >>= 1;
+                x >>= 1;
+            }
+            u = (int32_t)(x * 32768u / (r ? r : 1u));
+            fa_sc_dip = 32768 - ((u * u) >> 15);
+        } else {
+            fa_sc_dip = 0;
+            fa_sc_on = 0;
         }
-    } else if (fa_sc_env) {
-        uint32_t r = fa_sc_rel, ms = 20u + r * r * 58u / 1000u;   /* 20 .. 600 ms to ~95 % back */
-        int32_t tau = (int32_t)(ms * 147u / 10u), d = fa_sc_env * (int32_t)n / tau;   /* (tau: a third of it, samples) */
-        fa_sc_env = fa_sc_env > (d ? d : 1) ? fa_sc_env - (d ? d : 1) : 0;
     }
-    fa_sc_g1 = 4096 - ((amt * fa_sc_env) >> 15);
+    fa_sc_g1 = 4096 - ((amt * fa_sc_dip) >> 15);
 }
 static uint32_t fa_dr_heard(const track_t *t, uint32_t hit)   /* the hits of a drum step that sound now */
 {

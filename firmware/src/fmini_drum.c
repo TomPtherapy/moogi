@@ -20,10 +20,11 @@
  *   marker: the step playing shows on the white keys). The LEDs: the white keys the selected lane's hits (dim) and the step
  *   playing (lit); the black keys 1..8 the lanes heard (blinking: a mute waiting for its quarter).
  * GLO > DRUMS (moogi m7): KIT (STD, 80 10 66 55 77, DEEP TIGHT PERC), SIDECHAIN (0 OFF .. 100 %: each kick heard ducks the
- *   synth, fx.c fa_sc_*) and its RELEASE (20 .. 600 ms).
+ *   synth, fx.c fa_sc_*) and its RELEASE (m8: 1/16 .. 1/2 of the tempo: down for its first quarter, back by its end).
  * SAVED at power-off (fa_dr_byte: rows 0..6 of favorites.factory, the favourites of engines 0..6, which FMINI never shows):
  *   0 0xD7, 1 the kit, 2..9 VOLUME, 10..17 CHANCE, 18.. 5 bytes a lane: HITS, ROTATE, the quarters (5 bits each: HITS + 1
- *   in bits 0..2, 0 = "=", ROTATE in bits 3..4), 58..217 kept for the fills (stage 2), 218 SIDECHAIN, 219 its RELEASE (m7).
+ *   in bits 0..2, 0 = "=", ROTATE in bits 3..4), 58..217 kept for the fills (stage 2), 218 SIDECHAIN, 219 its RELEASE (m7;
+ *   m8: 1..8 sixteenths).
  *   Each value is checked on load: a wrong
  *   one is its default. The mutes are not saved (power-on: every lane heard). */
 
@@ -130,7 +131,8 @@ static void fa_dr_cfg_load(void)
     if (ok && fa_dr_kit_ok(*fa_dr_byte(1)))
         fa_dr_kit = *fa_dr_byte(1);
     fa_sc_amt = (uint8_t)(ok && *fa_dr_byte(218) <= 100u ? *fa_dr_byte(218) : 0u);   /* moogi m7: the sidechain, off at first */
-    fa_sc_rel = (uint8_t)(ok && *fa_dr_byte(219) <= 100u ? *fa_dr_byte(219) : 40u);
+    fa_sc_rel = (uint8_t)(ok && *fa_dr_byte(219) >= 1u && *fa_dr_byte(219) <= 8u ? *fa_dr_byte(219) : 4u);   /* (m8: in
+                                                           * sixteenths; m7's 0..100 in ms is gone: anything else is a beat) */
     for (l = 0; l < NLANE; l++) {
         uint32_t lv = *fa_dr_byte(2u + l), ch = *fa_dr_byte(10u + l), n = *fa_dr_byte(18u + 5u * l),
                  r = *fa_dr_byte(19u + 5u * l), pk = (uint32_t)*fa_dr_byte(20u + 5u * l) |
@@ -290,7 +292,7 @@ static void fa_dr_menu_turn(int32_t s)                    /* GLO > DRUMS: ALGORI
     if (fa_dr_row == 1u)
         fa_sc_amt = (uint8_t)clamp((int32_t)fa_sc_amt + 5 * fa_dr_sgn(s), 0, 100);
     else
-        fa_sc_rel = (uint8_t)clamp((int32_t)fa_sc_rel + 5 * fa_dr_sgn(s), 0, 100);
+        fa_sc_rel = (uint8_t)clamp((int32_t)fa_sc_rel + fa_dr_sgn(s), 1, 8);
     fa_dr_dirty = 1;
     fa_dr_t_ch = fm1_ms;
 }
@@ -306,8 +308,8 @@ static void fa_dr_menu_val(uint32_t r, char *b)
             str_cpy(b + str_len(b), "%", 2);
         }
     } else {
-        fmt_int(b, (int32_t)(20u + (uint32_t)fa_sc_rel * fa_sc_rel * 58u / 1000u));   /* (seq.c fa_sc_block's) */
-        str_cpy(b + str_len(b), " MS", 4);
+        static const char *const RN[8] = {"1/16", "1/8", "3/16", "1/4", "5/16", "3/8", "7/16", "1/2"};
+        str_cpy(b, RN[(uint32_t)clamp(fa_sc_rel, 1, 8) - 1u], 8);
     }
 }
 static void fa_dr_menu_dialog(void)

@@ -823,10 +823,14 @@ int main(int argc, char **argv)
             if (fa_dr_row != 1u || fa_sc_amt != 10u) { printf("DRUMS > SIDECHAIN %u\n", fa_sc_amt); return 1; }
             fturn(EN_ALGO, -1); fturn(EN_ALGO, -1); fturn(EN_ALGO, -1);   /* (5 a detent, whatever the speed) */
             if (fa_sc_amt != 0u) { printf("DRUMS > SIDECHAIN stops at OFF\n"); return 1; }
-            fturn(EN_SELECT, 1); fa_sc_rel = 40;
+            fturn(EN_SELECT, 1); fa_sc_rel = 4;
             fturn(EN_ALGO, 1);
-            if (fa_dr_row != 2u || fa_sc_rel != 45u) { printf("DRUMS > RELEASE %u\n", fa_sc_rel); return 1; }
-            fa_sc_rel = 40;
+            if (fa_dr_row != 2u || fa_sc_rel != 5u) { printf("DRUMS > RELEASE %u\n", fa_sc_rel); return 1; }
+            fturn(EN_ALGO, 1); fturn(EN_ALGO, 1); fturn(EN_ALGO, 1); fturn(EN_ALGO, 1);
+            if (fa_sc_rel != 8u) { printf("DRUMS > RELEASE stops at 1/2 (%u)\n", fa_sc_rel); return 1; }
+            fa_sc_rel = 1; fturn(EN_ALGO, -1);
+            if (fa_sc_rel != 1u) { printf("DRUMS > RELEASE stops at 1/16\n"); return 1; }
+            fa_sc_rel = 4;
             fturn(EN_SELECT, 1);
             if (fa_dr_row != 0u) { printf("DRUMS rows wrap\n"); return 1; }
             fa_pp_until = 0; ui.force = 1; fa_draw(); dump(dir, 25);
@@ -1327,8 +1331,9 @@ int main(int argc, char **argv)
             if (fa_dr_kit != DK_PERC) { printf("drums: the kit not as saved\n"); return 1; }
             *fa_dr_byte(18u + 5u * 2u) = 40;                /* CLAP's HITS out of range: its default */
             *fa_dr_byte(1) = 2;                            /* a retired kit value: STD */
+            *fa_dr_byte(219) = 40;                         /* (m7's RELEASE, 0..100: m8 loads a beat) */
             fa_dr_cfg_load();
-            if (fa_dr_n[2] != FA_DR_DEF[2][0] || fa_dr_kit != DK_STD || fa_dr_n[4] != 16u) { printf("drums: a wrong byte not its default\n"); return 1; }
+            if (fa_dr_n[2] != FA_DR_DEF[2][0] || fa_dr_kit != DK_STD || fa_dr_n[4] != 16u || fa_sc_rel != 4u) { printf("drums: a wrong byte not its default\n"); return 1; }
             *fa_dr_byte(0) = 0;                            /* nothing saved: the starting beat */
             fa_dr_cfg_load();
             if (fa_dr_n[0] != 4u || fa_dr_r[1] != 4u || fa_dr_qn[5][2] != -1 || fa_dr_chance[6] != 100u) { printf("drums: no record: not the start\n"); return 1; }
@@ -1356,7 +1361,8 @@ int main(int argc, char **argv)
             song.master_q12 = MASTER_FULL;
             t0->p[P_SUS] = 127; t0->p[P_ATK] = 0;
             esync_coef(t0);
-            fa_sc_amt = 100; fa_sc_rel = 40;
+            fa_sc_amt = 100; fa_sc_rel = 4;                /* (1/4: a beat, 120 BPM: 689 blocks) */
+            fa_sc_on = 0; fa_sc_dip = 0; fa_sc_g0 = fa_sc_g1 = 4096;   /* (a pump the tests above left frozen: no audio ran) */
             fa_dr_mute = 0;
             d->p[P_MUTE] = 1;                              /* (the drums unheard here: the kick still ducks) */
             trk_note_on(t0, 45, 100);
@@ -1371,10 +1377,12 @@ int main(int argc, char **argv)
                     b0 = b;
             }
             for (b = 60; b < 100; b++) pre = pk[b] > pre ? pk[b] : pre;
-            for (b = b0 + 3; b < b0 + 7; b++) post = pk[b] > post ? pk[b] : post;   /* (2..5 ms after: the bottom, the release
-                                                                                     * already on its way) */
-            if (b0 < 100 || b0 > 104 || pre < 1000 || post * 6 > pre) { printf("sidechain: kick at block %d, before %d, after %d\n", (int)b0, (int)pre, (int)post); return 1; }
-            if (gb[b0 + 200] < 3500 || gb[b0 + 40] > 3500) { printf("sidechain: release (40): %d after 29 ms, %d after 146 ms\n", (int)gb[b0 + 40], (int)gb[b0 + 200]); return 1; }
+            for (b = b0 + 4; b < b0 + 160; b++) post = pk[b] > post ? pk[b] : post;   /* (3 .. 115 ms after: held down) */
+            if (b0 < 100 || b0 > 104 || pre < 1000 || post * 50 > pre) { printf("sidechain: kick at block %d, before %d, held %d\n", (int)b0, (int)pre, (int)post); return 1; }
+            if (gb[b0 + 160] > 0 || gb[b0 + 400] > 1500 || gb[b0 + 400] < 200 || gb[b0 + 680] < 3500) {
+                printf("sidechain: the pump (1/4): %d at 116 ms, %d at 290 ms, %d at 494 ms\n", (int)gb[b0 + 160], (int)gb[b0 + 400], (int)gb[b0 + 680]); return 1; }
+            for (b = b0 + 4; b < b0 + 680; b++)
+                if (gb[b] < gb[b - 1]) { printf("sidechain: the synth dips again on its way back (block %d)\n", (int)(b - b0)); return 1; }
             for (b = b0 + 300; b < b0 + 700; b++)
                 if (gb[b] < 4096 && gb[b - 1] == 4096) break;
             if (b >= b0 + 700 || b < b0 + 670) { printf("sidechain: the next kick (block %d)\n", (int)(b - b0)); return 1; }
@@ -1391,7 +1399,7 @@ int main(int argc, char **argv)
             esync_coef(t0);
             d->p[P_MUTE] = 0;
             song.master_q12 = (uint32_t)mq;
-            fa_sc_rel = 40;
+            fa_sc_rel = 4;
         }
         /* REC does nothing in the drum mode */
         fpress(B_REC); fframes(30);

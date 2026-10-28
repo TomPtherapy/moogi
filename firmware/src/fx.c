@@ -1539,11 +1539,11 @@ static const uint16_t ENG_VCOST[NENGINES] = {163, FELUCCA_FM4 ? 181 : 0, 162, 67
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
 #if FELUCCA_FMINI_ONLY
 /* moogi m7: the sidechain. Each kick of the drums (seq.c seq_step, track 2's lane 0, as heard: not a muted one) ducks track 1,
- * the synth: its gain falls by AMOUNT (0..100 %, 0 off) over ~2 ms, then comes back over RELEASE (a first-order rise, ~95 % back
- * after 20..600 ms). seq.c fa_sc_block moves the envelope once a block (the trigger is set in that block's events, before the
+ * the synth: its gain falls by AMOUNT (0..100 %, 0 off) over ~2 ms, stays down, then comes back by the end of RELEASE (m8: 1..8
+ * sixteenths of the tempo, seq.c fa_sc_block's pump). seq.c fa_sc_block moves the envelope once a block (the trigger is set in that block's events, before the
  * parts render); mix_part ramps the gain across the block, on the dry sound before LEVEL, PAN and the sends. GLO > DRUMS sets
  * both (fmini_drum.c) */
-static volatile uint8_t fa_sc_amt, fa_sc_rel = 40;      /* AMOUNT, RELEASE 0..100 */
+static volatile uint8_t fa_sc_amt, fa_sc_rel = 4;       /* AMOUNT 0..100, RELEASE 1..8 sixteenths (m8; 4: a beat) */
 static volatile uint8_t fa_sc_hit;                      /* a kick sounded in this block's events */
 static int32_t fa_sc_g0 = 4096, fa_sc_g1 = 4096;        /* the synth's gain (Q12) at the block's start and end */
 static __attribute__((noinline)) void fa_sc_apply(int32_t *b, uint32_t n)
