@@ -34,6 +34,7 @@ One sequence of four 16-step parts (8 to 64 steps). The white keys are the steps
 | SEQ held + black 5 | HALF (last part plays 8 steps) |
 | SEQ held + REC | Clear the sequence (notes and knob motion) |
 | GLO > KNOB REC | Record knob moves with the notes (off by default) |
+| GLO > USB AUDIO | What the computer records over USB: MIX (stereo, as before) or 10 CH (below) |
 | REC held + ARP | Undo knob motion since the last REC; notes stay |
 
 ## Acid generator
@@ -77,7 +78,8 @@ Lights: white keys = selected sound's hits (dim) and the playing step (bright). 
 
 - **USB clock (norns or any):** followed automatically; the tempo screen shows USB. PLAY waits for the next bar (blinks fast). START from norns only marks the bar; STOP does nothing. Half a second without clock = back to the FM-1's tempo. Send MIDI START from your script, or the bar may land off.
 - **Delay TIME** is a note value that follows the tempo: 1/32, 1/16T, 1/16, 1/8T, 1/16D, 1/8, 1/4T, 1/8D, 1/4, 1/4D, 1/2. One knob click = one value. Max 1.486 s.
-- **GLO menu:** MIDI IN, CHANNEL, CC, PITCH BEND, KNOB REC, ACID, DRUMS, ABOUT.
-- **Kept at power-off:** sequence, acid settings and line, favorites, KNOB REC, drum beat, quarters, VOLUME, CHANCE, kit, sidechain. **Not kept:** acid history, drum mutes.
+- **USB AUDIO 10 CH** (GLO > USB AUDIO): the FM-1 becomes a 10-input sound card, 16 bits at 44.1 kHz only (set the recording project to 44.1). Inputs 1-2: the bass in stereo with its delay, reverb and chorus (and the pump). Inputs 3-10: the drums dry, one sound each, mono: KICK, SNARE, CLAP, HAT CL, HAT OP, TOM, RIM, BELL, with their VOLUME. The volume knob does not change them; no limiter on them. Changing the setting drops the USB for about a second (MIDI too) while the computer finds the new card. MIX (the default) is the stereo master as before.
+- **GLO menu:** MIDI IN, CHANNEL, CC, PITCH BEND, KNOB REC, ACID, DRUMS, USB AUDIO, ABOUT.
+- **Kept at power-off:** sequence, acid settings and line, favorites, KNOB REC, drum beat, quarters, VOLUME, CHANCE, kit, sidechain, USB AUDIO. **Not kept:** acid history, drum mutes.
 
 Not yet: drum FILL, BREAK, DROP. Acid Moogi v1.8.0-m8, built on FMini-1 by Ruppert and Felucca by Leo Kuroshita.

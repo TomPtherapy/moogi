@@ -787,7 +787,7 @@ int main(int argc, char **argv)
         fturn(EN_ALGO, -1); fturn(EN_ALGO, -1); fturn(EN_ALGO, -1);
         if (fm_midi_src != 0) { printf("src min\n"); return 1; }
         fturn(EN_SELECT, -1);
-        if (fa_gl_row != FA_GL_N - 1u) { printf("rows wrap\n"); return 1; }   /* (moogi m6: ABOUT is row 7) */
+        if (fa_gl_row != FA_GL_N - 1u) { printf("rows wrap\n"); return 1; }   /* (moogi m9: ABOUT is row 8) */
         /* GLO: PITCH BEND draws at once, ABOUT closes with either encoder */
         fa_gl = 1; fa_gl_row = 3; fm_bend_mode = 0;
         sig = fa_signature();
@@ -838,7 +838,21 @@ int main(int argc, char **argv)
             if (fa_gl != 1) { printf("GLO from DRUMS: back to the list (%d)\n", fa_gl); return 1; }
             fa_dr_kit = was; trk[FA_DR_TRK].p[P_E0] = was;
         }
-        fa_gl = 1; fa_gl_row = 7; fturn(EN_ALGO, 1);
+        /* moogi m9: GLO > USB AUDIO (row 7): MIX / 10 CH, saved (byte 212), read back at boot */
+        fa_gl = 1; fa_gl_row = 7; fa_usb10 = 0; fa_cfg_dirty = 0; fturn(EN_ALGO, 1);
+        if (fa_usb10 != 1 || !fa_cfg_dirty || fa_gl != 1) { printf("USB AUDIO: 10 CH\n"); return 1; }
+        fturn(EN_ALGO, 1);
+        if (fa_usb10 != 1) { printf("USB AUDIO: 10 CH stays\n"); return 1; }
+        fa_cfg_save();
+        if (*fa_cfg_byte(212) != 1u) { printf("USB AUDIO: saved\n"); return 1; }
+        fa_usb10 = 0; fa_usb_boot();
+        if (fa_usb10 != 1) { printf("USB AUDIO: read at boot\n"); return 1; }
+        fturn(EN_ALGO, -1);
+        if (fa_usb10 != 0) { printf("USB AUDIO: MIX\n"); return 1; }
+        fa_cfg_save();
+        fa_usb_boot();
+        if (fa_usb10 != 0 || *fa_cfg_byte(212) != 0u) { printf("USB AUDIO: MIX saved\n"); return 1; }
+        fa_gl = 1; fa_gl_row = 8; fturn(EN_ALGO, 1);
         if (fa_gl != 3) { printf("ABOUT opens\n"); return 1; }
         fa_gl = 3; fturn(EN_ALGO, 1);
         if (fa_gl != 1) { printf("about ALGO\n"); return 1; }
@@ -1424,6 +1438,67 @@ int main(int argc, char **argv)
             song.master_q12 = (uint32_t)mq;
             fa_sc_rel = 4;
         }
+        {   /* moogi m9: USB AUDIO 10 CH: 1-2 the synth (the mix less the drums), 3-10 the drums' lanes (KICK SNARE CLAP HAT CL
+             * HAT OP TOM RIM BELL), each with its VOLUME and the part's LEVEL: they add up to the drums' share */
+            track_t *t0 = &trk[0];
+            int32_t o[2 * CTL], b, i, k, pk[10] = {0}, err = 0, syn = 0, base = 0, mq = (int32_t)song.master_q12;
+#define UL(i, c) ((int32_t)(int16_t)(uint16_t)(fa_ul_out[(i) * FA_UL_W + (c) / 2u] >> ((c) & 1u ? 16 : 0)))
+            fa_sc_amt = 0;
+            fa_dr_mute = 0;
+            trk_all_off(t0);
+            for (b = 0; b < 3000; b++)                     /* (the synth's echoes from the tests above die away) */
+                mix_block(o, CTL);
+            fa_ul_want = 1;
+            t0->p[P_MUTE] = 1;                             /* (the bass line plays on PLAY: unheard here) */
+            transport_req = 1;
+            for (b = 0; b < 2000; b++) {                   /* the drums alone, ~1.5 s: KICK 4, SNARE 2, HAT CL 8, RIM 3 */
+                mix_block(o, CTL);
+                for (i = 0; i < CTL; i++) {
+                    int32_t sum = 0;
+                    for (k = 0; k < 10; k++) {
+                        int32_t v = UL(i, (uint32_t)k), a = v < 0 ? -v : v;
+                        pk[k] = a > pk[k] ? a : pk[k];
+                        if (k >= 2)
+                            sum += v;
+                    }
+                    if (sum - fa_ul_dl[i] > err || fa_ul_dl[i] - sum > err)
+                        err = sum > fa_ul_dl[i] ? sum - fa_ul_dl[i] : fa_ul_dl[i] - sum;
+                }
+            }
+            if (pk[0] * 20 > pk[2] || pk[1] * 20 > pk[2]) {   /* (only the synth's echo tails left: -50 dB) */
+                printf("10 CH: the drums alone leak into the synth's channels (%d %d, KICK %d)\n", (int)pk[0], (int)pk[1], (int)pk[2]); return 1; }
+            if (pk[2] < 1000 || pk[3] < 300 || pk[5] < 100 || pk[8] < 100) {
+                printf("10 CH: the beat's lanes (KICK %d SNARE %d HAT CL %d RIM %d)\n", (int)pk[2], (int)pk[3], (int)pk[5], (int)pk[8]); return 1; }
+            if (pk[4] || pk[6] || pk[7] || pk[9]) {
+                printf("10 CH: lanes the beat does not play (CLAP %d HAT OP %d TOM %d BELL %d)\n", (int)pk[4], (int)pk[6], (int)pk[7], (int)pk[9]); return 1; }
+            if (err > 8) { printf("10 CH: the lanes add up to the drums' share within %d\n", (int)err); return 1; }
+            fa_dr_mute = 0xFF;                             /* the synth alone: its channels are the mix */
+            t0->p[P_MUTE] = 0;
+            song.master_q12 = MASTER_FULL / 4u;            /* (and the volume knob does not move them) */
+            trk_note_on(t0, 45, 100);
+            for (b = 0; b < 1500; b++) {
+                mix_block(o, CTL);
+                for (i = 0; i < CTL; i++) {
+                    int32_t l = clamp(mix_l[i] + wet[i], -32768, 32767), r = clamp(mix_r[i] + wet[i], -32768, 32767);
+                    if (b > 300 && (UL(i, 0u) != l || UL(i, 1u) != r)) { printf("10 CH: the synth's channels are not the mix (block %d)\n", (int)b); return 1; }
+                    for (k = 2; k < 10; k++)
+                        if (b > 300 && UL(i, (uint32_t)k)) { printf("10 CH: a muted lane sounds (%d)\n", (int)k); return 1; }
+                    syn = UL(i, 0u) > syn ? UL(i, 0u) : syn;
+                    base = o[2 * i] > base ? o[2 * i] : base;
+                }
+            }
+            if (syn < 2000 || syn < 3 * base) { printf("10 CH: the synth's level (%d, the output at a quarter %d)\n", (int)syn, (int)base); return 1; }
+            fa_ul_want = 0;                                /* not fed: fx.c makes nothing */
+            fa_ul_out[0] = 0x12345678u;
+            mix_block(o, CTL);
+            if (fa_ul_out[0] != 0x12345678u) { printf("10 CH: written while not fed\n"); return 1; }
+#undef UL
+            trk_all_off(t0);
+            transport_req = 2;
+            mix_block(o, CTL);
+            fa_dr_mute = 0;
+            song.master_q12 = (uint32_t)mq;
+        }
         /* REC does nothing in the drum mode */
         fpress(B_REC); fframes(30);
         if (fa_sq_rec) { printf("drums: REC armed in the drum mode\n"); return 1; }
@@ -1438,7 +1513,7 @@ int main(int argc, char **argv)
         fmg_fx = 0;
         fa_parts = 1u;
         fframes(100);
-        printf("moogi m6..m8 (the drum machine: track 2, the mode, the wheels, quarters, mutes on a tap and the quarter, hold to select, chance, saved; the sidechain pump, its echoes too): ok\n");
+        printf("moogi m6..m9 (the drum machine: track 2, the mode, the wheels, quarters, mutes on a tap and the quarter, hold to select, chance, saved; the sidechain pump, its echoes too; USB AUDIO 10 CH: the synth and the eight lanes, GLO row): ok\n");
     }
     {   /* the loudness contour is a Minimoog's ADS: the DECAY knob is the decay and the release; SUSTAIN clamps it */
         track_t *t0 = &trk[0];

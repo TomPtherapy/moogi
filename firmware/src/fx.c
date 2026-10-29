@@ -1553,6 +1553,50 @@ static __attribute__((noinline)) void fa_sc_apply(int32_t *b, uint32_t n)
     for (i = 0; i < n; i++, g += dg)
         b[i] = ((b[i] >> 2) * (g >> 12)) >> 10;         /* (as the LEVEL below: room for 8 loud voices) */
 }
+
+/* moogi m9: USB AUDIO 10 CH (GLO > USB AUDIO; usb.c sends it). The stream's channels, each block: 1-2 the synth, stereo, with
+ * the delay, reverb and chorus (the drums send nothing to them): the mix less the drums' part; 3-10 the drums' eight lanes,
+ * mono (KICK SNARE CLAP HAT CL HAT OP TOM RIM BELL), each with its VOLUME and the part's LEVEL. All at the level the MASTER
+ * knob gives at its top (as MENU > USB LEVEL FIXED: the volume knob does not move them), before the limiter, clipped at 16 bits.
+ * Only while usb.c feeds the stream (fa_ul_want, eng_drum.c); the sound is unchanged */
+#define FA_UL_CH 10u
+#define FA_UL_W (FA_UL_CH / 2u)                         /* 32-bit words a frame: two channels each, the lower first */
+static int32_t fa_ul_dl[CTL], fa_ul_dr[CTL];   /* the drums' share of mix_l / mix_r */
+static uint32_t fa_ul_out[CTL * FA_UL_W];      /* the block's frames (usb.c uac_tap) */
+static __attribute__((noinline)) void fa_ul_begin(uint32_t n)
+{
+    uint32_t i, k;
+    for (i = 0; i < n; i++) {
+        fa_ul_dl[i] = fa_ul_dr[i] = 0;
+        for (k = 0; k < DV_NLANE; k++)
+            fa_ul_lane[k][i] = 0;
+    }
+}
+/* mix_part, the drums' part: what its loop added to the mix (the same sums: the rest of the mix is exact), and the LEVEL
+ * on the lanes, as the loop puts it on the part */
+static __attribute__((noinline)) void fa_ul_drums(const int32_t *b, uint32_t n, int32_t lvl, int32_t gl, int32_t gr)
+{
+    uint32_t i, k;
+    for (i = 0; i < n; i++) {
+        int32_t x = ((b[i] >> 2) * lvl) >> 10;
+        fa_ul_dl[i] += (x * gl) >> 12;
+        fa_ul_dr[i] += (x * gr) >> 12;
+        for (k = 0; k < DV_NLANE; k++)
+            fa_ul_lane[k][i] = ((fa_ul_lane[k][i] >> 2) * lvl) >> 10;
+    }
+}
+static inline uint32_t fa_ul_s16(int32_t v) { return (uint16_t)(int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v); }
+static __attribute__((noinline)) void fa_ul_end(uint32_t n)   /* mix_block: after the buses, before the master */
+{
+    uint32_t i, k;
+    for (i = 0; i < n; i++) {
+        uint32_t *o = &fa_ul_out[i * FA_UL_W];
+        o[0] = fa_ul_s16(mix_l[i] + wet[i] - fa_ul_dl[i]) | fa_ul_s16(mix_r[i] + wet[i] - fa_ul_dr[i]) << 16;
+        for (k = 0; k < DV_NLANE / 2u; k++)
+            o[1u + k] = fa_ul_s16(fa_ul_lane[2u * k][i]) | fa_ul_s16(fa_ul_lane[2u * k + 1u][i]) << 16;
+    }
+}
+_Static_assert(DV_NLANE == 8 && FA_UL_CH == 2u + DV_NLANE, "the stream: the synth's two channels and the eight lanes");
 #endif
 static void mix_part(track_t *t, uint32_t n SM_DECL)
 {
@@ -1616,6 +1660,10 @@ static void mix_part(track_t *t, uint32_t n SM_DECL)
             SM(r)[i] += (x * gr) >> 12;
         }
         t->peak = pk;
+#if FELUCCA_FMINI_ONLY
+        if (fa_ul_want && t == &trk[1])
+            fa_ul_drums(b, n, lvl, gl, gr);             /* moogi m9: the drums' share, for USB AUDIO 10 CH */
+#endif
     }
     if (pf.thr)
         perf_throw(t, b, SM(d), SM(v), n);              /* perform.c: REV / ECHO THROW (1.5.1), the sends towards full */
@@ -1719,6 +1767,10 @@ static void mix_block(int32_t *out, uint32_t n)
     int32_t mg = fx_usb_fixed ? MASTER_FULL : (int32_t)song.master_q12;   /* (USB LEVEL FIXED: MASTER after) */
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
+#if FELUCCA_FMINI_ONLY
+    if (fa_ul_want)
+        fa_ul_begin(n);                                 /* moogi m9: USB AUDIO 10 CH, before the parts render */
+#endif
     events_block(n);
     perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
 #if FELUCCA_CPU2
@@ -1761,6 +1813,8 @@ static void mix_block(int32_t *out, uint32_t n)
     }
     if (hl.side || fx.ds_on)
         rev_side_mix(mix_l, mix_r, n);                  /* the reverb's, the delay's / chorus's stereo */
+    if (fa_ul_want)
+        fa_ul_end(n);                                   /* moogi m9: USB AUDIO 10 CH, the block's frames */
 #else
     if (hl.side)
         rev_side_mix(mix_l, mix_r, n);                  /* HALL: stereo */

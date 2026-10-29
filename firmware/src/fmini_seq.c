@@ -1096,7 +1096,7 @@ static void ac_menu_dialog(void)
 }
 
 /* the settings record (fa_cfg_byte): 67 0xAC, 68 the parts, 69.. the line's values, 102.. its seed, 106.. favorites,
- * 211 KNOB REC */
+ * 211 KNOB REC, 212 USB AUDIO (moogi m9: 1 = 10 CH; fmini_app.c fa_usb_boot, fa_cfg_save) */
 static void fa_seq_cfg_load(void)
 {
     uint32_t i;

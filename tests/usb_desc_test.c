@@ -4,6 +4,8 @@
  *   -DT_CDC=0/1 (FELUCCA_CDC)  -DT_UAC=0/1 (FELUCCA_UAC)  -DT_LAYOUT=0..3 (FELUCCA_USB_LAYOUT)
  *   -DT_ON=0/1 (usb_cdc_on: the console presented or not)  -DT_48K=0/1 (FELUCCA_UAC_48K, default 1)
  *   -DT_ASF=0/1 (FELUCCA_UAC_AS_FIRST, default 1: the audio streaming interface first in the AC collection)
+ *   -DT_TEN=0/1 (moogi m9: FELUCCA_UAC10 and uac10 = 1, GLO > USB AUDIO 10 CH: the same walk, the AppleUSBAudio model and
+ *               the personalities; 10 channels at 44100 only, EP 0x84 920 B, bcdDevice + 0.20; not compared with 1.0's bytes)
  * The device and configuration descriptors come from get_desc(), as GET_DESCRIPTOR sends them, and are
  * parsed as a host does: lengths and wTotalLength, bNumInterfaces, interface numbers 0..n-1 in order, the
  * endpoints of each setting and their addresses (EP1 MIDI, EP2 / EP3 CDC, EP4 audio, each once), the IADs
@@ -37,6 +39,15 @@
 #define T_ASF 1
 #endif
 #define FELUCCA_UAC_AS_FIRST T_ASF
+#ifndef T_TEN
+#define T_TEN 0
+#endif
+#define FELUCCA_UAC10 T_TEN
+#if T_TEN
+#define CTL 32u
+static volatile uint8_t fa_ul_want;                     /* (eng_drum.c's and fx.c's, for usb.c) */
+static uint32_t fa_ul_out[CTL * 5u];
+#endif
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"   /* SIE register macros (never touched here) */
 #include "../firmware/src/usb.c"
@@ -57,7 +68,7 @@ static uint32_t le16(const uint8_t *p) { return p[0] | (uint32_t)p[1] << 8; }
 #define CDC_SHOWN (T_CDC && T_ON)
 #define AUDIO_48K (T_UAC && T_48K)
 #define AS_FIRST (T_UAC && T_ASF)
-#define BCD_EXPECT (0x300u + 0x10 * (T_UAC + AUDIO_48K) + 0x08 * AS_FIRST + (CDC_SHOWN ? 1 + 2 * T_LAYOUT : 0))
+#define BCD_EXPECT (0x300u + 0x10 * (T_UAC + AUDIO_48K) + 0x08 * AS_FIRST + (CDC_SHOWN ? 1 + 2 * T_LAYOUT : 0) + (T_TEN ? 0x20 : 0))
 
 /* AppleUSBAudio-273.4.1 AUAConfigurationDictionary::parseConfigurationDescriptor (the kernel USB audio driver of
  * macOS up to 15), reduced to its walk of the AC collection: the list of baInterfaceNr is walked with the count
@@ -166,6 +177,9 @@ int main(void)
     int aud_if = -1, midi_if = -1, as_if = -1, comm_if = -1, data_if = -1;
     char name[128];
 
+#if T_TEN
+    uac10 = 1;                                         /* moogi m9: GLO > USB AUDIO 10 CH */
+#endif
     memset(if_class, 0, sizeof if_class);
     memset(if_sub, 0, sizeof if_sub);
     memset(in_iad, 0, sizeof in_iad);
@@ -319,13 +333,13 @@ int main(void)
           (!CDC_SHOWN || (data_if == comm_if + 1 && if_class[data_if] == 10)));
 
     /* ---- the released bytes ---- */
-    if (CDC_SHOWN && T_LAYOUT == 0)
+    if (CDC_SHOWN && T_LAYOUT == 0 && !T_TEN)
         check(AS_FIRST    ? "layout 0 = Felucca 1.0 + the 48 kHz rate (if built) + the AC collection order, nothing else"
               : AUDIO_48K ? "layout 0 = Felucca 1.0 + the 48 kHz rate (format, EP 0x84 size, bcdDevice), nothing else"
                           : "layout 0 = Felucca 1.0 byte for byte",
               T_UAC ? same_as(dev, c, n, V10_CDC_DEV, V10_CDC_CFG, sizeof V10_CDC_CFG)
                     : same_as(dev, c, n, V10_CDC_NOUAC_DEV, V10_CDC_NOUAC_CFG, sizeof V10_CDC_NOUAC_CFG));
-    if (!CDC_SHOWN)
+    if (!CDC_SHOWN && !T_TEN)
         check(AS_FIRST    ? "without the console = 1.0's FELUCCA_CDC=0 build + 48 kHz (if built) + the AC order"
               : AUDIO_48K ? "without the console = 1.0's FELUCCA_CDC=0 build + the 48 kHz rate, nothing else"
                           : "without the console = a FELUCCA_CDC=0 build of 1.0 byte for byte",
@@ -347,6 +361,9 @@ int main(void)
         }
         snprintf(name, sizeof name, "audio input: %u rate(s) %u%s, EP 0x84 %u B", rates, r0, rates > 1 ? " 48000" : "",
                  maxp);
+        if (T_TEN)
+            check(name, rates == 1 && r0 == 44100 && maxp == 920);
+        else
         check(name, AUDIO_48K ? rates == 2 && r0 == 44100 && r1 == 48000 && maxp == 196
                               : rates == 1 && r0 == 44100 && maxp == 184);
     }

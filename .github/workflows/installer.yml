@@ -60,6 +60,7 @@ jobs:
           python3 web/make_fmini_installer.py build/felucca.fwsc _site/index.html "$VERSION"
           cp build/felucca.fwsc "_site/fmini-1-$VERSION.fwsc"
           cp docs/fmini-ad.mp4 docs/fmini-ad-poster.jpg _site/
+          cp build.log _site/build.log             # moogi m9: the build's sizes (RAM, pool headroom), readable from a session
           mkdir -p _site/editor && cp web/editor_fmini.html _site/editor/index.html   # the patch editor (web/test_editor_fmini.py)
           cp -r docs/emu _site/emu                 # the browser emulator (web/emu/build_wasi.sh builds docs/emu)
           echo "FMini-1 v$VERSION" >> "$GITHUB_STEP_SUMMARY"

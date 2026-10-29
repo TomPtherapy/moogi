@@ -174,6 +174,9 @@ static void fm1_main(void)
 #endif
     settings_init();
     usb_serial_apply();                                 /* (#67: the saved USB SERIAL before usb_start) */
+#if FELUCCA_FMINI_ONLY
+    fa_usb_boot();                                      /* moogi m9: the saved GLO > USB AUDIO, before usb_start */
+#endif
     lcd_init();
 #if FELUCCA_FMINI_ONLY
     fa_splash();

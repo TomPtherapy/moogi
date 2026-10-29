@@ -491,6 +491,7 @@ static uint32_t seq_pv(const track_t *t, uint32_t idx, uint32_t len)
  * 1, 5, 9 or 13 starts: seq_enter; at once when stopped: seq_stop), a lane plays with its CHANCE (0..100, rolled each
  * hit), and a black key auditions its lane while stopped (fa_dr_aud: lane + 1; fa_dr_audition) */
 #define FA_DR_TRK 1u
+_Static_assert(FA_DR_TRK == 1u, "moogi m9: eng_drum.c drum_render and fx.c mix_part tap trk[1] for USB AUDIO 10 CH");
 static volatile uint8_t fa_dr_mute, fa_dr_pend, fa_dr_aud;
 static volatile uint8_t fa_dr_chance[NLANE] = {100, 100, 100, 100, 100, 100, 100, 100};
 static void fa_dr_quarter(const track_t *t)

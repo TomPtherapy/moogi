@@ -35,11 +35,24 @@
 #ifndef FELUCCA_UAC_AS_FIRST
 #define FELUCCA_UAC_AS_FIRST 1
 #endif
+/* moogi m9: FELUCCA_UAC10=1 (Acid Moogi's default) adds a second way to present the audio input, chosen at run time
+ * (uac10, GLO > USB AUDIO: usb_uac10_switch re-enumerates): 10 channels of 16 bits at 44.1 kHz only, fx.c's fa_ul_out
+ * (1-2 the synth, 3-10 the drums' lanes) instead of the master. Packets of 44 / 45 frames (+-1), 20 bytes a frame:
+ * 920 bytes at most, under full speed's 1023 for an isochronous endpoint. MIX (uac10 0): the stereo stream, byte for byte */
+#ifndef FELUCCA_UAC10
+#if defined(FELUCCA_FMINI_ONLY) && FELUCCA_FMINI_ONLY && FELUCCA_UAC
+#define FELUCCA_UAC10 1
+#else
+#define FELUCCA_UAC10 0
+#endif
+#endif
 #if !FELUCCA_UAC
 #undef FELUCCA_UAC_48K
 #define FELUCCA_UAC_48K 0
 #undef FELUCCA_UAC_AS_FIRST
 #define FELUCCA_UAC_AS_FIRST 0
+#undef FELUCCA_UAC10
+#define FELUCCA_UAC10 0
 #endif
 enum { S_FADDR = 0, S_POWER = 1, S_INTRTX1 = 2, S_INTRTX2 = 3, S_INTRRX1 = 4, S_INTRRX2 = 5, S_INTRUSB = 6,
        S_INTRTX1E = 7, S_INTRTX2E = 8, S_INTRRX1E = 9, S_INTRRX2E = 10, S_INTRUSBE = 11, S_FRAME1 = 12,
@@ -96,9 +109,24 @@ _Static_assert(UA_HI48 + UA_REND48 + UA_MAXF < UA_N, "the ring holds the band, a
 #endif
 #define UAC_MAXP (UA_MAXF * 4u)
 _Static_assert(UA_HI + HALF_FRAMES + UA_MAXF < UA_N, "the ring holds the band, a render and a packet");
+#if FELUCCA_UAC10
+/* moogi m9: 10 CH: a frame is UA_W10 words (fa_ul_out's), the same ring indices (frames), the same band (UA_LO .. UA_HI);
+ * MIX uses the ring's first UA_N words as before */
+#define UA_CH10 10u
+#define UA_W10 (UA_CH10 / 2u)
+#define UA_MAXF10 46u
+#define UAC10_MAXP (UA_MAXF10 * UA_W10 * 4u)
+_Static_assert(UAC10_MAXP <= 1023u, "a full-speed isochronous packet");
+static uint32_t ua_ring[UA_N * UA_W10] __attribute__((section(".pool")));   /* (10 KiB: the pool, app.ld) */
+static uint32_t ep4tx[UA_MAXF10 * UA_W10] __attribute__((aligned(4)));
+static uint32_t ua_last10[UA_W10];                     /* the last frame sent (10 CH), repeated on an underrun */
+static volatile uint8_t uac10;                         /* 1: presented and fed as 10 CH (usb_uac10_switch) */
+#else
 static uint32_t ua_ring[UA_N];
-static volatile uint32_t ua_w, ua_r;
 static uint32_t ep4tx[UA_MAXF] __attribute__((aligned(4)));
+#define uac10 0
+#endif
+static volatile uint32_t ua_w, ua_r;
 static struct {
     volatile uint8_t alt;        /* streaming interface setting: 1 = the host records */
     volatile uint8_t r48;        /* the host's rate (SET_CUR): 1 = 48 kHz, 0 = 44.1 (bus reset) */
@@ -285,6 +313,23 @@ static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 #define D_AUDIO(a) D_AC(a) D_MIDI((a) + 1) D_AS((a) + 2)   /* audio + MIDI from interface a */
 #define AUD_NIF (2 + FELUCCA_UAC)
 #define AUD_LEN (92 + (63 + FMT_LEN) * FELUCCA_UAC)
+#if FELUCCA_UAC10
+/* moogi m9: 10 CH, as D_AC / D_AS with 10 channels (L R, then 8 with no position: the drums' lanes), 44.1 kHz only */
+#define D_AC10(a)                                                                                    \
+    9, 4, (a), 0, 0, 1, 1, 0, 0,                                                                     \
+    10, 0x24, 1, 0x00, 0x01, 31, 0, 2, AC_COLL(a),         /* AC header 1.00: audio + MIDI streaming */ \
+    12, 0x24, 2, 1, 0x03, 0x06, 0, UA_CH10, 0x03, 0x00, 0, 0,   /* input terminal 1: line, 10 ch (L R ..) */ \
+    9, 0x24, 3, 2, 0x01, 0x01, 0, 1, 0,                    /* output terminal 2: USB streaming, from 1 */
+#define D_AS10(s)                                                                                    \
+    9, 4, (s), 0, 0, 1, 2, 0, 0,                           /* audio streaming, alt 0: no bandwidth */    \
+    9, 4, (s), 1, 1, 1, 2, 0, 0,                           /* alt 1: the stream */                      \
+    7, 0x24, 1, 2, 1, 0x01, 0x00,                          /* AS general: terminal 2, delay 1, PCM */   \
+    11, 0x24, 2, 1, UA_CH10, 2, 16, 1, 0x44, 0xAC, 0x00,   /* type I: 10 ch, 16 bit, 44100 */           \
+    9, 5, 0x84, 0x05, UAC10_MAXP & 0xFF, UAC10_MAXP >> 8, 1, 0, 0,   /* EP4 IN isochronous async, 1 ms */ \
+    7, 0x25, 1, 0x01, 0, 0, 0,                             /* CS endpoint: sampling frequency control */
+#define D_AUDIO10(a) D_AC10(a) D_MIDI((a) + 1) D_AS10((a) + 2)
+#define AUD_LEN10 (92 + 63 + 11)
+#endif
 #define D_CDC(c)                                                                                     \
     D_IAD((c), 2, 2, 2, 1),                                /* IAD: CDC ACM */                           \
     9, 4, (c), 0, 1, 2, 2, 1, 0,                           /* communication */                          \
@@ -299,15 +344,23 @@ static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 #define CDC_LEN 66                                         /* with its IAD */
 #define BCD_LO(cdc)                                                                                  \
     (0x10 * (FELUCCA_UAC + FELUCCA_UAC_48K) + 0x08 * FELUCCA_UAC_AS_FIRST + ((cdc) ? 0x01 + 2 * FELUCCA_USB_LAYOUT : 0))
-#define D_DEV(bcdusb, cls, sub, proto, cdc)                                                          \
+#define D_DEVX(bcdusb, cls, sub, proto, cdc, x)                                                      \
     18, 1, (bcdusb) & 0xFF, (bcdusb) >> 8, (cls), (sub), (proto), 64, 0x09, 0x12, FELUCCA_USB_PID & 0xFF, \
-    FELUCCA_USB_PID >> 8, BCD_LO(cdc), 0x03, 1, 2, 0, 1
+    FELUCCA_USB_PID >> 8, BCD_LO(cdc) + (x), 0x03, 1, 2, 0, 1
+#define D_DEV(bcdusb, cls, sub, proto, cdc) D_DEVX(bcdusb, cls, sub, proto, cdc, 0)
+#define BCD_10 0x20                                        /* moogi m9: 10 CH, bcdDevice +0.20: a host learns it afresh */
 
 /* without the console (FELUCCA_CDC=0, or usb_cdc_on = 0): class 0, no IAD, as a plain USB-MIDI / audio device */
 #define CFG_LEN_PLAIN (9 + AUD_LEN)
 static const uint8_t DEV_DESC_PLAIN[18] = {D_DEV(0x0110, 0, 0, 0, 0)};
 static const uint8_t CFG_DESC_PLAIN[] = {D_CFG(CFG_LEN_PLAIN, AUD_NIF), D_AUDIO(0)};
 typedef char cfg_plain_len_ok[sizeof CFG_DESC_PLAIN == CFG_LEN_PLAIN ? 1 : -1];
+#if FELUCCA_UAC10
+#define CFG_LEN_PLAIN10 (9 + AUD_LEN10)
+static const uint8_t DEV_DESC_PLAIN10[18] = {D_DEVX(0x0110, 0, 0, 0, 0, BCD_10)};
+static const uint8_t CFG_DESC_PLAIN10[] = {D_CFG(CFG_LEN_PLAIN10, AUD_NIF), D_AUDIO10(0)};
+typedef char cfg_plain10_len_ok[sizeof CFG_DESC_PLAIN10 == CFG_LEN_PLAIN10 ? 1 : -1];
+#endif
 #if FELUCCA_CDC
 #define CFG_LEN (9 + 8 + AUD_LEN + CDC_LEN)
 #define USB_NIF (AUD_NIF + 2)
@@ -337,12 +390,38 @@ static const uint8_t CFG_DESC[] = {
 #endif
 };
 typedef char cfg_len_ok[sizeof CFG_DESC == CFG_LEN ? 1 : -1];
+#if FELUCCA_UAC10
+#define CFG_LEN10 (9 + 8 + AUD_LEN10 + CDC_LEN)
+#if FELUCCA_USB_LAYOUT == 2
+static const uint8_t DEV_DESC10[18] = {D_DEVX(0x0200, 0x00, 0x00, 0x01, 1, BCD_10)};
+#elif FELUCCA_USB_LAYOUT == 3
+static const uint8_t DEV_DESC10[18] = {D_DEVX(0x0200, 0x00, 0x00, 0x00, 1, BCD_10)};
+#else
+static const uint8_t DEV_DESC10[18] = {D_DEVX(0x0200, 0xEF, 0x02, 0x01, 1, BCD_10)};
+#endif
+static const uint8_t CFG_DESC10[] = {                     /* moogi m9: as CFG_DESC, the audio function 10 CH */
+    D_CFG(CFG_LEN10, USB_NIF),
+#if FELUCCA_USB_LAYOUT == 1
+    D_CDC(CDC_IF_CDC)
+#endif
+    D_IAD(AUD_IF_CDC, AUD_NIF, 1, 1, 0),
+    D_AUDIO10(AUD_IF_CDC)
+#if FELUCCA_USB_LAYOUT != 1
+    D_CDC(CDC_IF_CDC)
+#endif
+};
+typedef char cfg10_len_ok[sizeof CFG_DESC10 == CFG_LEN10 ? 1 : -1];
+#endif
 static uint8_t usb_cdc_on = FELUCCA_CDC_DEFAULT != 0;      /* the console is presented (read by the TIMER5 ISR) */
 #define USB_CDC_ON usb_cdc_on
 #define AUD_IF (usb_cdc_on ? AUD_IF_CDC : 0u)
 #else
 #define DEV_DESC DEV_DESC_PLAIN
 #define CFG_DESC CFG_DESC_PLAIN
+#if FELUCCA_UAC10
+#define DEV_DESC10 DEV_DESC_PLAIN10
+#define CFG_DESC10 CFG_DESC_PLAIN10
+#endif
 #define USB_CDC_ON 0
 #define AUD_IF 0u
 #endif
@@ -358,6 +437,24 @@ static const uint8_t STR2[] = {20, 3, 'F', 0, 'M', 0, '-', 0, '1', 0, ' ', 0, 'M
 static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
 {
     switch (wvalue >> 8) {
+#if FELUCCA_UAC10
+    case 1:                                             /* moogi m9: 10 CH presented */
+    case 2:
+        if (!uac10)
+            break;
+        if ((wvalue >> 8) == 1u) {
+            *d = USB_CDC_ON ? DEV_DESC10 : DEV_DESC_PLAIN10;
+            *l = 18;
+        } else {
+            *d = USB_CDC_ON ? CFG_DESC10 : CFG_DESC_PLAIN10;
+            *l = (uint16_t)(USB_CDC_ON ? sizeof CFG_DESC10 : sizeof CFG_DESC_PLAIN10);
+        }
+        return 1;
+    default:
+        break;
+    }
+    switch (wvalue >> 8) {
+#endif
     case 1:
         *d = USB_CDC_ON ? DEV_DESC : DEV_DESC_PLAIN;
         *l = 18;
@@ -439,6 +536,13 @@ static void uac_stream(uint32_t alt)                    /* SET_INTERFACE, config
     uac.alt = (uint8_t)alt;
     uac.acc = 0;
     uac.last = 0;
+#if FELUCCA_UAC10
+    {
+        uint32_t k;
+        for (k = 0; k < UA_W10; k++)
+            ua_last10[k] = 0;                           /* moogi m9 */
+    }
+#endif
     if (alt) {                                          /* (the fill range of the last stream stays readable) */
         uac.starts++;
         uac.fill_lo = 0xFFFFFFFFu;
@@ -451,7 +555,7 @@ static void uac_stream(uint32_t alt)                    /* SET_INTERFACE, config
  * stream: silence packets until the next render primes the ring at the new rate. */
 static void uac_rate_set(uint32_t hz)
 {
-    uint8_t r48 = FELUCCA_UAC_48K && hz >= (UAC_RATE + 48000u) / 2u;
+    uint8_t r48 = FELUCCA_UAC_48K && !uac10 && hz >= (UAC_RATE + 48000u) / 2u;   /* (moogi m9: 10 CH: 44.1 only) */
     if (r48 == uac.r48)
         return;
     uac.go = 0;
@@ -726,7 +830,7 @@ static void ep0_service(void)
         if (s[4] != 0x84u || s[3] != 1u)
             goto stall;
 #if FELUCCA_UAC_48K
-        if (s[1] == 0x83u || (s[1] == 0x81u && uac.r48)) {
+        if ((s[1] == 0x83u && !uac10) || (s[1] == 0x81u && uac.r48)) {   /* (moogi m9: 10 CH's MAX is 44.1) */
             e0_send(RATE48, 3, wlength);
             return;
         }
@@ -1011,6 +1115,9 @@ static __attribute__((noinline)) void uac_render_start(void)   /* audio ISR, bef
 {
     uint32_t fill;
     uac.feed = uac.alt && usb.config && uac.flowing;
+#if FELUCCA_UAC10
+    fa_ul_want = (uint8_t)(uac10 && uac.feed);          /* moogi m9: fx.c makes the 10 channels this half */
+#endif
     if (!uac.feed) {
         uac.go = 0;                                     /* not read (yet / any more): prime when it is */
         return;
@@ -1026,6 +1133,14 @@ static __attribute__((noinline)) void uac_render_start(void)   /* audio ISR, bef
                 rs.l[i] = rs.r[i] = 0;
             rs.w = rs.ph = 0;
         }
+#endif
+#if FELUCCA_UAC10
+        if (uac10) {                                    /* moogi m9: 10 CH frames */
+            uint32_t k;
+            for (i = 0; i < prime; i++)
+                for (k = 0; k < UA_W10; k++)
+                    ua_ring[((r + i) & (UA_N - 1u)) * UA_W10 + k] = 0;
+        } else
 #endif
         for (i = 0; i < prime; i++)
             ua_ring[(r + i) & (UA_N - 1u)] = 0;
@@ -1108,11 +1223,37 @@ static __attribute__((noinline)) void uac_tap48(const int32_t *out, uint32_t n)
 }
 #endif
 
+#if FELUCCA_UAC10
+/* moogi m9: 10 CH, one block: fx.c's frames (fa_ul_out, made this block: fa_ul_want) into the ring */
+static __attribute__((noinline)) void uac_tap10(uint32_t n)
+{
+    uint32_t w = ua_w, i, k;
+    if (UA_N - (w - ua_r) < n) {                        /* nobody reads: drop the block */
+        uac.overruns++;
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        uint32_t *d = &ua_ring[((w + i) & (UA_N - 1u)) * UA_W10];
+        const uint32_t *s = &fa_ul_out[i * UA_W10];
+        for (k = 0; k < UA_W10; k++)
+            d[k] = s[k];
+    }
+    RING_PUBLISH();
+    ua_w = w + n;
+}
+#endif
+
 static __attribute__((noinline)) void uac_tap(const int32_t *out, uint32_t n)   /* audio ISR: one block (Q15) */
 {
     uint32_t w = ua_w, i;
     if (!uac.feed)
         return;
+#if FELUCCA_UAC10
+    if (uac10) {
+        uac_tap10(n);                                   /* moogi m9: the 10 channels, not the master */
+        return;
+    }
+#endif
 #if FELUCCA_UAC_48K
     if (uac.ring48) {
         uac_tap48(out, n);
@@ -1145,9 +1286,59 @@ static __attribute__((noinline)) void uac_tap(const int32_t *out, uint32_t n)   
 
 /* the next packet into d: 44 / 45 frames (+-1 to hold the ring's fill), from the ring or, until it is
  * primed, silence. An empty ring repeats the last frame. Returns the frame count. */
+#if FELUCCA_UAC10
+/* moogi m9: uac_packet's 10 CH twin: 44.1 kHz's 44 / 45 frames (+-1 for the fill, as there), UA_W10 words each */
+static uint32_t uac_packet10(uint32_t *d)
+{
+    uint32_t n = 44u, r, fill, k, i, j;
+    uac.acc += UAC_RATE % 1000u;
+    if (uac.acc >= 1000u) {
+        uac.acc -= 1000u;
+        n++;
+    }
+    if (!uac.go) {                                      /* not primed yet: silence */
+        for (i = 0; i < n * UA_W10; i++)
+            d[i] = 0;
+        return n;
+    }
+    if (uac.fill_min > UA_HI) {
+        n++;
+        uac.adj_up++;
+    } else if (uac.fill_min < UA_LO) {
+        n--;
+        uac.adj_down++;
+    }
+    r = ua_r;
+    fill = ua_w - r;
+    RING_PUBLISH();                                     /* the slots after the index */
+    k = fill < n ? fill : n;
+    for (i = 0; i < k; i++)
+        for (j = 0; j < UA_W10; j++)
+            d[i * UA_W10 + j] = ua_ring[((r + i) & (UA_N - 1u)) * UA_W10 + j];
+    if (k < n) {
+        const uint32_t *last = k ? &d[(k - 1u) * UA_W10] : ua_last10;
+        uac.underruns++;
+        for (; i < n; i++)
+            for (j = 0; j < UA_W10; j++)
+                d[i * UA_W10 + j] = last[j];
+    }
+    for (j = 0; j < UA_W10; j++)
+        ua_last10[j] = d[(n - 1u) * UA_W10 + j];
+    RING_PUBLISH();
+    ua_r = r + k;
+    uac.pkts++;
+    uac.frames += n;
+    return n;
+}
+#endif
+
 static uint32_t uac_packet(uint32_t *d)
 {
     uint32_t n = 44u, r, fill, k, i, lo = UA_LO, hi = UA_HI;
+#if FELUCCA_UAC10
+    if (uac10)
+        return uac_packet10(d);                         /* moogi m9 */
+#endif
 #if FELUCCA_UAC_48K
     if (uac.r48) {                                      /* 48 frames a ms, no pattern */
         n = 48u;
@@ -1220,6 +1411,10 @@ static void uac_service(void)
     uac.queued = 1;
     uac.wait = 0;
     n = uac_packet(ep4tx);
+#if FELUCCA_UAC10
+    if (uac10)
+        n *= UA_W10;                                    /* moogi m9: 10 CH, 20 bytes a frame */
+#endif
     fm1_usb_ep4_send(ep4tx, n * 4u);
     sie_wr(S_TXCSR1, 0x01);                             /* TxPktRdy (and UnderRun cleared) */
 }
@@ -1373,5 +1568,26 @@ static __attribute__((unused)) void usb_cdc_switch(uint32_t on)
     cdc.dtr = 0;                                        /* the console stops writing */
     cdc.rx_pend = 0;
     usb_cdc_on = (uint8_t)on;
+}
+#endif
+
+#if FELUCCA_UAC10
+/* moogi m9: GLO > USB AUDIO (main loop; at boot before usb_start: fmini_app.c fa_usb_boot). A change while attached drops off
+ * the bus as usb_cdc_switch does; usb_retry attaches again within a second and the host finds the other audio input
+ * (another bcdDevice: it learns it afresh). USB-MIDI comes back with it */
+static __attribute__((unused)) void usb_uac10_switch(uint32_t on)
+{
+    on = on != 0;
+    if (on == uac10)
+        return;
+    if (usb.up) {
+        usb.up = 0;                                     /* usb_poll (TIMER5) stops before the SIE goes */
+        RING_PUBLISH();
+        fm1_usb_off();
+    }
+    usb.config = 0;
+    uac.alt = 0;                                        /* the audio ISR feeds nothing until a host streams again */
+    uac.go = 0;
+    uac10 = (uint8_t)on;
 }
 #endif

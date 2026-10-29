@@ -693,14 +693,17 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.8.0-m8"
+#define FMINI_VERSION "v1.8.0-m9"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT, 4 ACID (fmini_seq.c),
                                                            * 5 DRUMS (moogi m7, fmini_drum.c) */
 static uint8_t fa_gl_row;                                 /* 0 MIDI IN, 1 CHANNEL, 2 MIDI CC, 3 PITCH BEND, 4 KNOB REC, 5 ACID,
-                                                           * 6 DRUMS (moogi m6 DRUM KIT; m7 a page), 7 ABOUT */
-#define FA_GL_N 8u
+                                                           * 6 DRUMS (moogi m6 DRUM KIT; m7 a page), 7 USB AUDIO (m9), 8 ABOUT */
+#define FA_GL_N 9u
+/* moogi m9: GLO > USB AUDIO: MIX (0, the stereo master, as before) or 10 CH (1: usb.c, fx.c fa_ul_*: the synth in stereo and the
+ * drums' eight lanes, at 44.1 kHz). Settings byte 212; read before USB starts (fa_usb_boot), a change re-enumerates at once */
+static uint8_t fa_usb10;
 static uint8_t fa_cc_i;                                   /* the control highlighted in MIDI CC */
 static uint8_t fa_cc[FA_NCC];                             /* its CC, 0 = none */
 static uint8_t fa_cfg_dirty;
@@ -766,6 +769,7 @@ static void fa_cfg_save(void)
     for (i = 0; i < FA_NCC; i++)
         *fa_cfg_byte(4u + i) = fa_cc[i];
     *fa_cfg_byte(4u + FA_NCC) = fm_bend_mode;
+    *fa_cfg_byte(212) = fa_usb10;                         /* moogi m9: USB AUDIO */
     {
         static const uint8_t GID[4] = {G_RSIZE, G_DRREV, G_CRATE, G_DRLVL};
         for (i = 0; i < 4u; i++)
@@ -776,6 +780,26 @@ static void fa_cfg_save(void)
     fa_seq_cfg_save();
     fa_dr_cfg_save();                                     /* moogi m6: the drums */
     settings_save();                                      /* (deferred while anything plays) */
+}
+/* moogi m9: USB AUDIO. A change drops the FM-1 off the USB for about a second (usb.c usb_uac10_switch): the computer then
+ * finds the other audio input. Saved with the settings (byte 212) */
+static void fa_usb_set(uint32_t on)
+{
+    on = on != 0;
+    if (on == fa_usb10)
+        return;
+    fa_usb10 = (uint8_t)on;
+    fa_cfg_dirty = 1;
+#if FELUCCA_UAC10
+    usb_uac10_switch(on);
+#endif
+}
+static __attribute__((unused)) void fa_usb_boot(void)   /* main.c: the saved USB AUDIO, before usb_start */
+{
+    fa_usb10 = (uint8_t)(*fa_cfg_byte(0) == 0xA7u && *fa_cfg_byte(1) == 0x4Fu && *fa_cfg_byte(212) == 1u);
+#if FELUCCA_UAC10
+    usb_uac10_switch(fa_usb10);
+#endif
 }
 static void fa_gl_close(void)
 {
@@ -928,18 +952,19 @@ static void fa_gl_dialog(void)
     }
     if (fa_gl == 1u) {
         fa_frame("GLOBAL");
-        fa_line(52, "MIDI IN", FA_SRC[fm_midi_src == 3u ? 2u : fm_midi_src & 1u], fa_gl_row == 0u);
+        fa_line(50, "MIDI IN", FA_SRC[fm_midi_src == 3u ? 2u : fm_midi_src & 1u], fa_gl_row == 0u);
         if (fm_midi_ch)
             fmt_int(b, fm_midi_ch);
         else
             str_cpy(b, "ALL", 4);
-        fa_line(70, "MIDI CHANNEL", b, fa_gl_row == 1u);
-        fa_line(88, "MIDI CC", ">", fa_gl_row == 2u);
-        fa_line(106, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 3u);
-        fa_line(124, "KNOB REC", fa_knob_rec ? "ON" : "OFF", fa_gl_row == 4u);
-        fa_line(142, "ACID", ">", fa_gl_row == 5u);
-        fa_line(160, "DRUMS", ">", fa_gl_row == 6u);        /* moogi m7: KIT, SIDECHAIN, RELEASE */
-        fa_line(178, "ABOUT", ">", fa_gl_row == 7u);
+        fa_line(66, "MIDI CHANNEL", b, fa_gl_row == 1u);   /* (moogi m9: nine lines, 16 apart) */
+        fa_line(82, "MIDI CC", ">", fa_gl_row == 2u);
+        fa_line(98, "PITCH BEND", FA_BEND[fm_bend_mode & 3u], fa_gl_row == 3u);
+        fa_line(114, "KNOB REC", fa_knob_rec ? "ON" : "OFF", fa_gl_row == 4u);
+        fa_line(130, "ACID", ">", fa_gl_row == 5u);
+        fa_line(146, "DRUMS", ">", fa_gl_row == 6u);        /* moogi m7: KIT, SIDECHAIN, RELEASE */
+        fa_line(162, "USB AUDIO", fa_usb10 ? "10 CH" : "MIX", fa_gl_row == 7u);   /* moogi m9 */
+        fa_line(178, "ABOUT", ">", fa_gl_row == 8u);
         fa_ctext(120, 198, &AF_S, "SELECT  ALGO  GLO=BACK", FA_MU);
     } else {                                              /* MIDI CC: a window of six lines on the list */
         uint32_t top = fa_cc_i < 3u ? 0u : fa_cc_i - 3u, k;
@@ -1178,7 +1203,7 @@ static uint32_t fa_signature(void)
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h = (h ^ fa_base ^ (uint32_t)fa_pp_on() << 8) * 16777619u;
-    h = (h ^ fa_gl ^ (uint32_t)fa_gl_row << 3 ^ (uint32_t)fa_cc_i << 6 ^ (uint32_t)fm_midi_src << 12 ^ (uint32_t)fm_bt << 17 ^ (uint32_t)fm_midi_ch << 14 ^ (uint32_t)fm_bend_mode << 19) * 16777619u;
+    h = (h ^ fa_gl ^ (uint32_t)fa_gl_row << 3 ^ (uint32_t)fa_cc_i << 6 ^ (uint32_t)fm_midi_src << 12 ^ (uint32_t)fm_bt << 17 ^ (uint32_t)fm_midi_ch << 14 ^ (uint32_t)fm_bend_mode << 19 ^ (uint32_t)fa_usb10 << 23) * 16777619u;   /* (m9: USB AUDIO) */
     for (i = 0; i < FA_NCC; i++)
         h = (h ^ fa_cc[i]) * 16777619u;
     h = (h ^ fa_sv ^ (uint32_t)fa_ar << 4 ^ (uint32_t)fa_ar_row << 5 ^ (uint32_t)song.g[G_BPM] << 8 ^ (uint32_t)song.g[G_CLOCK] << 24) * 16777619u;
@@ -1589,6 +1614,8 @@ static void fa_input(void)
                     fa_cfg_dirty = 1;
                 } else if (fa_gl_row == 6u) {
                     fa_gl = 5;                              /* moogi m7: GLO > DRUMS */
+                } else if (fa_gl_row == 7u) {
+                    fa_usb_set((uint32_t)(s > 0));          /* moogi m9: USB AUDIO: MIX / 10 CH */
                 } else
                     fa_gl = fa_gl_row == 2u ? 2u : fa_gl_row == 5u ? 4u : 3u;
             }

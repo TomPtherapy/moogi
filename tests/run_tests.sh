@@ -218,6 +218,19 @@ $CC -O2 -DT_CDC=1 -DHALF_FRAMES=$HALF -o "$OUT/uac_test" tests/uac_test.c -lm
 run "USB audio input: descriptors (with CDC), ring and packets, 44.1 -> 48 kHz resampler, 48 kHz stream" "$OUT/uac_test"
 $CC -O2 -DT_CDC=0 -DHALF_FRAMES=$HALF -o "$OUT/uac_test_nocdc" tests/uac_test.c -lm
 run "USB audio input: descriptors (without CDC), ring and packets, resampler, 48 kHz stream" "$OUT/uac_test_nocdc"
+# moogi m9: GLO > USB AUDIO 10 CH (the synth in stereo, the drums' eight lanes): descriptors, rate, ring and packets, MIX as before
+$CC -O2 -DT_CDC=1 -DHALF_FRAMES=$HALF -o "$OUT/uac10_test" tests/uac10_test.c -lm
+run "USB AUDIO 10 CH (moogi m9): descriptors (with CDC), 44.1 only, ring and packets of 10 channels; MIX unchanged" "$OUT/uac10_test"
+$CC -O2 -DT_CDC=0 -DHALF_FRAMES=$HALF -o "$OUT/uac10_test_nocdc" tests/uac10_test.c -lm
+run "USB AUDIO 10 CH (moogi m9): descriptors (without CDC), ring and packets" "$OUT/uac10_test_nocdc"
+for v in 1.1.0.1.1 1.1.1.1.1 1.1.2.1.1 1.1.3.1.1 1.1.0.0.1 0.1.0.1.1; do
+    IFS=. read -r t_cdc t_uac t_lay t_on t_48 <<EOF
+$v
+EOF
+    $CC -DT_CDC="$t_cdc" -DT_UAC="$t_uac" -DT_LAYOUT="$t_lay" -DT_ON="$t_on" -DT_48K="$t_48" -DT_TEN=1 -o "$OUT/usb_desc_test" \
+        tests/usb_desc_test.c
+    run "USB descriptors, 10 CH (moogi m9): CDC $t_cdc (presented $t_on), layout $t_lay" "$OUT/usb_desc_test"
+done
 # USB descriptor layouts (#67): CDC UAC LAYOUT CDC-presented 48K; layout 0 and the console left out = 1.0's bytes
 # (+ the 48 kHz rate with 48K = 1, the default; 48K = 0: byte for byte; + the AC collection's audio streaming
 # interface first, FELUCCA_UAC_AS_FIRST = 1, the default since 1.6)

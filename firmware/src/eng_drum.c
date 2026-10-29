@@ -69,6 +69,15 @@ ENG_MEM_FITS("DRUM", sizeof(drum_lane_t) * DV_NLANE);
  * track (ui.c load_begin) and a project load (project_restore_runtime) clear it, power-off too */
 static uint8_t drum_mute[NPART];
 
+#if FELUCCA_FMINI_ONLY
+/* moogi m9: USB AUDIO 10 CH (usb.c, fx.c fa_ul_*). While the 10-channel stream is fed (fa_ul_want, set by usb.c
+ * uac_render_start for the half), drum_render adds each voice of the drums' part (track 2) into its lane's block here
+ * as well as into the part's: one block per lane (0 KICK .. 7 BELL, the black keys' order), zeroed by fx.c mix_block
+ * before the parts render, the part's LEVEL put on in mix_part (fa_ul_drums). The part's own sound is unchanged */
+static volatile uint8_t fa_ul_want;
+static int32_t fa_ul_lane[DV_NLANE][CTL];
+#endif
+
 /* 1..3 named as the kit they play: aliases, never shown or offered (EDITOR_PROTOCOL.md: retired values) */
 static const char *const N_DRUM_KIT[] = {"STD", "66", "10", "77", "80", "10", "66", "55", "77", "DEEP", "TIGHT", "PERC"};
 static const char *const N_DRUM_KICK[] = {"PUNCH", "ROUND"};
@@ -257,6 +266,22 @@ static int32_t drum_amp(track_t *t, voice_t *v, int32_t adsr)
     return 32767;
 }
 
+#if FELUCCA_FMINI_ONLY
+/* moogi m9: drum_render's last loop, the sample into the lane's block too (out of line: drum_render's loop is as before) */
+static __attribute__((noinline)) void drum_out_lane(const int32_t *y, int32_t *out, int32_t *lane, uint32_t n, int32_t g,
+                                                    int32_t mk, const vmod_t *m)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        int32_t s = y[i], o;
+        if (g)
+            s = (softclip((s * g) >> 12) * mk) >> 15;
+        o = voice_amp(soft_knee(s + (s >> 2), 24000), m, i) << 1;
+        out[i] += o;
+        lane[i] += o;
+    }
+}
+#endif
 static void drum_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
@@ -300,6 +325,12 @@ static void drum_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
         g = 4096 + drv * 3 * 4096 / 127;
         mk = (int32_t)((19661u << 15) / (uint32_t)softclip((19661 * g) >> 12));
     }
+#if FELUCCA_FMINI_ONLY
+    if (fa_ul_want && t == &trk[1]) {                    /* moogi m9: the drums' part, the 10-channel stream fed */
+        drum_out_lane(y, out, fa_ul_lane[(uint32_t)v->s[0] & (DV_NLANE - 1u)], n, g, mk, m);
+        return;
+    }
+#endif
     for (i = 0; i < n; i++) {                            /* x1.25 and the knee below, in 32 bits */
         int32_t s = y[i];
         if (g)
