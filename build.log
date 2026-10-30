@@ -1,0 +1,50 @@
+In file included from firmware/src/felucca.c:78:
+In file included from firmware/src/engines.c:37:
+firmware/src/eng_fmini.c:407:57: warning: operator '>>' has lower precedence than '-'; '-' will be evaluated first [-Wshift-op-parentheses]
+        d1 += ((int32_t)(noise32(&fmini_nst[tr]) >> 20) - 2048 >> 6) - (d1 >> 11);
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~ ~~
+firmware/src/eng_fmini.c:407:57: note: place parentheses around the '-' expression to silence this warning
+        d1 += ((int32_t)(noise32(&fmini_nst[tr]) >> 20) - 2048 >> 6) - (d1 >> 11);
+                                                        ^
+               (                                              )
+firmware/src/eng_fmini.c:408:57: warning: operator '>>' has lower precedence than '-'; '-' will be evaluated first [-Wshift-op-parentheses]
+        d2 += ((int32_t)(noise32(&fmini_nst[tr]) >> 20) - 2048 >> 6) - (d2 >> 11);
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~ ~~
+firmware/src/eng_fmini.c:408:57: note: place parentheses around the '-' expression to silence this warning
+        d2 += ((int32_t)(noise32(&fmini_nst[tr]) >> 20) - 2048 >> 6) - (d2 >> 11);
+                                                        ^
+               (                                              )
+In file included from firmware/src/felucca.c:122:
+firmware/src/fmini_app.c:849:9: warning: add explicit braces to avoid dangling else [-Wdangling-else]
+        else if (i >= 4u && i < 7u)
+        ^
+3 warnings generated.
+size: 411 main-loop functions built for size (500 not in this build; 126 reached from an interrupt kept -Os)
+loader: image 8208 B at 0x1c0a800, bss end 0x1c0f500
+loader: ota.bin 6926 B
+face S: InterTight[wght].ttf@400 12px h15 base12  105 glyphs x 4  data 10410 B + table 3360 B + kern 2757 B (919 pairs) = 16537 B   digit adv 7.00px
+face M: InterTight[wght].ttf@500 15px h19 base15  105 glyphs x 4  data 13083 B + table 3360 B + kern 2976 B (992 pairs) = 19429 B   digit adv 9.00px
+face L: InterTight[wght].ttf@600 28px h35 base28  42 glyphs x 2  data 5900 B + table 672 B + kern 387 B (129 pairs) = 7000 B   digit adv 18.00px
+face X: InterTight[wght].ttf@500 9px h12 base9  105 glyphs x 4  data 6450 B + table 3360 B + kern 2919 B (973 pairs) = 12739 B   digit adv 6.00px
+face N: InterTight[wght].ttf@500 20px h25 base20  105 glyphs x 4  data 27549 B + table 3360 B + kern 2982 B (994 pairs) = 33901 B   digit adv 12.00px
+face H: InterTight[wght].ttf@600 60px h74 base59  9 glyphs x 2  data 6628 B + table 144 B + kern 3 B (1 pairs) = 6783 B   digit adv 38.00px
+fonts total 96389 B  -> /home/runner/work/moogi/moogi/build/gen/ui_fonts.h
+2 extra bytes in post.stringData array
+2 extra bytes in post.stringData array
+icons: x_oct_up: symbol_pitch_up not in the font yet, using control_arrow_up
+icons: x_oct_dn: symbol_pitch_down not in the font yet, using control_arrow_down
+icons 12px: 105 cells, 4237 B
+icons 16px: 39 cells, 2590 B
+icons 24px: 6 cells, 667 B
+icons code: 57 B
+icons total 7551 B -> /home/runner/work/moogi/moogi/build/gen/ui_icons.h   (87 legacy names + 36 new)
+keycaps: 29 pills, data 4948 B + table 232 B; knob arcs 584 B = 5764 B -> /home/runner/work/moogi/moogi/build/gen/ui_keycaps.h
+fm6 patches: 8 -> /home/runner/work/moogi/moogi/build/gen/felucca_fm6.h
+generated waves into /home/runner/work/moogi/moogi/build/genwav
+samples: 5 sets, 11 zones, 126244 B ADPCM, SLICE BREAK 44100 samples, SLICE PIANO (shared) 16537 samples
+  ok    .ram_text: 916 insns, no calls
+  ok    .c1_text: 50 insns, only its job called
+  ok    image 554104 B; RAM .data+.bss 69720 B of 73728; pool 359080 B of 368640
+  ok    register access: hal/ only (src/, engines/src/, loader/ clean)
+  FAIL  RAM headroom 4008 B < 4096 B
+build: checks failed
