@@ -129,7 +129,7 @@ static volatile uint8_t uac10;                         /* 1: presented and fed a
  * the last one leaving. MIX keeps its service as it was */
 #define UQ_MIN 4u                                      /* ticks (0.1 ms) before TxPktRdy is read: a 10 CH packet takes >= 0.58 ms */
 #define UQ_STALL 200u                                  /* ticks a packet may wait before the host is taken as gone (20 ms, as MIX) */
-static uint32_t ep4tx_b[UA_MAXF10 * UA_W10] __attribute__((aligned(4)));
+static uint32_t ep4tx_b[UA_MAXF10 * UA_W10] __attribute__((aligned(4), section(".pool")));   /* (the pool: RAM had 4008 B left, < 4096) */
 static struct {
     uint8_t slot;                                      /* the buffer the next packet is made in / sent from (0 ep4tx, 1 ep4tx_b) */
     uint8_t since;                                     /* ticks since the last packet was queued (to 255) */
