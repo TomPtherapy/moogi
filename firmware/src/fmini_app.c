@@ -693,7 +693,7 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.8.0-m9"
+#define FMINI_VERSION "v1.8.0-m10"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT, 4 ACID (fmini_seq.c),
@@ -1191,6 +1191,7 @@ static void fa_scene(void)
         fa_pp_draw();
 }
 
+static const char *fa_splash_note;                       /* moogi m10: a line bottom left on the splash (ABOUT: USB DROPS) */
 static uint32_t fa_signature(void)
 {
     const track_t *t = TSEL;
@@ -1204,6 +1205,10 @@ static uint32_t fa_signature(void)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
     h = (h ^ fa_base ^ (uint32_t)fa_pp_on() << 8) * 16777619u;
     h = (h ^ fa_gl ^ (uint32_t)fa_gl_row << 3 ^ (uint32_t)fa_cc_i << 6 ^ (uint32_t)fm_midi_src << 12 ^ (uint32_t)fm_bt << 17 ^ (uint32_t)fm_midi_ch << 14 ^ (uint32_t)fm_bend_mode << 19 ^ (uint32_t)fa_usb10 << 23) * 16777619u;   /* (m9: USB AUDIO) */
+#if FELUCCA_UAC10
+    if (fa_gl == 3u && fa_usb10)
+        h = (h ^ uq_drops()) * 16777619u;                 /* (m10: ABOUT's USB DROPS, redrawn when it moves) */
+#endif
     for (i = 0; i < FA_NCC; i++)
         h = (h ^ fa_cc[i]) * 16777619u;
     h = (h ^ fa_sv ^ (uint32_t)fa_ar << 4 ^ (uint32_t)fa_ar_row << 5 ^ (uint32_t)song.g[G_BPM] << 8 ^ (uint32_t)song.g[G_CLOCK] << 24) * 16777619u;
@@ -1230,7 +1235,16 @@ static void fa_draw(void)
     ui.force = 0;
     fmg_force_page = (int8_t)fa_page;
     if (fa_gl == 3u) {                                    /* ABOUT: the splash, the version bottom right */
+#if FELUCCA_UAC10
+        char nb[24];                                      /* moogi m10: in 10 CH, USB DROPS bottom left (usb.c uq_drops) */
+        if (fa_usb10) {
+            str_cpy(nb, "USB DROPS ", 11);
+            fmt_int(nb + str_len(nb), (int32_t)uq_drops());
+            fa_splash_note = nb;
+        }
+#endif
         fa_splash();
+        fa_splash_note = 0;
         return;
     }
     for (band = 0; band < 2u; band++) {
@@ -1255,6 +1269,10 @@ static void fa_splash(void)                              /* the picture (assets/
                 cv_pset((int32_t)x, (int32_t)y, FMINI_SPLASH_PAL[FMINI_SPLASH[y * 240u + x]]);
         cv_rect(228 - text_w(&AF_S, FMINI_VERSION), 217, text_w(&AF_S, FMINI_VERSION) + 8, 18, FA_RGB(0x14, 0x10, 0x1E));   /* (on the busy art: a dark plate) */
         cv_text_on(232 - text_w(&AF_S, FMINI_VERSION), 220, &AF_S, FMINI_VERSION, FA_CR, 0);
+        if (fa_splash_note) {                             /* moogi m10: ABOUT's USB DROPS, bottom left */
+            cv_rect(4, 217, text_w(&AF_S, fa_splash_note) + 8, 18, FA_RGB(0x14, 0x10, 0x1E));
+            cv_text_on(8, 220, &AF_S, fa_splash_note, FA_CR, 0);
+        }
         cv_oy = 0;
         cv_blit(0, band * 120u);
     }

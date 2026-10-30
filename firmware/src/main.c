@@ -45,7 +45,11 @@ void fm1_timer5_irq(void)
     if (felucca_dbg.in_audio) {
         felucca_dbg.nested++;
 #if FELUCCA_UAC
+#if FELUCCA_UAC10
+        if (usb_due || uac_every_tick())                /* moogi m10: 10 CH every tick (usb.c uac_service10) */
+#else
         if (usb_due)
+#endif
             uac_service();
 #endif
         t5_nested_ticks += fm1_ticks() - t0;
@@ -53,6 +57,10 @@ void fm1_timer5_irq(void)
     }
     if (owed & 1u)
         usb_poll();
+#if FELUCCA_UAC10
+    else if (uac_every_tick())
+        uac_service();                                  /* moogi m10: (usb_poll serves it on the 5th ticks) */
+#endif
 #if FELUCCA_UART
     if (owed & 2u)
         uart_midi_poll();

@@ -1461,17 +1461,18 @@ int main(int argc, char **argv)
                         if (k >= 2)
                             sum += v;
                     }
+                    sum *= 4;                              /* (m10: 12 dB down: each lane >> 2) */
                     if (sum - fa_ul_dl[i] > err || fa_ul_dl[i] - sum > err)
                         err = sum > fa_ul_dl[i] ? sum - fa_ul_dl[i] : fa_ul_dl[i] - sum;
                 }
             }
             if (pk[0] * 20 > pk[2] || pk[1] * 20 > pk[2]) {   /* (only the synth's echo tails left: -50 dB) */
                 printf("10 CH: the drums alone leak into the synth's channels (%d %d, KICK %d)\n", (int)pk[0], (int)pk[1], (int)pk[2]); return 1; }
-            if (pk[2] < 1000 || pk[3] < 300 || pk[5] < 100 || pk[8] < 100) {
+            if (pk[2] < 250 || pk[3] < 75 || pk[5] < 25 || pk[8] < 25) {   /* (m10: 12 dB down) */
                 printf("10 CH: the beat's lanes (KICK %d SNARE %d HAT CL %d RIM %d)\n", (int)pk[2], (int)pk[3], (int)pk[5], (int)pk[8]); return 1; }
             if (pk[4] || pk[6] || pk[7] || pk[9]) {
                 printf("10 CH: lanes the beat does not play (CLAP %d HAT OP %d TOM %d BELL %d)\n", (int)pk[4], (int)pk[6], (int)pk[7], (int)pk[9]); return 1; }
-            if (err > 8) { printf("10 CH: the lanes add up to the drums' share within %d\n", (int)err); return 1; }
+            if (err > 48) { printf("10 CH: the lanes add up to the drums' share within %d\n", (int)err); return 1; }   /* (8 lanes' >> 2) */
             fa_dr_mute = 0xFF;                             /* the synth alone: its channels are the mix */
             t0->p[P_MUTE] = 0;
             song.master_q12 = MASTER_FULL / 4u;            /* (and the volume knob does not move them) */
@@ -1479,7 +1480,7 @@ int main(int argc, char **argv)
             for (b = 0; b < 1500; b++) {
                 mix_block(o, CTL);
                 for (i = 0; i < CTL; i++) {
-                    int32_t l = clamp(mix_l[i] + wet[i], -32768, 32767), r = clamp(mix_r[i] + wet[i], -32768, 32767);
+                    int32_t l = fa_ul_top(mix_l[i] + wet[i]), r = fa_ul_top(mix_r[i] + wet[i]);   /* (m10: 12 dB down, soft top) */
                     if (b > 300 && (UL(i, 0u) != l || UL(i, 1u) != r)) { printf("10 CH: the synth's channels are not the mix (block %d)\n", (int)b); return 1; }
                     for (k = 2; k < 10; k++)
                         if (b > 300 && UL(i, (uint32_t)k)) { printf("10 CH: a muted lane sounds (%d)\n", (int)k); return 1; }
@@ -1487,7 +1488,17 @@ int main(int argc, char **argv)
                     base = o[2 * i] > base ? o[2 * i] : base;
                 }
             }
-            if (syn < 2000 || syn < 3 * base) { printf("10 CH: the synth's level (%d, the output at a quarter %d)\n", (int)syn, (int)base); return 1; }
+            if (syn < 500 || base <= 0) { printf("10 CH: the synth's level (%d, the output at a quarter %d)\n", (int)syn, (int)base); return 1; }
+            {   /* m10: the soft top: linear to the knee, never past 32473, monotonic, no hard clip */
+                int32_t x, prev = -40000, mx = 0;
+                if (fa_ul_top(4 * 24576) != 24576 || fa_ul_top(-4 * 24576) != -24576 || fa_ul_top(400) != 100) { printf("10 CH: linear below the knee\n"); return 1; }
+                for (x = 0; x < 4 * 300000; x += 37) {
+                    int32_t y = fa_ul_top(x);
+                    if (y < prev || y > 32473 || fa_ul_top(-x) != -y) { printf("10 CH: soft top at %d: %d\n", (int)x, (int)y); return 1; }
+                    prev = y; mx = y > mx ? y : mx;
+                }
+                if (mx < 32000) { printf("10 CH: soft top reaches %d\n", (int)mx); return 1; }
+            }
             fa_ul_want = 0;                                /* not fed: fx.c makes nothing */
             fa_ul_out[0] = 0x12345678u;
             mix_block(o, CTL);

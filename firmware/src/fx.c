@@ -1557,7 +1557,9 @@ static __attribute__((noinline)) void fa_sc_apply(int32_t *b, uint32_t n)
 /* moogi m9: USB AUDIO 10 CH (GLO > USB AUDIO; usb.c sends it). The stream's channels, each block: 1-2 the synth, stereo, with
  * the delay, reverb and chorus (the drums send nothing to them): the mix less the drums' part; 3-10 the drums' eight lanes,
  * mono (KICK SNARE CLAP HAT CL HAT OP TOM RIM BELL), each with its VOLUME and the part's LEVEL. All at the level the MASTER
- * knob gives at its top (as MENU > USB LEVEL FIXED: the volume knob does not move them), before the limiter, clipped at 16 bits.
+ * knob gives at its top (as MENU > USB LEVEL FIXED: the volume knob does not move them), before the limiter. m10: all ten 12 dB
+ * down (the mix's own balance kept: at unity in a DAW they add up to the FM-1's mix, 12 dB lower; the factory bank's hottest
+ * patch peaked at 3.7x full scale in m9), then a soft top (fa_ul_top) instead of a hard clip at 16 bits.
  * Only while usb.c feeds the stream (fa_ul_want, eng_drum.c); the sound is unchanged */
 #define FA_UL_CH 10u
 #define FA_UL_W (FA_UL_CH / 2u)                         /* 32-bit words a frame: two channels each, the lower first */
@@ -1585,7 +1587,17 @@ static __attribute__((noinline)) void fa_ul_drums(const int32_t *b, uint32_t n, 
             fa_ul_lane[k][i] = ((fa_ul_lane[k][i] >> 2) * lvl) >> 10;
     }
 }
-static inline uint32_t fa_ul_s16(int32_t v) { return (uint16_t)(int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v); }
+/* moogi m10: 12 dB down, linear to 24576 (-2.5 dBFS), above it rounded towards 32473 (tanh: the engines' softclip, its input
+ * x4 and its output / 4: no corner at the knee, never a hard clip) */
+#define FA_UL_KNEE 24576
+static inline int32_t fa_ul_top(int32_t v)
+{
+    int32_t a = (v < 0 ? -v : v) >> 2;                  /* (the magnitude: the same both ways) */
+    if (a > FA_UL_KNEE)
+        a = FA_UL_KNEE + (softclip((a - FA_UL_KNEE) << 2) >> 2);
+    return v < 0 ? -a : a;
+}
+static inline uint32_t fa_ul_s16(int32_t v) { return (uint16_t)(int16_t)fa_ul_top(v); }
 static __attribute__((noinline)) void fa_ul_end(uint32_t n)   /* mix_block: after the buses, before the master */
 {
     uint32_t i, k;

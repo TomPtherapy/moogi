@@ -121,6 +121,22 @@ static uint32_t ua_ring[UA_N * UA_W10] __attribute__((section(".pool")));   /* (
 static uint32_t ep4tx[UA_MAXF10 * UA_W10] __attribute__((aligned(4)));
 static uint32_t ua_last10[UA_W10];                     /* the last frame sent (10 CH), repeated on an underrun */
 static volatile uint8_t uac10;                         /* 1: presented and fed as 10 CH (usb_uac10_switch) */
+/* moogi m10: 10 CH's packets go out on time. A 920-byte packet takes ~0.62 .. 0.71 ms of the 1 ms frame on the bus;
+ * MIX's service (every 0.5 ms, the packet made when the last has gone) then queued the next one up to 1.2 ms after the
+ * last IN token: some IN tokens found nothing (uac.missed) and the host spliced the stream (clicks in bursts, m9 on the
+ * device). Now (uac_service10) the next packet is made while this one goes, in the other buffer, and TIMER5 checks
+ * every tick (0.1 ms) once the packet can have gone (UQ_MIN ticks after it was queued): it is queued within ~0.1 ms of
+ * the last one leaving. MIX keeps its service as it was */
+#define UQ_MIN 4u                                      /* ticks (0.1 ms) before TxPktRdy is read: a 10 CH packet takes >= 0.58 ms */
+#define UQ_STALL 200u                                  /* ticks a packet may wait before the host is taken as gone (20 ms, as MIX) */
+static uint32_t ep4tx_b[UA_MAXF10 * UA_W10] __attribute__((aligned(4)));
+static struct {
+    uint8_t slot;                                      /* the buffer the next packet is made in / sent from (0 ep4tx, 1 ep4tx_b) */
+    uint8_t since;                                     /* ticks since the last packet was queued (to 255) */
+    uint16_t len;                                      /* the prepared packet's bytes; 0: none (a (re)start) */
+    uint32_t late;                                     /* IN tokens that found nothing queued since the stream started (ABOUT) */
+    uint32_t under0;                                   /* uac.underruns when it started */
+} uq;
 #else
 static uint32_t ua_ring[UA_N];
 static uint32_t ep4tx[UA_MAXF] __attribute__((aligned(4)));
@@ -541,9 +557,15 @@ static void uac_stream(uint32_t alt)                    /* SET_INTERFACE, config
         uint32_t k;
         for (k = 0; k < UA_W10; k++)
             ua_last10[k] = 0;                           /* moogi m9 */
+        uq.len = 0;                                     /* moogi m10: the next packet is made afresh */
+        uq.since = 0;
     }
 #endif
     if (alt) {                                          /* (the fill range of the last stream stays readable) */
+#if FELUCCA_UAC10
+        uq.late = 0;
+        uq.under0 = uac.underruns;
+#endif
         uac.starts++;
         uac.fill_lo = 0xFFFFFFFFu;
         uac.fill_hi = 0;
@@ -1389,11 +1411,77 @@ static uint32_t uac_packet(uint32_t *d)
  * next one as soon as the last has gone (TxPktRdy clear). Not paced on SOF-pending (see usb_poll).
  * The ring is fed only while the host reads: it often selects alt 1 long before its first IN token,
  * and a recorder may stop reading without going back to alt 0 (a packet waiting > 20 ms). */
+#if FELUCCA_UAC10
+/* moogi m10: GLO > ABOUT's USB DROPS (fmini_app.c): packets the host found missing, and packets the ring could not fill
+ * (a frame repeated), since the stream started. Either is a click in the recording */
+static uint32_t uq_drops(void) { return uq.late + (uac.underruns - uq.under0); }
+/* moogi m10: 10 CH's service, every TIMER5 tick (main.c), in two halves the host tests drive without the SIE:
+ * uq_read_due (TxPktRdy worth reading this tick?) and uq_after_read (what the read says: the packet to queue, or none) */
+static void uq_prepare(void)
+{
+    uq.len = (uint16_t)(uac_packet(uq.slot ? ep4tx_b : ep4tx) * UA_W10 * 4u);
+}
+static int uq_read_due(void)
+{
+    if (uq.since < 255u)
+        uq.since++;
+    return !uac.queued || uq.since >= UQ_MIN;           /* (a packet just queued cannot have gone: no SIE traffic) */
+}
+/* csr: TXCSR1 as read. Returns the bytes to queue now (0: none) and their buffer */
+static uint32_t uq_after_read(uint32_t csr, uint32_t **buf)
+{
+    uint32_t n;
+    if (csr & 0x01u) {                                  /* still queued */
+        if (uq.since == UQ_STALL && uac.flowing) {
+            uac.flowing = 0;
+            uac.stalls++;
+        }
+        return 0;
+    }
+    if (uac.queued) {
+        if (csr & 0x04u) {
+            uac.missed++;                               /* UnderRun: an IN token found nothing queued */
+            uq.late++;
+        }
+        uac.flowing = 1;
+    }
+    if (!uq.len)
+        uq_prepare();                                   /* the first packet of a (re)start: made now */
+    *buf = uq.slot ? ep4tx_b : ep4tx;
+    n = uq.len;
+    uac.queued = 1;
+    uac.wait = 0;
+    uq.since = 0;
+    uq.slot ^= 1u;
+    uq_prepare();                                       /* the next one, in the other buffer, while this one goes */
+    return n;
+}
+static void uac_service10(void)
+{
+    uint32_t csr, n, *buf;
+    if (!uq_read_due())
+        return;
+    sie_wr(S_INDEX, 4);
+    csr = sie_rd(S_TXCSR1);
+    n = uq_after_read(csr, &buf);
+    if (n) {
+        fm1_usb_ep4_send(buf, n);
+        sie_wr(S_TXCSR1, 0x01);                         /* TxPktRdy (and UnderRun cleared) */
+    }
+}
+#endif
+
 static void uac_service(void)
 {
     uint32_t csr, n;
     if (!usb.up || !usb.config || !uac.alt)
         return;
+#if FELUCCA_UAC10
+    if (uac10) {
+        uac_service10();                                /* moogi m10 */
+        return;
+    }
+#endif
     sie_wr(S_INDEX, 4);
     csr = sie_rd(S_TXCSR1);
     if (csr & 0x01u) {                                  /* still queued */
@@ -1411,10 +1499,6 @@ static void uac_service(void)
     uac.queued = 1;
     uac.wait = 0;
     n = uac_packet(ep4tx);
-#if FELUCCA_UAC10
-    if (uac10)
-        n *= UA_W10;                                    /* moogi m9: 10 CH, 20 bytes a frame */
-#endif
     fm1_usb_ep4_send(ep4tx, n * 4u);
     sie_wr(S_TXCSR1, 0x01);                             /* TxPktRdy (and UnderRun cleared) */
 }
@@ -1588,6 +1672,11 @@ static __attribute__((unused)) void usb_uac10_switch(uint32_t on)
     usb.config = 0;
     uac.alt = 0;                                        /* the audio ISR feeds nothing until a host streams again */
     uac.go = 0;
+    uac.queued = 0;
+    uq.len = 0;                                         /* (moogi m10) */
     uac10 = (uint8_t)on;
 }
+
+/* moogi m10: TIMER5 (main.c) serves the stream every tick (0.1 ms) while 10 CH streams; MIX every 5th, as before */
+static inline int uac_every_tick(void) { return uac10 && uac.alt; }
 #endif

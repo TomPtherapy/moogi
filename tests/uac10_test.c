@@ -114,10 +114,16 @@ static void render_block(void)
     }
     uac_tap(blk, CTL);
 }
+static void check_frames(const uint32_t *d, uint32_t n);
 static void take_packet(void)
 {
-    uint32_t d[46u * 5u + 10u], n, i, k, w = uac10 ? 5u : 1u;
+    uint32_t d[46u * 5u + 10u], n;
     n = uac_packet(d);
+    check_frames(d, n);
+}
+static void check_frames(const uint32_t *d, uint32_t n)
+{
+    uint32_t i, k, w = uac10 ? 5u : 1u;
     sizes[n < 64u ? n : 63u]++;
     npk++;
     if (n * w * 4u > maxbytes)
@@ -240,12 +246,123 @@ static void test_ring(int ten)
     check("  restart: primed again, in order, no glitch", cons_n > 3000u * 44u && cons_bad == 0 && cons_rep == 0);
 }
 
+
+/* ------------------------------------------------------------------- the timing (m10) --- */
+/* The SIE as the host sees it: an IN token every 1 ms (the host's clock, 60 ppm off the device's), early in the frame
+ * (0 .. 0.15 ms: isochronous first); a queued packet is read by the DMA at the IN token and occupies the bus for its
+ * bytes at 12 Mbit/s plus bit stuffing (8 %) and 10 us; TxPktRdy clears when it has gone. An IN token with nothing
+ * queued: the host gets no packet (missed, UnderRun set). TIMER5 ticks every 0.1 ms (the device's clock), nested in
+ * the render or not: the new service (uq_read_due / uq_after_read every tick) against m9's (uac_packet into one
+ * buffer every 5th tick when TxPktRdy is clear). Renders as above. Every frame the host receives is checked (order,
+ * the 10 channels) */
+static uint32_t t_pkt_ready, t_pkt_len, t_under, t_missed, t_got;
+static const uint32_t *t_pkt_buf;
+static uint64_t t_tx_end;
+static void timing_run(uint32_t ms, int newsvc, uint32_t seed)
+{
+    uint64_t start = now_ns, end = now_ns + (uint64_t)ms * 1000000u, next_tick = now_ns + 37000u, next_in, frame = 0;
+    uint32_t sub = 0, l = seed;
+    double host_ms = 1e6 * (1.0 + 60e-6);
+    next_in = now_ns + 200000u;
+    while (now_ns < end) {
+        uint64_t t = end;
+        if (next_half < t) t = next_half;
+        if (blocks_left && next_block < t) t = next_block;
+        if (next_tick < t) t = next_tick;
+        if (next_in < t) t = next_in;
+        if (t_pkt_ready && t_tx_end && t_tx_end < t) t = t_tx_end;
+        now_ns = t;
+        if (now_ns >= end) break;
+        if (t_pkt_ready && t_tx_end && now_ns == t_tx_end) {        /* the packet has gone */
+            t_pkt_ready = 0;
+            t_tx_end = 0;
+        } else if (now_ns == next_half) {
+            next_half += (uint64_t)((double)HALF_FRAMES / fs_dev * 1e9);
+            lcg = lcg * 1103515245u + 12345u;
+            rend_len = REND_MIN + (lcg >> 8) % (REND_MAX - REND_MIN);
+            uac_render_start();
+            blocks_left = HALF_FRAMES / CTL;
+            next_block = now_ns + rend_len / blocks_left;
+        } else if (blocks_left && now_ns == next_block) {
+            render_block();
+            blocks_left--;
+            next_block += rend_len / (HALF_FRAMES / CTL);
+        } else if (now_ns == next_in) {                              /* the host's IN token */
+            frame++;
+            l = l * 1103515245u + 12345u;
+            next_in = start + (uint64_t)(200000.0 + (double)frame * host_ms) + (l >> 8) % 150000u;
+            if (t_pkt_ready && !t_tx_end) {
+                check_frames(t_pkt_buf, t_pkt_len / 20u);             /* (the DMA reads it now) */
+                t_got++;
+                t_tx_end = now_ns + (uint64_t)(t_pkt_len * 8u * 1.08 / 12e6 * 1e9) + 10000u;
+            } else if (!t_pkt_ready) {
+                if (getenv("T_DEBUG")) printf("  (missed IN at frame %llu, queued %u since %u)\n", (unsigned long long)frame, uac.queued, uq.since);
+                t_missed++;
+                t_under = 1;
+            }
+        } else if (now_ns == next_tick) {                            /* TIMER5 */
+            next_tick += 100000u;
+            if (newsvc) {
+                if (uq_read_due()) {
+                    uint32_t *buf, n = uq_after_read((t_pkt_ready ? 1u : 0u) | (t_under ? 4u : 0u), &buf);
+                    if (n) { t_pkt_buf = buf; t_pkt_len = n; t_pkt_ready = 1; t_under = 0; }
+                }
+            } else if (sub++ % 5u == 0u) {                             /* m9: every 5th tick */
+                if (!t_pkt_ready) {
+                    if (uac.queued) { if (t_under) uac.missed++; uac.flowing = 1; }
+                    uac.queued = 1;
+                    t_pkt_len = uac_packet(ep4tx) * 20u;
+                    t_pkt_buf = ep4tx;
+                    t_pkt_ready = 1;
+                    t_under = 0;
+                }
+            }
+        }
+    }
+}
+static void test_timing(int newsvc)
+{
+    char s[128];
+    uint32_t seed;
+    uac10 = 1;
+    usb.config = 1;
+    for (seed = 1; seed <= 3; seed++) {
+        memset(&uac, 0, sizeof uac);
+        memset(&uq, 0, sizeof uq);
+        uac_stream(1);
+        t_pkt_ready = t_pkt_len = t_under = t_missed = t_got = 0;
+        t_tx_end = 0;
+        blocks_left = 0;
+        next_half = now_ns + 300000;
+        reset_counts();
+        timing_run(10000, newsvc, seed * 7919u);
+        snprintf(s, sizeof s, "%s, run %u: 10 s, %u packets, %u IN tokens found nothing, %u underruns, %u bad frames",
+                 newsvc ? "m10's service (every tick, the next made ahead)" : "m9's service (every 5th tick)", seed, t_got,
+                 t_missed, uac.underruns, cons_bad + cons_rep);
+        if (newsvc)
+            check(s, t_missed <= 1u && uac.underruns == 0 && cons_bad == 0 && cons_rep == 0 && t_got > 9900u &&
+                     uq.late == 0);                             /* (the first IN token may come before the first packet) */
+        else
+            printf("%-72s %s\n", s, t_missed ? "(misses: m9's clicks)" : "(no misses)");
+    }
+    {   /* the SIE is read only once a packet can have gone: <= 6 reads a 1 ms frame */
+        uint32_t reads = 0, i;
+        memset(&uq, 0, sizeof uq);
+        uac.queued = 1;
+        for (i = 0; i < 10u; i++)
+            reads += (uint32_t)uq_read_due();
+        check("  the 10 ticks after a packet is queued read TxPktRdy on 7 (not the first 3)", reads == 7u);
+    }
+}
+
 int main(void)
 {
     test_descriptors();
     test_rate();
     test_ring(1);
     test_ring(0);
+    test_timing(0);
+    test_timing(1);
     printf("uac10_test (CDC %d): %s\n", T_CDC, fails ? "FAIL" : "ok");
     return fails != 0;
 }
