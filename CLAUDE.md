@@ -6,8 +6,8 @@ itself a fork of [Felucca](https://github.com/hugelton/Felucca) (GPL-3.0-only, b
 licence requires (`CREDITS.md`, `LICENSE`, `LICENSING.md`).
 
 The long technical guide is [DEVELOPING.md](DEVELOPING.md); its sections 3, 7a and 12 are the ones that matter for most work. Do not
-read it whole at the start of a session. [BUILDING.md](BUILDING.md) is the toolchain setup. DEVELOPING.md and the site text still
-speak of FMini-1 and Ruppert's site: that is history, not an instruction.
+read it whole at the start of a session. [BUILDING.md](BUILDING.md) is the toolchain setup. DEVELOPING.md still speaks of FMini-1 and Ruppert's
+site: that is history, not an instruction.
 
 ## Working with Tom
 
@@ -70,7 +70,7 @@ against the norns mod, `tests/fmini_acid_ref.txt`), `tests/fmini_filter_test.c` 
 
 - One branch, `main`. `git fetch origin` before committing (Tom may edit files on the GitHub site), commit on `main`, push `main`.
 - Commit trailers: the ones the session's system reminder gives (`Co-Authored-By: ...` and `Claude-Session: ...`).
-- A push to `main` that touches `firmware/`, `web/`, `tools/`, `assets/`, `docs/emu/`, `docs/fmini-ad*`, `build.sh` or the workflow
+- A push to `main` that touches `firmware/`, `web/`, `tools/`, `assets/`, `docs/emu/`, `build.sh` or the workflow
   runs the "Installer" GitHub Actions workflow, which builds the firmware and publishes the install page on the fork's GitHub
   Pages a few minutes later. Documents at the root do not trigger it. Tell Tom when the page is expected to be ready.
 - The version is `FMINI_VERSION` in `firmware/src/fmini_app.c` (`v1.8.0-mN`: N goes up with each round Tom installs). The workflow,
@@ -80,6 +80,10 @@ against the norns mod, `tests/fmini_acid_ref.txt`), `tests/fmini_filter_test.c` 
 
 ## Rules that are easy to break
 
+- **The site and the README describe Acid Moogi only.** No FMini-1 screenshots, video or descriptions of FMini-1's features
+  (Oct 2026: a community member pointed out that copying Ruppert's site misrepresents both firmwares and competes with his
+  site in search). Ruppert is credited and linked (`#base` section of `web/site_fmini.html`, README Credits). Pictures of
+  screens go on the site only when drawn from Acid Moogi's own code.
 - The firmware is integer-only and one compilation unit (`firmware/src/felucca.c` includes the rest; **the order matters**;
   `fmini_app.c` near the end includes `fmini_seq.c`). No floating point, no 64-bit multiplies in a per-sample loop (int64 only per
   block). Floating point lives in `tools/`.

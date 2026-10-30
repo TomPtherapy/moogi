@@ -1,13 +1,13 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: GPL-3.0-only
-     FMini-1 site + installer. The installer logic is the Felucca installer's (Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments) -->
-<html lang="pt">
+     Acid Moogi site + installer (a fork of the FMini-1 site by Guilherme Ruppert). The installer logic is the Felucca installer's (Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments) -->
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="description" content="Acid Moogi: a monophonic synth firmware for the M-VAVE FM-1. 3 oscillators, ladder filter, 100 presets, arpeggiator, sequencer, MIDI.">
-<title>Acid Moogi — a monophonic synth for the M-VAVE FM-1</title>
+<meta name="description" content="Acid Moogi: a personal fork of FMini-1 for the M-VAVE FM-1 that turns it into a mono acid box: filter on the knobs, a sequencer on the keys, an acid line generator and a euclidean drum machine.">
+<title>Acid Moogi: a mono acid box for the M-VAVE FM-1</title>
 <style>
   :root {
     --bg: #0d0c10; --surface: #15131a; --surface2: #1c1922; --line: #2a2631; --fg: #f4f0ea; --dim: #a29cab; --mute: #6f6a78;
@@ -67,45 +67,22 @@
   .photo img { display: block; width: 100%; height: auto; }
 
 
-  /* hero: the Minimoog beside the title, then it shrinks into the FM-1's screen as the page scrolls */
-  .hero2 { position: relative; height: calc(100svh - 60px); }
-  .stage { position: relative; height: 100%; overflow: hidden; }
-  .copy1 { position: absolute; z-index: 3; left: max(24px, calc((100% - 1032px) / 2)); top: 50%; transform: translateY(-50%); width: min(500px, 46%); will-change: opacity, transform; }
+  /* moogi: a plain hero, the Acid Moogi picture beside the title */
+  .hero3 { padding: 64px 0 0; }
+  .hero3 .wrap { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; }
+  @media (max-width: 820px) { .hero3 .wrap { grid-template-columns: 1fr; gap: 32px; } .hero3 { padding-top: 36px; } }
   .kick { margin: 0 0 18px; font: 500 13px/1.4 var(--mono); color: var(--dim); }
-  .kick .ver { display: inline-block; margin-left: 8px; font: 700 11.5px/1 var(--mono); background: var(--or); color: #1a0e05; border-radius: 4px; padding: 4px 6px; }
-  .copy1 .logo { font-size: clamp(56px, 8.4vw, 118px); }
-  .copy1 .tag { font-size: clamp(20px, 2.4vw, 28px); margin-top: 22px; }
-  .copy1 .sub { font-size: 16px; }
-  .copy1 .cta { margin-top: 26px; }
-  .cta-ver { margin: 10px 0 0; font: 500 11px/1 var(--mono); color: var(--mute); letter-spacing: .03em; }
-  .copy2 .cta-ver { text-align: center; }
-  .mm { position: absolute; z-index: 2; left: 0; top: 0; width: 100px; height: auto; max-width: none; -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent), linear-gradient(180deg, transparent, #000 10%, #000 88%, transparent); -webkit-mask-composite: source-in; mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent), linear-gradient(180deg, transparent, #000 10%, #000 88%, transparent); mask-composite: intersect; will-change: left, top, width, opacity; pointer-events: none; }
-  .fm { position: absolute; z-index: 1; margin: 0; left: 0; top: 0; opacity: 0; will-change: transform, opacity; }
-  .fm .body { display: block; width: 100%; height: auto; filter: drop-shadow(0 30px 50px rgba(0,0,0,.6)); }
-  .fm .lcd { position: absolute; left: 30.73%; top: 15.23%; width: 16.76%; height: 28.3%; background: #000; overflow: hidden; border-radius: 1.5%; opacity: 0;
-             box-shadow: 0 0 18px rgba(255,122,26,.18); cursor: pointer; }
-  .fm .lcd #scr { position: absolute; inset: 0; }
-  .fm .lcd img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transition: opacity .6s ease; }
-  .copy2 { position: absolute; z-index: 3; left: 0; right: 0; text-align: center; opacity: 0; pointer-events: none; padding: 0 24px; }
-  .copy2 h2 { margin: 0 auto; font-size: clamp(26px, 4vw, 40px); }
-  .copy2 p { margin: 10px auto 0; color: var(--dim); max-width: 560px; }
-  .copy2 .cta { justify-content: center; margin-top: 20px; }
-  .hint { position: absolute; z-index: 3; pointer-events: none; left: 0; right: 0; bottom: 14px; text-align: center; font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
-  .hint i { display: block; width: 1px; height: 26px; margin: 8px auto 0; background: linear-gradient(var(--mute), transparent); animation: hint 1.6s ease-in-out infinite; }
-  @keyframes hint { 50% { transform: translateY(6px); opacity: .4; } }
-  @media (max-width: 820px) {
-    .copy1 { top: 18px; transform: none; width: auto; right: 24px; left: 24px; }
-    .copy1 .sub, .copy1 .tags, .copy1 .by { display: none; }
-    .copy1 .kick { margin-bottom: 10px; }
-    .copy1 .logo { font-size: clamp(48px, 15vw, 80px); }
-    .copy1 .tag { margin-top: 12px; font-size: 19px; }
-    .copy1 .cta { margin-top: 18px; }
-  }
-  body.rm .hint { display: none; }
+  .kick .curver { display: inline-block; margin-left: 8px; font: 700 11.5px/1 var(--mono); background: var(--or); color: #1a0e05; border-radius: 4px; padding: 4px 6px; }
+  .hero3 .logo { font-size: clamp(56px, 8.4vw, 112px); }
+  .hero3 .tag { font-size: clamp(22px, 2.6vw, 30px); margin-top: 22px; }
+  .hero3 .art { margin: 0; border-radius: 20px; overflow: hidden; border: 1px solid var(--line); background: #000; aspect-ratio: 1; }
+  .hero3 .art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .notfmini { margin: 28px 0 0; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--dim); font-size: 15px; line-height: 1.5; }
+  .notfmini b { color: var(--fg); }
+  .more { margin: 8px 0 0; font-size: 16px; }
 
   /* sections */
-  section.s { padding: 104px 0 0; }
-  video.adv { display: block; width: 100%; margin-top: 28px; border-radius: 16px; border: 1px solid var(--line); background: #000; }
+  section.s { padding-top: 104px; }   /* moogi: keep the .wrap side gutter on a phone */
   .eyebrow { font: 600 12.5px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--or); margin: 0 0 14px; }
   h2 { margin: 0; font-size: clamp(30px, 5vw, 46px); line-height: 1.08; letter-spacing: -.03em; font-weight: 800; max-width: 760px; }
   .lead { margin: 16px 0 0; color: var(--dim); max-width: 700px; font-size: 18px; }
@@ -118,27 +95,6 @@
   .feat h3 { margin: 12px 0 8px; font-size: 19px; line-height: 1.25; font-weight: 700; letter-spacing: -.01em; }
   .feat p { margin: 0; color: var(--dim); font-size: 15.5px; line-height: 1.6; }
 
-  /* screens */
-  .viewer { display: grid; grid-template-columns: minmax(240px, 340px) 1fr; gap: 56px; align-items: center; margin-top: 48px; }
-  @media (max-width: 820px) { .viewer { grid-template-columns: 1fr; gap: 28px; } }
-  .glass { background: #000; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); aspect-ratio: 1; box-shadow: 0 30px 80px rgba(255,122,26,.07); }
-  .glass img { display: block; width: 100%; height: 100%; object-fit: contain; }
-  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 22px; }
-  .tabs button { font: 600 12.5px/1 var(--mono); color: var(--dim); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 9px 13px; cursor: pointer; }
-  .tabs button:hover { color: var(--fg); border-color: var(--mute); }
-  .tabs button[aria-selected=true] { color: #1a0e05; background: var(--or); border-color: var(--or); }
-  .viewer h3 { margin: 0 0 10px; font-size: clamp(22px, 3.4vw, 30px); line-height: 1.2; letter-spacing: -.02em; font-weight: 700; }
-  .viewer p { margin: 0 0 14px; color: var(--dim); }
-  .viewer ul { margin: 0; padding-left: 18px; color: var(--dim); font-size: 15.5px; }
-  .viewer li { margin: 6px 0; }
-  .viewer li::marker { color: var(--or); }
-
-  .pops { display: grid; grid-template-columns: repeat(3, minmax(0, 290px)); justify-content: space-between; gap: 36px 28px; margin-top: 72px; }
-  @media (max-width: 900px) { .pops { grid-template-columns: repeat(2, minmax(0, 290px)); } }
-  @media (max-width: 560px) { .pops { grid-template-columns: minmax(0, 320px); justify-content: center; } }
-  .pop figure { margin: 0; }
-  .pop h4 { margin: 16px 0 6px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
-  .pop p { margin: 0; color: var(--dim); font-size: 15px; line-height: 1.55; font-style: italic; }
 
   /* presets */
   .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 44px 0 20px; padding: 0; list-style: none; }
@@ -231,102 +187,58 @@
   <div class="wrap">
     <a class="brand" href="#top" aria-label="Acid Moogi"><i>Acid</i> Moogi</a>
     <nav>
-      <a href="#features" data-t="nav_f"></a>
-      <a href="#screens" data-t="nav_s"></a>
-      <a href="#feat" data-t="nav_ft"></a>
+      <a href="#what" data-t="nav_w"></a>
+      <a href="#base" data-t="nav_b"></a>
       <a href="editor/" data-t="nav_ed"></a>
       <a href="https://github.com/TomPtherapy/moogi/blob/main/QUICK_REFERENCE.md" target="_blank" rel="noopener" data-t="nav_qr"></a>
       <a href="emu/" class="try"><span class="tl" data-t="nav_try"></span><span class="ts" data-t="nav_try_s"></span></a>
       <a href="#install" class="keep" data-t="nav_i"></a>
     </nav>
-    <button class="lang" id="lang" aria-label="Language"></button>
   </div>
 </header>
 
 <main>
-  <section class="hero2" id="top">
-    <div class="stage" id="stage">
-      <div class="copy1" id="copy1">
-        <p class="kick"><span data-t="announce"></span><span class="ver" id="ver">v1.1.0</span></p>
+  <section class="hero3" id="top">
+    <div class="wrap">
+      <div>
+        <p class="kick"><span data-t="announce"></span><span class="curver"></span></p>
         <h1 class="logo"><span class="f">Acid</span> Moogi</h1>
-        <p class="by">a personal fork of FMini-1 by Ruppert</p>
+        <p class="by">a personal fork of FMini-1 by Guilherme Ruppert</p>
         <p class="tag" data-t="tagline"></p>
         <p class="sub" data-t="sub"></p>
         <div class="cta">
           <a class="btn pri" href="#install" data-t="cta_install"></a>
-          <a class="btn sec2" href="#screens" data-t="cta_screens"></a>
+          <a class="btn sec2" href="https://github.com/TomPtherapy/moogi/blob/main/QUICK_REFERENCE.md" target="_blank" rel="noopener" data-t="cta_qr"></a>
         </div>
-        <p class="cta-ver curver"></p>
-        <ul class="tags"><li>3 OSC</li><li data-t="chip_f"></li><li data-t="chip_p"></li><li>ARP</li><li>SEQ</li><li>MIDI</li></ul>
+        <ul class="tags"><li>FILTER ON THE KNOBS</li><li>8–64 STEPS</li><li>ACID LINE</li><li>DRUMS</li><li>USB CLOCK</li><li>USB AUDIO 10 CH</li></ul>
+        <p class="notfmini"><b data-t="nf_t"></b> <span data-t="nf_d"></span> <a href="https://ruppert.github.io/fmini-1/" target="_blank" rel="noopener" data-t="nf_a"></a></p>
       </div>
-      <img class="mm" id="mm" alt="Acid Moogi" src="/*HERO*/">
-      <figure class="fm" id="fm">
-        <img class="body" id="fm-body" alt="M-VAVE FM-1" src="">
-        <div class="lcd" id="lcd"><div id="scr"><img id="lcd-a" alt=""><img id="lcd-b" alt=""></div></div>
-      </figure>
-      <div class="copy2" id="copy2">
-        <h2 data-t="hero2_t"></h2>
-        <p data-t="hero2_s"></p>
-        <div class="cta">
-          <a class="btn pri" href="#install" data-t="cta_install"></a>
-          <a class="btn sec2" href="#screens" data-t="cta_screens"></a>
-        </div>
-        <p class="cta-ver curver"></p>
-      </div>
-      <div class="hint" id="hint" aria-hidden="true"><span data-t="hint"></span><i></i></div>
+      <figure class="art"><img id="mm" alt="Acid Moogi" src="/*HERO*/"></figure>
     </div>
   </section>
 
-  <section class="s wrap" id="video">
-    <p class="eyebrow" data-t="e_video"></p>
-    <h2 data-t="h_video"></h2>
-    <video class="adv" controls playsinline preload="metadata" poster="fmini-ad-poster.jpg"><source src="fmini-ad.mp4" type="video/mp4"></video>
-  </section>
-
-  <section class="s wrap" id="features">
-    <p class="eyebrow" data-t="e_sound"></p>
-    <h2 data-t="h_sound"></h2>
-    <p class="lead" data-t="l_sound"></p>
+  <section class="s wrap" id="what">
+    <p class="eyebrow" data-t="e_what"></p>
+    <h2 data-t="h_what"></h2>
+    <p class="lead" data-t="l_what"></p>
     <div class="grid">
-      <article class="feat"><span class="n">01</span><h3 data-t="f1t"></h3><p data-t="f1d"></p></article>
-      <article class="feat"><span class="n">02</span><h3 data-t="f2t"></h3><p data-t="f2d"></p></article>
-      <article class="feat"><span class="n">03</span><h3 data-t="f3t"></h3><p data-t="f3d"></p></article>
-      <article class="feat"><span class="n">04</span><h3 data-t="f4t"></h3><p data-t="f4d"></p></article>
-      <article class="feat"><span class="n">05</span><h3 data-t="f5t"></h3><p data-t="f5d"></p></article>
-      <article class="feat"><span class="n">06</span><h3 data-t="f6t"></h3><p data-t="f6d"></p></article>
+      <article class="feat"><span class="n">01</span><h3 data-t="w1t"></h3><p data-t="w1d"></p></article>
+      <article class="feat"><span class="n">02</span><h3 data-t="w2t"></h3><p data-t="w2d"></p></article>
+      <article class="feat"><span class="n">03</span><h3 data-t="w3t"></h3><p data-t="w3d"></p></article>
+      <article class="feat"><span class="n">04</span><h3 data-t="w4t"></h3><p data-t="w4d"></p></article>
+      <article class="feat"><span class="n">05</span><h3 data-t="w5t"></h3><p data-t="w5d"></p></article>
+      <article class="feat"><span class="n">06</span><h3 data-t="w6t"></h3><p data-t="w6d"></p></article>
     </div>
+    <p class="more"><a href="https://github.com/TomPtherapy/moogi/blob/main/QUICK_REFERENCE.md" target="_blank" rel="noopener" data-t="w_more"></a></p>
   </section>
 
-  <section class="s wrap" id="screens">
-    <p class="eyebrow" data-t="e_screens"></p>
-    <h2 data-t="h_screens"></h2>
-    <p class="lead" data-t="l_screens"></p>
-    <div class="viewer">
-      <div class="glass"><img id="v-img" alt=""></div>
-      <div>
-        <div class="tabs" role="tablist" id="v-tabs"></div>
-        <h3 id="v-t"></h3>
-        <p id="v-d"></p>
-        <ul id="v-l"></ul>
-      </div>
-    </div>
-    <div class="pops" id="pops"></div>
-  </section>
-
-  <section class="s wrap" id="feat">
-    <p class="eyebrow" data-t="e_feat"></p>
-    <h2 data-t="h_feat"></h2>
-    <p class="lead" data-t="l_feat"></p>
-    <div class="grid">
-      <article class="feat"><span class="n">01</span><h3 data-t="ft1t"></h3><p data-t="ft1d"></p></article>
-      <article class="feat"><span class="n">02</span><h3 data-t="ft2t"></h3><p data-t="ft2d"></p></article>
-      <article class="feat"><span class="n">03</span><h3 data-t="ft3t"></h3><p data-t="ft3d"></p></article>
-      <article class="feat"><span class="n">04</span><h3 data-t="ft4t"></h3><p data-t="ft4d"></p></article>
-      <article class="feat"><span class="n">05</span><h3 data-t="ft5t"></h3><p data-t="ft5d"></p></article>
-      <article class="feat"><span class="n">06</span><h3 data-t="ft6t"></h3><p data-t="ft6d"></p></article>
-      <article class="feat"><span class="n">07</span><h3 data-t="ft7t"></h3><p data-t="ft7d"></p></article>
-      <article class="feat"><span class="n">08</span><h3 data-t="ft8t"></h3><p data-t="ft8d"></p></article>
-      <article class="feat"><span class="n">09</span><h3 data-t="ft9t"></h3><p data-t="ft9d"></p></article>
+  <section class="s wrap" id="base">
+    <p class="eyebrow" data-t="e_base"></p>
+    <h2 data-t="h_base"></h2>
+    <p class="lead" data-t="l_base"></p>
+    <div class="cta">
+      <a class="btn sec2" href="https://ruppert.github.io/fmini-1/" target="_blank" rel="noopener" data-t="b_site"></a>
+      <a class="btn sec2" href="https://github.com/ruppert/fmini-1" target="_blank" rel="noopener" data-t="b_gh"></a>
     </div>
   </section>
 
@@ -386,7 +298,7 @@
     Font: Inter Tight (The Inter Project Authors, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and VCSL (CC0 1.0).<br>
     FM6 engine: msfa from Dexed (Google Inc., Pascal Gauthier, Apache-2.0). The package also holds three JieLi AC79 SDK files, uboot.boot, cfg_tool.bin and eq_cfg_hw.bin (JieLi Technology, Apache-2.0). Licences: <a href="https://github.com/hugelton/Felucca/blob/main/LICENSING.md">LICENSING</a>, <a href="https://github.com/hugelton/Felucca/blob/main/LICENSE">GPL-3.0</a>, <a href="https://github.com/hugelton/Felucca/tree/main/LICENSES/">all</a>.<br>
     M-VAVE and FM-1 are trademarks of their respective owners.<br>
-    <span data-t="license"></span> <a href="https://github.com/hugelton/Felucca" target="_blank" rel="noopener">github.com/hugelton/Felucca</a>
+    <span data-t="license"></span> <a href="https://github.com/TomPtherapy/moogi" target="_blank" rel="noopener">github.com/TomPtherapy/moogi</a> · FMini-1: <a href="https://github.com/ruppert/fmini-1" target="_blank" rel="noopener">github.com/ruppert/fmini-1</a> · Felucca: <a href="https://github.com/hugelton/Felucca" target="_blank" rel="noopener">github.com/hugelton/Felucca</a>
   </div>
 </footer>
 <script type="module">
@@ -514,219 +426,39 @@ const TEXT = {
     risk: "Use at your own risk", logT: "Details", fw: "Firmware",
   },
 };
-/* ---- the site: texts (PT / EN / JA) and the parts it draws itself ---- */
-const SITE = {
-  pt: {
-    nav_f: "Som", nav_s: "Telas", nav_ft: "Features", nav_ed: "Editor", nav_qr: "Guia rápido", nav_i: "Instalar",
-    sub: "Um firmware aberto que transforma o M-VAVE FM-1 em um sintetizador monofônico modelado no circuito do Minimoog: três osciladores, filtro ladder, contornos, efeitos e tudo ao alcance dos botões do FM-1.",
-    chip_f: "Filtro ladder", chip_p: "100 presets",
-    cta_install: "Instalar agora", cta_screens: "Ver as telas",
-    h_sound: "O som", l_sound: "Cada bloco do painel do Minimoog tem seu lugar na tela de 240 × 240 do FM-1, com quatro knobs físicos para tocar de verdade.",
-    f1t: "Banco de osciladores", f1d: "Três osciladores com faixas de LO a 2', forma de onda individual, ajuste fino (detune) independente nos osciladores 2 e 3 e uma leve deriva de afinação, como a dos VCOs analógicos.",
-    f2t: "Filtro ladder", f2d: "Ladder de 4 polos, 24 dB/oitava, com saturação em cada estágio e o atraso de realimentação do circuito do Minimoog. Com a ênfase a partir de 8 o filtro auto-oscila numa senoide pura que acompanha o teclado em 1 V/oitava. O corte é lido de −5 a +5, como no painel.",
-    f3t: "Contornos", f3d: "Dois contornos (filtro e volume) com ataque, decaimento e sustentação. O ataque é exponencial, como o do circuito original. Glide, LFO e modulação completam a seção.",
-    f4t: "100 presets", f4d: "Dez grupos de dez: uma vitrine de estilos, hard leads, soft leads, baixos, pads e cordas, metais, plucks, teclas, atmosferas e efeitos sonoros. Cerca de um quarto já vem com o arpejador ligado. Salve os seus em 32 posições de usuário.",
-    f5t: "Arpejador e sequenciador", f5d: "Um toque no ARP liga e desliga; segurar ativa o HOLD. O sequenciador grava até 16 notas (REC) e toca (PLAY). Os LEDs das teclas acendem junto com as notas.",
-    f6t: "Efeitos por preset", f6d: "Reverb, delay, chorus e drive, cada preset com a sua própria combinação, para que baixos, leads e pads tenham ambientes bem diferentes.",
-    h_screens: "As telas", l_screens: "O painel foi desenhado para a tela do FM-1, com knobs estriados, chaves vermelhas e azuis e gráficos de filtro e contornos. Escolha uma página:",
-    views: [
-      { t: "CTRL · Controladores", d: "A página inicial. Afinação geral, glide, quantidade de modulação e velocidade do LFO.", l: ["Quatro knobs: TUNE, GLIDE, MOD MIX e LFO RATE", "Chaves MOD OSC, MOD FLT, GLIDE e LFO SQR"] },
-      { t: "OSC · Banco de osciladores", d: "Os três osciladores: faixa de oitava, forma de onda e detune dos osciladores 2 e 3.", l: ["Faixas LO, 32', 16', 8', 4' e 2'", "Seis formas de onda, desenhadas nas caixas da tela"] },
-      { t: "MIX · Mixer", d: "O nível de cada oscilador e do ruído, com as chaves azuis para ligar e desligar cada fonte.", l: ["OSC 1, OSC 2, OSC 3 e NOISE", "Cada fonte tem o seu nível e a sua chave"] },
-      { t: "FILT · Filtro", d: "Corte, ênfase, quantidade de contorno e controle pelo teclado, com o gráfico da resposta do filtro ladder.", l: ["CUTOFF, EMPHASIS, CONTOUR e KBD CTRL", "O gráfico mostra a resposta do filtro e a frequência em que ele auto-oscila"] },
-      { t: "F.ENV · Contorno do filtro", d: "Ataque, decaimento, sustentação e quantidade do contorno que abre e fecha o filtro.", l: ["Gráfico do envelope que acompanha os knobs", "Ataque exponencial para o \"pluc\" clássico"] },
-      { t: "A.ENV · Contorno de volume", d: "O envelope do volume: ataque, decaimento, sustentação e nível de saída.", l: ["ATTACK, DECAY, SUSTAIN e LEVEL", "Da percussão curta ao pad lento"] },
-      { t: "FX · Efeitos", d: "Reverb, delay, chorus e drive: o nível de cada um (MIX, e GAIN no drive) em cima e, embaixo, um botão EDIT que abre os quatro parâmetros do efeito.", l: ["Cada preset guarda o seu mix e os seus ajustes", "Com o knob no zero o efeito desliga por completo e não gasta processamento"] },
-    ],
-    pops: [
-      { i: "arp", t: "Arpejador", d: "Modo, velocidade, oitavas, gate, HOLD e tempo. Toque no botão ARP para ligar; segure para o HOLD. O quadro fecha sozinho em 4 s." },
-      { i: "seq", t: "Sequenciador", d: "16 posições para notas. REC arma a gravação, PLAY toca e para, e o tempo se ajusta com o encoder." },
-      { i: "save", t: "Salvar preset", d: "Escolha a posição U01–U32, escreva o nome com os encoders e aperte SAVE. Suas versões ficam junto dos 100 presets de fábrica." },
-      { i: "fxrev", t: "FX · Editar reverb", d: "O botão EDIT abre quatro knobs: MIX, TYPE (room, hall, plate, spring e cloud, longo e denso), DECAY e TONE. Todos os reverbs são estéreo. Apertar FX de novo passa para o delay, o chorus e o drive." },
-      { i: "fxdly", t: "FX · Editar delay", d: "MIX, TYPE (analog, digital, tape, ping-pong, multi-tap, slapback e reverse), TIME e FEEDBACK. O botão SCL marca o tempo (tap tempo). O chorus tem Stereo (inspirado no CE-2), Juno e Multi; o drive, Soft e Tube." },
-      { i: "glo", t: "Global", d: "Entrada MIDI (USB, MIDI ou todas), canal, faixa do pitch bend e a lista de controles MIDI." },
-      { i: "cc", t: "Lista de MIDI CC", d: "50 controles do painel, cada um com o seu número de CC. Gire o encoder para trocar ou envie um CC do seu teclado para aprender." },
-      { i: "preset", t: "Troca de preset", d: "Ao trocar de preset aparece o número e o nome em letras grandes, por 1,5 s, e some." },
-    ],
-    l_feat: "As funcionalidades, em resumo.",
-    ft1t: "100 presets e 32 de usuário", ft1d: "100 presets de fábrica, de leads a efeitos sonoros, e 32 posições (U01–U32) para salvar os seus.",
-    ft2t: "Mono e 12 vozes", ft2d: "Monofônico como o Minimoog, ou polifônico com 12 vozes.",
-    ft3t: "Emulação perfeita", ft3d: "Três osciladores, mixer com saturação suave e filtro ladder de 24 dB/oitava com auto-oscilação, modelados no Minimoog Model D.",
-    ft4t: "Efeitos", ft4d: "5 reverbs (Room, Hall, Plate, Spring, Cloud), 7 delays (Analog, Digital, Tape, Ping-Pong, Multi, Slap, Reverse), 3 chorus (Stereo, Juno, Multi) e drive (Soft, Tube).",
-    ft5t: "MIDI CC para controladores", ft5d: "50 controles com CC próprio, que você pode trocar, e o Acid Moogi aprende o CC que o controlador enviar. Entrada USB e TRS, filtro de canal, pitch bend e roda de modulação.",
-    ft6t: "Sequenciador de 16 notas", ft6d: "Grave até 16 notas (REC) e toque (PLAY).",
-    ft7t: "Arpegiador", ft7d: "Um toque liga e desliga, segurar ativa o HOLD. Cerca de um quarto dos presets já vem com o arpejador ligado.",
-    ft8t: "Editor web", ft8d: "Edite sons e presets pelo navegador, ligado ao FM-1 por USB-MIDI.",
-    ft9t: "Emulador online", ft9d: "Experimente o Acid Moogi no navegador, sem instalar nada.",
-    h_install: "Instalar", l_install: "O instalador roda aqui mesmo, no navegador, e grava o firmware no FM-1 pelo cabo USB. Dá para voltar ao firmware original a qualquer momento.",
-  },
-  en: {
-    nav_f: "Sound", nav_s: "Screens", nav_ft: "Features", nav_ed: "Editor", nav_qr: "Quick reference", nav_i: "Install",
-    sub: "An open firmware that turns the M-VAVE FM-1 into a monophonic synth modelled after the Minimoog circuit: three oscillators, a ladder filter, contours and effects, all within reach of the FM-1's buttons.",
-    chip_f: "Ladder filter", chip_p: "100 presets",
-    cta_install: "Install now", cta_screens: "See the screens",
-    h_sound: "The sound", l_sound: "Each block of the Minimoog panel has its place on the FM-1's 240 × 240 screen, with four real knobs to play it for real.",
-    f1t: "Oscillator bank", f1d: "Three oscillators with ranges from LO to 2', a waveform each, independent detune on oscillators 2 and 3 and a touch of pitch drift, like analog VCOs.",
-    f2t: "Ladder filter", f2d: "A four-pole ladder, 24 dB/octave, with saturation in every stage and the feedback lag of the Minimoog circuit. From emphasis 8 up it self-oscillates as a pure sine that follows the keyboard at 1 V/octave. Cutoff reads -5 to +5, as on the panel.",
-    f3t: "Contours", f3d: "Two contours (filter and loudness) with attack, decay and sustain. The attack is exponential, like the original circuit. Glide, LFO and modulation complete the section.",
-    f4t: "100 presets", f4d: "Ten groups of ten: a showcase of styles, hard leads, soft leads, basses, pads and strings, brass, plucks, keys, atmospheres and sound effects. About a quarter comes with the arpeggiator already on. Save your own in 32 user slots.",
-    f5t: "Arpeggiator and sequencer", f5d: "One tap on ARP turns it on and off; holding it sets HOLD. The sequencer records up to 16 notes (REC) and plays them (PLAY). The key LEDs light with the notes.",
-    f6t: "Effects per preset", f6d: "Reverb, delay, chorus and drive, each preset with its own combination, so basses, leads and pads live in very different spaces.",
-    h_screens: "The screens", l_screens: "The panel is drawn for the FM-1's screen, with fluted knobs, red and blue rocker switches and graphs of the filter and contours. Pick a page:",
-    views: [
-      { t: "CTRL · Controllers", d: "The home page. Master tune, glide, modulation amount and LFO speed.", l: ["Four knobs: TUNE, GLIDE, MOD MIX and LFO RATE", "Switches MOD OSC, MOD FLT, GLIDE and LFO SQR"] },
-      { t: "OSC · Oscillator bank", d: "The three oscillators: octave range, waveform and detune for oscillators 2 and 3.", l: ["Ranges LO, 32', 16', 8', 4' and 2'", "Six waveforms, drawn in the boxes on the screen"] },
-      { t: "MIX · Mixer", d: "The level of each oscillator and of the noise, with the blue switches that turn each source on and off.", l: ["OSC 1, OSC 2, OSC 3 and NOISE", "Each source has its own level and switch"] },
-      { t: "FILT · Filter", d: "Cutoff, emphasis, contour amount and keyboard control, with a graph of the ladder filter's response.", l: ["CUTOFF, EMPHASIS, CONTOUR and KBD CTRL", "The graph shows the filter's response and the pitch where it self-oscillates"] },
-      { t: "F.ENV · Filter contour", d: "Attack, decay, sustain and amount of the contour that opens and closes the filter.", l: ["An envelope graph that follows the knobs", "Exponential attack for the classic pluck"] },
-      { t: "A.ENV · Loudness contour", d: "The volume envelope: attack, decay, sustain and output level.", l: ["ATTACK, DECAY, SUSTAIN and LEVEL", "From short percussion to slow pads"] },
-      { t: "FX · Effects", d: "Reverb, delay, chorus and drive: the level of each (MIX, and GAIN on the drive) on top and, below, an EDIT button that opens the effect's four parameters.", l: ["Each preset stores its own mix and settings", "A knob at zero turns the effect completely off and spends no processing"] },
-    ],
-    pops: [
-      { i: "arp", t: "Arpeggiator", d: "Mode, rate, octaves, gate, HOLD and tempo. Tap the ARP button to turn it on; hold it for HOLD. The box closes by itself after 4 s." },
-      { i: "seq", t: "Sequencer", d: "16 slots for notes. REC arms recording, PLAY starts and stops, and the tempo is set with an encoder." },
-      { i: "save", t: "Save preset", d: "Pick the slot U01–U32, type the name with the encoders and press SAVE. Your versions sit next to the 100 factory presets." },
-      { i: "fxrev", t: "FX · Edit reverb", d: "EDIT opens four knobs: MIX, TYPE (room, hall, plate, spring and cloud, long and dense), DECAY and TONE. Every reverb is stereo. Pressing FX again moves on to the delay, the chorus and the drive." },
-      { i: "fxdly", t: "FX · Edit delay", d: "MIX, TYPE (analog, digital, tape, ping-pong, multi-tap, slapback and reverse), TIME and FEEDBACK. The SCL button taps the tempo. The chorus has Stereo (after the CE-2), Juno and Multi; the drive, Soft and Tube." },
-      { i: "glo", t: "Global", d: "MIDI input (USB, MIDI or all), channel, pitch bend range and the list of MIDI controls." },
-      { i: "cc", t: "MIDI CC list", d: "50 panel controls, each with its CC number. Turn the encoder to change it, or send a CC from your keyboard to learn it." },
-      { i: "preset", t: "Preset change", d: "When the preset changes, its number and name appear in big letters for 1.5 s, then vanish." },
-    ],
-    l_feat: "The features at a glance.",
-    ft1t: "100 presets and 32 user slots", ft1d: "100 factory presets, from leads to sound effects, and 32 slots (U01–U32) for your own.",
-    ft2t: "Mono and 12 voices", ft2d: "Monophonic like the Minimoog, or polyphonic with 12 voices.",
-    ft3t: "Minimoog model", ft3d: "Three oscillators, a mixer that overloads softly and a 24 dB/oct ladder filter that self-oscillates, modelled on the Minimoog Model D.",
-    ft4t: "Effects", ft4d: "5 reverbs (Room, Hall, Plate, Spring, Cloud), 7 delays (Analog, Digital, Tape, Ping-Pong, Multi, Slap, Reverse), 3 choruses (Stereo, Juno, Multi) and drive (Soft, Tube).",
-    ft5t: "MIDI CC for controllers", ft5d: "50 controls with their own CC, which you can change, and the Acid Moogi learns the CC your controller sends. USB and TRS input, channel filter, pitch bend and mod wheel.",
-    ft6t: "16-note sequencer", ft6d: "Record up to 16 notes (REC) and play them back (PLAY).",
-    ft7t: "Arpeggiator", ft7d: "One tap turns it on and off, holding it enables HOLD. About a quarter of the presets come with the arpeggiator on.",
-    ft8t: "Web editor", ft8d: "Edit sounds and presets in the browser, connected to the FM-1 over USB-MIDI.",
-    ft9t: "Online emulator", ft9d: "Try the Acid Moogi in your browser, with nothing to install.",
-    h_install: "Install", l_install: "The installer runs right here, in the browser, and writes the firmware to the FM-1 over the USB cable. You can go back to the original firmware at any time.",
-  },
-  ja: {
-    nav_f: "サウンド", nav_s: "画面", nav_ft: "機能", nav_ed: "エディタ", nav_qr: "クイックリファレンス", nav_i: "インストール",
-    sub: "M-VAVE FM-1 を、Minimoog の回路をモデルにしたモノフォニック・シンセに変えるオープンなファームウェア。3 基のオシレーター、ラダーフィルター、コンター、エフェクトを FM-1 のボタンで操作できます。",
-    chip_f: "ラダーフィルター", chip_p: "100 プリセット",
-    cta_install: "今すぐインストール", cta_screens: "画面を見る",
-    h_sound: "サウンド", l_sound: "Minimoog のパネルの各ブロックを FM-1 の 240 × 240 画面に再現。4 つの実際のノブで演奏できます。",
-    f1t: "オシレーターバンク", f1d: "LO から 2' までのレンジ、個別の波形、オシレーター 2 と 3 それぞれのデチューン、アナログ VCO のようなわずかなピッチのゆらぎを備えた 3 基のオシレーター。",
-    f2t: "ラダーフィルター", f2d: "4 ポール、24 dB/oct のラダー。各段にサチュレーションがあり、Minimoog の回路と同じ帰還の遅れを再現。エンファシス 8 以上で純粋なサイン波として自己発振し、鍵盤に 1 V/oct で追従します。カットオフは実機のように −5 〜 +5 表示。",
-    f3t: "コンター", f3d: "アタック、ディケイ、サステインを持つ 2 つのコンター（フィルターと音量）。アタックは元の回路と同じ指数カーブ。グライド、LFO、モジュレーションも装備。",
-    f4t: "100 プリセット", f4d: "10 音ずつ 10 グループ：ショーケース、ハードリード、ソフトリード、ベース、パッド＆ストリングス、ブラス、プラック、鍵盤、アトモスフィア、効果音。約 4 分の 1 はアルペジエーターがオンの状態で始まります。32 のユーザー枠に保存できます。",
-    f5t: "アルペジエーターとシーケンサー", f5d: "ARP を 1 回押すとオン/オフ、長押しで HOLD。シーケンサーは最大 16 音を録音（REC）して再生（PLAY）。鍵盤の LED が音に合わせて点灯します。",
-    f6t: "プリセットごとのエフェクト", f6d: "リバーブ、ディレイ、コーラス、ドライブ。プリセットごとに異なる組み合わせで、ベース、リード、パッドがそれぞれ違う空間で鳴ります。",
-    h_screens: "画面", l_screens: "FM-1 の画面に合わせてデザインしたパネル。ローレット付きのノブ、赤と青のロッカースイッチ、フィルターとコンターのグラフを備えます。ページを選んでください。",
-    views: [
-      { t: "CTRL · コントローラー", d: "ホームページ。チューン、グライド、モジュレーション量、LFO の速さ。", l: ["4 つのノブ：TUNE、GLIDE、MOD MIX、LFO RATE", "スイッチ：MOD OSC、MOD FLT、GLIDE、LFO SQR"] },
-      { t: "OSC · オシレーターバンク", d: "3 基のオシレーターのオクターブレンジ、波形、デチューン。", l: ["レンジ：LO、32'、16'、8'、4'、2'", "画面のボックスに描かれた 6 種類の波形"] },
-      { t: "MIX · ミキサー", d: "各オシレーターとノイズのレベル。青いスイッチで各音源をオン/オフ。", l: ["OSC 1、OSC 2、OSC 3、NOISE", "各音源に個別のレベルとスイッチ"] },
-      { t: "FILT · フィルター", d: "カットオフ、エンファシス、コンター量、キーボードコントロールと、ラダーフィルターの特性グラフ。", l: ["CUTOFF、EMPHASIS、CONTOUR、KBD CTRL", "フィルターの特性と自己発振の周波数をグラフ表示"] },
-      { t: "F.ENV · フィルターコンター", d: "フィルターを開閉するコンターのアタック、ディケイ、サステイン、量。", l: ["ノブに合わせて動くエンベロープグラフ", "クラシックなプラック音に向く指数アタック"] },
-      { t: "A.ENV · ラウドネスコンター", d: "音量エンベロープ：アタック、ディケイ、サステイン、出力レベル。", l: ["ATTACK、DECAY、SUSTAIN、LEVEL", "短いパーカッションからゆっくりしたパッドまで"] },
-      { t: "FX · エフェクト", d: "リバーブ、ディレイ、コーラス、ドライブ。上段は各エフェクトのレベル（MIX、ドライブは GAIN）、下段の EDIT ボタンで 4 つのパラメーターを開きます。", l: ["プリセットごとにミックスと設定を保存", "ノブを 0 にするとエフェクトは完全にオフになり、処理も使いません"] },
-    ],
-    pops: [
-      { i: "arp", t: "アルペジエーター", d: "モード、レート、オクターブ、ゲート、HOLD、テンポ。ARP ボタンを押してオン、長押しで HOLD。4 秒後に自動で閉じます。" },
-      { i: "seq", t: "シーケンサー", d: "音符用の 16 スロット。REC で録音待機、PLAY で再生/停止、テンポはエンコーダーで調整。" },
-      { i: "save", t: "プリセット保存", d: "U01〜U32 の枠を選び、エンコーダーで名前を入力して SAVE。作った音色は 100 のファクトリー音色と並びます。" },
-      { i: "fxrev", t: "FX · リバーブ編集", d: "EDIT で 4 つのノブが開きます：MIX、TYPE（ルーム、ホール、プレート、スプリング、1 オクターブ上のシマー、長く密なクラウド）、DECAY、TONE。リバーブはすべてステレオ。FX をもう一度押すと、ディレイ、コーラス、ドライブへ進みます。" },
-      { i: "fxdly", t: "FX · ディレイ編集", d: "MIX、TYPE（アナログ、デジタル、テープ、ピンポン、マルチタップ、スラップバック、リバース）、TIME、FEEDBACK。SCL ボタンでタップテンポ。コーラスは Stereo（CE-2 風）、Juno、Multi、ドライブは Soft と Tube。" },
-      { i: "glo", t: "グローバル", d: "MIDI 入力（USB、MIDI、すべて）、チャンネル、ピッチベンド幅、MIDI コントロール一覧。" },
-      { i: "cc", t: "MIDI CC 一覧", d: "パネルの 50 のコントロールそれぞれに CC 番号。エンコーダーで変更、またはキーボードから CC を送って学習できます。" },
-      { i: "preset", t: "プリセット切替", d: "プリセットを変えると番号と名前が大きな文字で 1.5 秒表示され、消えます。" },
-    ],
-    l_feat: "主な機能の一覧です。",
-    ft1t: "100 のプリセットと 32 のユーザー枠", ft1d: "リードから効果音まで 100 のファクトリー音色と、自分の音色を保存できる 32 の枠（U01〜U32）。",
-    ft2t: "モノと 12 ボイス", ft2d: "Minimoog と同じモノフォニック、または 12 ボイスのポリフォニック。",
-    ft3t: "Minimoog のモデル", ft3d: "3 基のオシレーター、ソフトに歪むミキサー、自己発振する 24 dB/oct のラダーフィルターを Minimoog Model D に倣って再現。",
-    ft4t: "エフェクト", ft4d: "リバーブ 5 種（Room, Hall, Plate, Spring, Cloud）、ディレイ 7 種（Analog, Digital, Tape, Ping-Pong, Multi, Slap, Reverse）、コーラス 3 種（Stereo, Juno, Multi）、ドライブ（Soft, Tube）。",
-    ft5t: "コントローラー用 MIDI CC", ft5d: "50 のコントロールにそれぞれ変更できる CC を割り当て、コントローラーが送る CC も学習します。USB と TRS 入力、チャンネルフィルター、ピッチベンド、モジュレーションホイール。",
-    ft6t: "16 ノートのシーケンサー", ft6d: "最大 16 ノートを録音（REC）して再生（PLAY）。",
-    ft7t: "アルペジエーター", ft7d: "ワンタッチでオン/オフ、長押しで HOLD。プリセットの約 4 分の 1 はアルペジエーターがオンの状態です。",
-    ft8t: "Web エディタ", ft8d: "USB-MIDI でつないだ FM-1 の音色とプリセットをブラウザーで編集。",
-    ft9t: "オンラインエミュレーター", ft9d: "インストール不要、ブラウザーで Acid Moogi を試せます。",
-    h_install: "インストール", l_install: "インストーラーはこのページ内、ブラウザー上で動き、USB ケーブル経由で FM-1 にファームウェアを書き込みます。いつでも元のファームウェアに戻せます。",
-  },
-};
-for (const l in SITE) Object.assign(TEXT[l], SITE[l]);
-const SITE2 = {
-  pt: { announce: "Firmware gratuito e de código aberto para o M-VAVE FM-1", e_sound: "Som", h_sound: "Três osciladores, um filtro ladder e muito corpo", e_screens: "Telas", h_screens: "Cada página, uma seção do painel",
-        e_feat: "Features", h_feat: "Tudo o que o Acid Moogi faz", e_install: "Instalar", h_install: "Instale direto do navegador" },
-  en: { announce: "Free, open-source firmware for the M-VAVE FM-1", e_sound: "Sound", h_sound: "Three oscillators, a ladder filter and plenty of body", e_screens: "Screens", h_screens: "Every page, one section of the panel",
-        e_feat: "Features", h_feat: "Everything the Acid Moogi does", e_install: "Install", h_install: "Install straight from the browser" },
-  ja: { announce: "M-VAVE FM-1 用の無料オープンソース・ファームウェア", e_sound: "サウンド", h_sound: "3 基のオシレーター、ラダーフィルター、そして厚み", e_screens: "画面", h_screens: "1 ページが、パネルの 1 セクション",
-        e_feat: "機能", h_feat: "Acid Moogi でできること", e_install: "インストール", h_install: "ブラウザーから直接インストール" },
-};
-for (const l in SITE2) Object.assign(TEXT[l], SITE2[l]);
-const SITE3 = {
-  pt: { hero2_t: "Um clássico dentro do FM-1.", hero2_s: "Firmware gratuito. Instale direto do navegador e volte ao original quando quiser.", hint: "Role" },
-  en: { hero2_t: "A classic, inside the FM-1.", hero2_s: "Free firmware. Install straight from the browser and go back to the original whenever you like.", hint: "Scroll" },
-  ja: { hero2_t: "名機を、FM-1 の中に。", hero2_s: "無料のファームウェア。ブラウザーから直接インストールでき、いつでも元に戻せます。", hint: "スクロール" },
-};
-for (const l in SITE3) Object.assign(TEXT[l], SITE3[l]);
-const SITE4 = {
-  pt: { nav_try: "Testar no navegador", nav_try_s: "Testar", e_video: "Vídeo", h_video: "Veja o FMini-1 em ação", cr_made: "O FMini-1 foi feito por Guilherme Ruppert, com base no projeto", cr_made2: ", de Leo Kuroshita (Hügelton Instruments).", cr_ai: "Aviso sobre IA: este projeto foi realizado com o auxílio do Claude, um modelo de IA da Anthropic." },
-  en: { nav_try: "Try in browser", nav_try_s: "Try", e_video: "Video", h_video: "See FMini-1 in action", cr_made: "FMini-1 was made by Guilherme Ruppert, based on the", cr_made2: " project by Leo Kuroshita (Hügelton Instruments).", cr_ai: "AI disclaimer: this project was developed with the assistance of Claude, an AI model by Anthropic." },
-  ja: { nav_try: "ブラウザで試す", nav_try_s: "試す", e_video: "ビデオ", h_video: "FMini-1 をチェック", cr_made: "FMini-1 は Guilherme Ruppert が制作しました。ベースは", cr_made2: "（Leo Kuroshita / Hügelton Instruments）です。", cr_ai: "AI に関する注記：このプロジェクトは Anthropic の AI モデル Claude の支援を受けて作成されました。" },
-};
-for (const l in SITE4) Object.assign(TEXT[l], SITE4[l]);
-
-
-
-
-const IMG = /*IMGS*/{};
-const VIEW_IMG = ["ctrl", "osc", "mix", "filt", "fenv", "aenv", "fx"], VIEW_TAB = ["CTRL", "OSC", "MIX", "FILT", "F.ENV", "A.ENV", "FX"];
-const PRESET_NAMES = /*PRESETS*/[];
-let viewIdx = 0;
-function renderView() {
-  const v = TEXT[lang].views[viewIdx];
-  $("v-img").src = IMG[VIEW_IMG[viewIdx]]; $("v-img").alt = v.t;
-  $("v-t").textContent = v.t; $("v-d").textContent = v.d;
-  $("v-l").innerHTML = ""; v.l.forEach((s) => { const li = document.createElement("li"); li.textContent = s; $("v-l").appendChild(li); });
-  [...$("v-tabs").children].forEach((b, i) => b.setAttribute("aria-selected", String(i === viewIdx)));
-}
-let viewHold = 0;                                  /* the pages of the panel change by themselves, once a second */
-(() => {
-  const box = $("screens"), vw = box.querySelector(".viewer");
-  let inView = false;
-  new IntersectionObserver((en) => { inView = en[0].isIntersecting; }, { threshold: 0.3 }).observe(vw);
-  let paused = false;
-  box.querySelector(".viewer").addEventListener("pointerenter", () => { paused = true; });
-  box.querySelector(".viewer").addEventListener("pointerleave", () => { paused = false; });
-  setInterval(() => {
-    if (!inView || paused || performance.now() < viewHold || !$("v-tabs").children.length) return;
-    viewIdx = (viewIdx + 1) % VIEW_TAB.length; renderView();
-  }, 1000);
-})();
-function renderSite() {
-  if (!$("v-tabs").children.length) {
-    VIEW_TAB.forEach((n, i) => { const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "tab"); b.textContent = n;
-      b.addEventListener("click", () => { viewIdx = i; viewHold = performance.now() + 8000; renderView(); }); $("v-tabs").appendChild(b); });
-  }
-  renderView();
-  $("pops").innerHTML = "";
-  TEXT[lang].pops.forEach((p) => {
-    const f = document.createElement("div"); f.className = "pop";
-    f.innerHTML = '<figure><div class="glass"><img alt=""></div><h4></h4><p></p></figure>';
-    f.querySelector("img").src = IMG[p.i]; f.querySelector("img").alt = p.t; f.querySelector("h4").textContent = p.t; f.querySelector("p").textContent = p.d;
-    $("pops").appendChild(f);
-  });
-}
-
-const nl = (navigator.language || "en").toLowerCase();
-let lang = nl.startsWith("pt") ? "pt" : nl.startsWith("ja") ? "ja" : "en";
-const LANGS = ["pt", "en", "ja"];
+/* ---- moogi: the site's own texts (English only; the installer keeps its PT / JA strings but the page is shown in English) ---- */
+Object.assign(TEXT.en, {
+  nav_w: "What it does", nav_b: "Built on FMini-1", nav_ed: "Editor", nav_qr: "Quick reference", nav_i: "Install", nav_try: "Try in browser", nav_try_s: "Try",
+  announce: "Free, open-source firmware for the M-VAVE FM-1",
+  tagline: "A mono acid box for the M-VAVE FM-1",
+  sub: "The four knobs are the filter, the white keys are the steps of the sequence, EDIT writes an acid line, and SEQ twice opens a drum machine.",
+  cta_install: "Install now", cta_qr: "Quick reference",
+  nf_t: "Looking for FMini-1?", nf_d: "This is not it. Acid Moogi plays differently: its home screen, buttons and sequencer have changed. For the original firmware, with its own screens and video, go to", nf_a: "Ruppert's FMini-1 site.",
+  e_what: "What it does", h_what: "Made for acid lines",
+  l_what: "What Acid Moogi changes on the FM-1. Every key combo is in the quick reference.",
+  w1t: "The filter under your hands", w1d: "The filter screen is home, and where the FM-1 powers on. Knobs 1 to 4 are CUTOFF, EMPHASIS, CONTOUR and KBD CTRL: a slow turn moves in fine steps, a fast turn makes big moves. The resonance is more aggressive and sings earlier on the knob.",
+  w2t: "A sequencer on the keys", w2d: "One sequence of four 16-step parts, 8 to 64 steps. The white keys are the steps: the playing step lit, steps with notes glowing. Live recording while it plays, step recording while stopped, rests, slides, and optional recording of knob moves.",
+  w3t: "An acid line generator", w3d: "EDIT writes a 16-step acid line into the sequence, ported from a norns mod. Same seed, same line. Set the scale, root, density, movement, tension, accents, slides and range. Accents get louder and open the filter, like a 303. History of the last 10 lines and 7 favorites.",
+  w4t: "A drum machine beside the bass", w4d: "SEQ twice opens drum mode: eight sounds on a euclidean 16-step beat (HITS spreads them, ROTATE shifts them), nine kits, a chance per sound, mutes that land on the next quarter, and a sidechain pump on the bass. The drums keep playing outside drum mode.",
+  w5t: "Mono like a bass box", w5d: "Mono is last-note priority with slide, and returns to a note still held when you let go. Hold LFO to switch to 12-voice poly.",
+  w6t: "Clock, delay and USB audio", w6d: "Follows MIDI clock over USB (norns or any). The delay time is a note value that follows the tempo. USB AUDIO 10 CH turns the FM-1 into a 10-input sound card: the bass in stereo and each drum on its own channel.",
+  w_more: "Every feature and key combo: the quick reference",
+  e_base: "Credits", h_base: "Built on FMini-1",
+  l_base: "The sound engine, the factory presets and the effects come from FMini-1 by Guilherme Ruppert, an emulation of the Minimoog Model D for the FM-1, itself built on Felucca by Leo Kuroshita (Hügelton Instruments). Acid Moogi changes how the FM-1 plays it. If you want FMini-1 as Ruppert designed it, install it from his site.",
+  b_site: "FMini-1 site", b_gh: "FMini-1 on GitHub",
+  e_install: "Install", h_install: "Install straight from the browser",
+  l_install: "The installer runs right here, in the browser, and writes the firmware to the FM-1 over the USB cable. You can go back to the original firmware at any time.",
+  cr_made: "FMini-1 was made by Guilherme Ruppert, based on the", cr_made2: " project by Leo Kuroshita (Hügelton Instruments).",
+  cr_ai: "AI disclaimer: this project was developed with the assistance of Claude, an AI model by Anthropic.",
+});
+let lang = "en";
 const t = (k) => TEXT[lang][k];
 let lastKey = null, lastArg = "";
 function applyLang() {
   document.documentElement.lang = lang;
-  document.querySelectorAll("[data-t]").forEach((e) => { e.textContent = t(e.dataset.t); });
-  $("lang").textContent = lang === "pt" ? "PT" : lang === "ja" ? "日本語" : "EN";
+  document.querySelectorAll("[data-t]").forEach((e) => { const s = t(e.dataset.t); if (s !== undefined) e.textContent = s; });
   if (lastKey) $("status").textContent = t(lastKey) + lastArg;
-  renderSite();
 }
-$("lang").addEventListener("click", () => { lang = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length]; applyLang(); });
 applyLang();
 const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $("status").textContent = t(k) + arg; document.body.classList.toggle("bad", ["error","denied","notfound","model","lost","noloader","noreturn","mismatch","badpkg","stopped","loadfail","nomidi"].includes(k)); };
 const say = (txt) => { lastKey = null; $("status").textContent = txt; };
@@ -895,109 +627,6 @@ $("stock-go").addEventListener("click", async () => {
   } finally { if (link) link.close(); lockInstaller(false); }
 });
 
-/* ---- hero: the Minimoog goes into the FM-1's screen as the page scrolls (reduced motion: the finished picture) ---- */
-(() => {
-  const hero = $("top"), stage = $("stage"), mm = $("mm"), fm = $("fm"), lcd = $("lcd"), copy1 = $("copy1"), copy2 = $("copy2"), hint = $("hint");
-  const A = $("lcd-a"), B = $("lcd-b");
-  $("fm-body").src = IMG.fm1;
-  const ROT = ["splash", "ctrl", "osc", "mix", "filt", "fenv", "aenv", "fx"];
-  const rm = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (rm) document.body.classList.add("rm");
-  A.src = IMG.splash; A.style.opacity = 1; B.style.opacity = 0;
-  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
-  const ease = (x) => x * x * (3 - 2 * x);
-  let prog = 0, W = 0, H = 0, fmW = 0, fmH = 0, fmX = 0, fmY = 0, mmW0 = 0, mmX0 = 0, mmY0 = 0, p = -1, rot = 0, rotAt = 0;
-  const MR = 452 / 900, FR = 512 / 859;
-  function layout() {
-    W = stage.clientWidth; H = stage.clientHeight;
-    const mob = W < 820;
-    const c2h = copy2.offsetHeight || 200, gap = mob ? 22 : 30;
-    fmY = mob ? H * 0.2 : Math.max(18, H * 0.05);
-    fmW = Math.min(W * (mob ? 0.94 : 0.86), 980, (H * (mob ? 0.5 : 0.62)) / FR, (H - fmY - c2h - gap - 28) / FR);
-    fmH = fmW * FR; fmX = (W - fmW) / 2;
-    fm.style.width = fmW + "px"; fm.style.left = fmX + "px"; fm.style.top = fmY + "px";
-    copy2.style.top = fmY + fmH + gap + "px";
-    mmW0 = mob ? W * 1.5 : Math.min(W * 0.98, 1500);
-    mmX0 = mob ? -W * 0.2 : Math.max(W * 0.5, W - 1.0 * mmW0 * 0.62);
-    mmY0 = mob ? H * 0.52 : (H - mmW0 * MR) / 2;
-    p = -1; draw(prog);
-  }
-  function draw(np) {
-    if (np === undefined) np = p < 0 ? prog : p;
-    if (Math.abs(np - p) < 0.0004) return;
-    p = np;
-    const q = ease(clamp((p - 0.08) / 0.72));
-    const mob = W < 820;
-    const sc = 0.9 + 0.1 * q;
-    fm.style.opacity = clamp(q / 0.35);
-    fm.style.transform = "scale(" + sc + ")";
-    /* where the screen is now, in the stage */
-    const cx = fmX + fmW * (0.3073 + 0.0838), cy = fmY + fmH * (0.1523 + 0.1415);
-    const tw = fmW * 0.1676 * sc * 1.02;
-    const ex = fmX + fmW / 2 + (cx - fmX - fmW / 2) * sc, ey = fmY + fmH / 2 + (cy - fmY - fmH / 2) * sc;
-    const w = mmW0 + (tw - mmW0) * q, h = w * MR;
-    const sx = mmX0 + mmW0 / 2, sy = mmY0 + mmW0 * MR / 2;
-    const mx = sx + (ex - sx) * q, my = sy + (ey - sy) * q;
-    mm.style.width = w + "px"; mm.style.left = mx - w / 2 + "px"; mm.style.top = my - h / 2 + "px";
-    mm.style.opacity = 1 - clamp((q - 0.88) / 0.12);
-    lcd.style.opacity = 1;
-    $("scr").style.opacity = clamp((p - 0.9) / 0.1);
-    copy1.style.opacity = 1 - clamp((p - 0.04) / 0.16);
-    copy1.style.transform = (mob ? "" : "translateY(-50%) ") + "translateX(" + (-clamp(p / 0.2) * 40) + "px)";
-    copy1.style.pointerEvents = p > 0.12 ? "none" : "";
-    copy2.style.opacity = clamp((p - 0.84) / 0.12);
-    copy2.style.pointerEvents = p > 0.9 ? "auto" : "none";
-    hint.style.opacity = 1 - clamp(p / 0.05);
-  }
-  /* the first scroll down plays the film by itself; scrolling up at the top plays it backwards */
-  const DUR = 1400;
-  if (rm) prog = 1;
-  let state = rm ? 2 : 0, t0 = 0, dir = 1;         /* 0 start picture, 1 playing forward, 2 finished, 3 playing backwards */
-  const hold = (e) => { if (state === 1 || state === 3) e.preventDefault(); };
-  function done() {
-    prog = 1; state = 2; draw(1);
-    A.src = IMG.splash; A.style.opacity = 1; B.style.opacity = 0; rot = 0; rotAt = performance.now();
-  }
-  function home() { prog = 0; state = 0; draw(0); }
-  function frame(now) {
-    if (state !== 1 && state !== 3) return;
-    const x = clamp((now - t0) / DUR);
-    prog = dir > 0 ? x : 1 - x; draw(prog);
-    if (x >= 1) { if (dir > 0) done(); else home(); } else requestAnimationFrame(frame);
-  }
-  function play(d) {
-    dir = d; state = d > 0 ? 1 : 3; t0 = performance.now() - (d > 0 ? prog : 1 - prog) * DUR;
-    scrollTo({ top: 0, behavior: "instant" });
-    requestAnimationFrame(frame);
-    setTimeout(() => { if (state === 1) done(); else if (state === 3) home(); }, DUR + 1500);   /* never leave the page held */
-  }
-  let arriveT = 0, prevY = scrollY;                    /* a flick that lands on the top must not bounce straight into the film */
-  const atTop = () => scrollY < 8;
-  const wantDown = () => { if (state === 0 && atTop()) { play(1); return true; } return false; };
-  const wantUp = () => { if (state === 2 && atTop() && !rm && performance.now() - arriveT > 450) { play(-1); return true; } return false; };
-  addEventListener("wheel", (e) => { if ((e.deltaY > 0 && wantDown()) || (e.deltaY < 0 && wantUp())) e.preventDefault(); else hold(e); }, { passive: false });
-  let ty = 0;
-  addEventListener("touchstart", (e) => { ty = e.touches[0].clientY; }, { passive: true });
-  addEventListener("touchmove", (e) => { const dy = ty - e.touches[0].clientY; if ((dy > 8 && wantDown()) || (dy < -8 && wantUp())) e.preventDefault(); else hold(e); }, { passive: false });
-  addEventListener("keydown", (e) => {
-    if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
-    if (["ArrowDown", "PageDown", " ", "End"].includes(e.key)) { if (wantDown()) e.preventDefault(); else hold(e); }
-    else if (["ArrowUp", "PageUp", "Home"].includes(e.key)) { if (wantUp()) e.preventDefault(); else hold(e); }
-  });
-  addEventListener("scroll", () => { if (scrollY < 1 && prevY >= 1) arriveT = performance.now(); prevY = scrollY; if (state === 0 && scrollY > 8) play(1); else if ((state === 1 || state === 3) && scrollY > 0) scrollTo({ top: 0, behavior: "instant" }); }, { passive: true });
-  document.querySelectorAll('a[href^="#"]').forEach((a) => a.addEventListener("click", () => { if (state !== 2) done(); }));
-  addEventListener("resize", layout);
-  if ((!rm && location.hash.length > 1) || scrollY > 40) { state = 2; prog = 1; }   /* a reload further down, or a link to a section: the finished picture */
-  /* the finished FM-1 shows the real screens, one after the other */
-  function show(i) {
-    const on = A.style.opacity === "1" ? A : B, off = on === A ? B : A;
-    off.src = IMG[ROT[i]]; off.style.opacity = 1; on.style.opacity = 0;
-  }
-  const next = () => { rot = rot + 1 >= ROT.length ? 1 : rot + 1; show(rot); rotAt = performance.now(); };
-  lcd.addEventListener("click", next);
-  if (!rm) setInterval(() => { if (state === 2 && performance.now() - rotAt >= 1000) next(); }, 100);
-  layout();
-})();
 </script>
 </body>
 </html>

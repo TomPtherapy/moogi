@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-# FMini-1: the official site, one self-contained page (site_fmini.html: the Minimoog-styled site with the screens, the presets,
-# MIDI and the Felucca installer's logic; the firmware package and every picture are embedded).
+# Acid Moogi: the site, one self-contained page (site_fmini.html: what Acid Moogi does, the credits to FMini-1 and the Felucca
+# installer's logic; the firmware package and the Acid Moogi picture are embedded).
+# moogi: FMini-1's screenshots (assets/site) and preset names are no longer put on the page: they showed another firmware.
 #   web/make_fmini_installer.py build/felucca.fwsc OUT.html [VERSION]
 # Serve it over https or http://localhost (Web MIDI with SysEx needs a secure context), in Chrome / Edge.
 import base64
@@ -24,14 +25,11 @@ def main(pkg, out, version="1.4.2"):
     url = "data:application/octet-stream;base64," + base64.b64encode(raw).decode()
     meta = json.dumps({"version": version, "product": product, "pkg": url})
     hero = "data:image/jpeg;base64," + base64.b64encode((HERE.parent / "assets" / "acid-moogi-hero.jpg").read_bytes()).decode()
-    imgs = {p.stem: ("data:image/" + ("webp" if p.suffix == ".webp" else "png") + ";base64,") + base64.b64encode(p.read_bytes()).decode() for p in sorted((HERE.parent / "assets" / "site").glob("*.*"))}
-    names = re.findall(r'"([A-Z0-9 .\'/+&-]{2,12})"', (HERE.parent / "firmware" / "src" / "eng_fmini_presets.h").read_text())[:10]
-    html = html.replace("/*IMGS*/{}", json.dumps(imgs)).replace("/*PRESETS*/[]", json.dumps(names))
     for mark in ("/*LIB*/", "/*META*/", "/*HERO*/"):
         if html.count(mark) != 1:
             raise SystemExit(f"site_fmini.html must contain {mark} once")
     html = html.replace("/*LIB*/", lib).replace("/*META*/", meta).replace("/*HERO*/", hero)
-    html = html.replace('<span class="ver" id="ver">v1.1.0</span>', f'<span class="ver" id="ver">v{version}</span>', 1)
+    html = html.replace('<span class="curver"></span>', f'<span class="curver">v{version}</span>', 1)
     Path(out).write_text(html, encoding="utf-8")
     print(f"{out}: {len(html)} B, {product}, package {len(raw)} B embedded")
 

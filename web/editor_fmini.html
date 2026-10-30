@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FMini-1 Editor</title>
+<title>Acid Moogi Editor</title>
 <!-- SPDX-License-Identifier: GPL-3.0-only
      FMini-1 patch editor: one self-contained page, Web MIDI + SysEx (Chrome / Edge / Android).
      Protocol: web/EDITOR_PROTOCOL.md (cmds 2 GET, 3 SET, 4 DUMP, 5 DESC, 8 PRESET, 10 NAMES, 27 TRACK, 82/83 FMINI_GET/PUT). -->
@@ -113,7 +113,7 @@
 </defs></svg>
 
 <header class="top"><div class="wrap">
-  <h1>FMini-1 <small data-t="editor">Editor</small></h1>
+  <h1>Acid Moogi <small data-t="editor">Editor</small></h1>
   <span class="grow"></span>
   <span id="status"><span class="dot" id="dot"></span><span id="stxt"></span></span>
   <select id="port" class="btn" hidden aria-label="MIDI"></select>
@@ -145,7 +145,7 @@
 
 <footer><div class="wrap">
   <div data-t="foot1"></div>
-  <div><a href="./" data-t="home"></a> · <a href="https://github.com/ruppert/fmini-1" rel="noopener">GitHub</a></div>
+  <div><a href="./" data-t="home"></a> · <a href="https://github.com/TomPtherapy/moogi" rel="noopener">GitHub</a> · from the FMini-1 editor by <a href="https://ruppert.github.io/fmini-1/" rel="noopener">Ruppert</a></div>
 </div></footer>
 
 <script>
@@ -153,7 +153,7 @@
 /* ------------------------------------------------------------------ texts --- */
 const TX = {
   pt: { editor: "Editor", connect: "Conectar", disconnect: "Desconectar", connecting: "Conectando…", disc: "Desconectado",
-    conn: "Conectado — FMini-1", save: "Salvar som", open: "Abrir som", home: "Site do FMini-1",
+    conn: "Conectado — FMini-1", save: "Salvar som", open: "Abrir som", home: "Site do Acid Moogi",
     foot1: "Funciona no Chrome, Edge e Android (Web MIDI com SysEx). Os ajustes valem para o som que está tocando; para guardar, use o SAVE do próprio aparelho.",
     nomidi: "Este navegador não tem Web MIDI com SysEx. Use o Chrome ou o Edge (computador) ou o Chrome no Android.",
     denied: "O navegador negou o acesso MIDI. Libere “MIDI” nas permissões do site e tente de novo.",
@@ -172,7 +172,7 @@ const TX = {
     askover: "Esse slot já tem um preset (%n). Substituir?", askerase: "Apagar o preset %n?", askimp: "Gravar %c presets da biblioteca nos slots do aparelho? Os presets desses slots serão substituídos e o som que está tocando será trocado.",
     imported: "Biblioteca importada.", exported: "Arquivo salvo.", factdone: "Banco de fábrica exportado.", libfail: "O aparelho recusou a gravação.", loaded: "Som carregado no aparelho.", saved: "Som salvo em arquivo." },
   en: { editor: "Editor", connect: "Connect", disconnect: "Disconnect", connecting: "Connecting…", disc: "Disconnected",
-    conn: "Connected — FMini-1", save: "Save sound", open: "Open sound", home: "FMini-1 site",
+    conn: "Connected — FMini-1", save: "Save sound", open: "Open sound", home: "Acid Moogi site",
     foot1: "Works in Chrome, Edge and Android (Web MIDI with SysEx). Edits change the sound that is playing; to keep it, use the device's own SAVE.",
     nomidi: "This browser has no Web MIDI with SysEx. Use Chrome or Edge (desktop) or Chrome on Android.",
     denied: "The browser denied MIDI access. Allow “MIDI” in the site permissions and try again.",

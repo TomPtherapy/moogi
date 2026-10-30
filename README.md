@@ -1,47 +1,48 @@
 <p align="center">
-  <img src="assets/readme/banner.png" alt="FMini-1 by Ruppert" width="100%">
+  <img src="assets/acid-moogi-hero.jpg" alt="Acid Moogi" width="420">
+</p>
+
+<h1 align="center">Acid Moogi</h1>
+
+<p align="center">
+  A mono acid box for the M-VAVE FM-1. A personal fork of <a href="https://ruppert.github.io/fmini-1/">FMini-1</a> by Guilherme Ruppert.
 </p>
 
 <p align="center">
-  The emulation of the classic Minimoog Model D for the M-Vave FM1, plus onboard effects, arpeggiator, sequencer and more.
+  <a href="https://tomptherapy.github.io/moogi/">Install from the browser</a> · <a href="https://tomptherapy.github.io/moogi/emu/">Try it in your browser</a> · <a href="QUICK_REFERENCE.md">Quick reference: every feature and key combo</a>
 </p>
 
-<p align="center">
-  <video src="docs/fmini-ad.mp4" poster="docs/fmini-ad-poster.jpg" controls width="100%"></video>
-</p>
+> **Looking for FMini-1?** This is not it. Acid Moogi plays differently: its home screen, buttons and sequencer have changed.
+> For the original firmware, its screens and its video, go to Ruppert's site: <https://ruppert.github.io/fmini-1/>
+> (source: <https://github.com/ruppert/fmini-1>).
 
-<p align="center">
-  <a href="docs/fmini-ad.mp4">▶ Watch the video (30 s)</a> · <a href="https://ruppert.github.io/fmini-1/emu/">🎹 Try FMini-1 in your browser</a> · <a href="https://ruppert.github.io/fmini-1/editor/">🎛 Patch editor</a>
-</p>
+## 1. What it does
 
-<p align="center">
-  <b>Acid Moogi:</b> <a href="QUICK_REFERENCE.md">📖 Quick reference: every feature and key combo</a>
-</p>
+The four knobs are the filter, the white keys are the steps of the sequence, EDIT writes an acid line, and SEQ twice opens a
+drum machine.
 
-## 1. Screenshots
-
-<p align="center">
-  <img src="assets/readme/screen-splash.png" alt="Splash screen" width="23%">
-  <img src="assets/readme/screen-osc.png" alt="OSC page" width="23%">
-  <img src="assets/readme/screen-mix.png" alt="MIX page" width="23%">
-  <img src="assets/readme/screen-filter.png" alt="FILTER page" width="23%">
-</p>
-
-<p align="center">
-  <img src="assets/readme/screen-fx.png" alt="FX page" width="23%">
-  <img src="assets/readme/screen-preset.png" alt="Preset pop-up, patch 00" width="23%">
-  <img src="assets/readme/screen-arp.png" alt="ARP pop-up" width="23%">
-  <img src="assets/readme/screen-seq.png" alt="SEQ pop-up" width="23%">
-</p>
+- **The filter under your hands.** The filter screen is home. Knobs 1 to 4 are CUTOFF, EMPHASIS, CONTOUR and KBD CTRL; a slow
+  turn moves in fine steps, a fast turn makes big moves. The resonance is more aggressive and sings earlier on the knob.
+- **A sequencer on the keys.** One sequence of four 16-step parts (8 to 64 steps), live and step recording, rests, slides,
+  optional recording of knob moves.
+- **An acid line generator**, ported from a norns mod: scale, root, density, movement, tension, accents, slides, range;
+  accents open the filter like a 303; history and favorites.
+- **A drum machine beside the bass:** eight sounds on a euclidean 16-step beat, nine kits, a chance per sound, sidechain pump.
+- **Mono like a bass box:** last-note priority with slide; hold LFO for 12-voice poly.
+- **Clock, delay and USB audio:** follows USB MIDI clock, tempo-synced delay times, and a 10-channel USB audio mode (bass in
+  stereo, each drum on its own channel).
 
 ## 2. Installation
 
-Official site: <https://ruppert.github.io/fmini-1/> (with Web Installer)
+<https://tomptherapy.github.io/moogi/> (Web Installer, Chrome or Edge). You can go back to the original M-VAVE firmware at any
+time from the same page.
 
 ## 3. Credits
 
-FMini-1 was made by Guilherme Ruppert. It is inspired and partially based on the [Felucca](https://github.com/hugelton/Felucca) project by Leo Kuroshita (Hügelton Instruments).
+Acid Moogi is built on FMini-1 by Guilherme Ruppert: the sound engine (an emulation of the Minimoog Model D), the factory
+presets and the effects are his. FMini-1 is inspired by and partially based on the [Felucca](https://github.com/hugelton/Felucca)
+project by Leo Kuroshita (Hügelton Instruments). Full credits: [CREDITS.md](CREDITS.md).
 
 **AI disclaimer:** this project was developed with the assistance of [Claude](https://claude.ai), an AI model by Anthropic.
 
-<p align="center"><sub>Based on <a href="https://github.com/hugelton/Felucca">Felucca</a> by Leo Kuroshita · <a href="LICENSE">GPL-3.0-only</a></sub></p>
+<p align="center"><sub>Based on <a href="https://github.com/ruppert/fmini-1">FMini-1</a> by Guilherme Ruppert and <a href="https://github.com/hugelton/Felucca">Felucca</a> by Leo Kuroshita · <a href="LICENSE">GPL-3.0-only</a></sub></p>

@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# FMini-1: builds the firmware and publishes the web installer (web/make_fmini_installer.py: one page with the package
-# inside) on GitHub Pages, at https://ruppert.github.io/fmini-1/.
+# Acid Moogi: builds the firmware and publishes the web installer (web/make_fmini_installer.py: one page with the package
+# inside) on this fork's GitHub Pages, https://tomptherapy.github.io/moogi/ (FMini-1's own site is https://ruppert.github.io/fmini-1/).
 # Once in the repository's Settings > Pages: Source = GitHub Actions.
 name: Installer
 
 on:
   push:
     branches: [main]
-    paths: ["firmware/**", "web/**", "tools/**", "assets/**", "build.sh", "docs/emu/**", "docs/fmini-ad*", ".github/workflows/installer.yml"]
+    paths: ["firmware/**", "web/**", "tools/**", "assets/**", "build.sh", "docs/emu/**", ".github/workflows/installer.yml"]
   workflow_dispatch:
 
 permissions:
@@ -59,11 +59,10 @@ jobs:
           mkdir -p _site
           python3 web/make_fmini_installer.py build/felucca.fwsc _site/index.html "$VERSION"
           cp build/felucca.fwsc "_site/fmini-1-$VERSION.fwsc"
-          cp docs/fmini-ad.mp4 docs/fmini-ad-poster.jpg _site/
           cp build.log _site/build.log             # moogi m9: the build's sizes (RAM, pool headroom), readable from a session
           mkdir -p _site/editor && cp web/editor_fmini.html _site/editor/index.html   # the patch editor (web/test_editor_fmini.py)
           cp -r docs/emu _site/emu                 # the browser emulator (web/emu/build_wasi.sh builds docs/emu)
-          echo "FMini-1 v$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "Acid Moogi v$VERSION" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-pages-artifact@v3
         with:
