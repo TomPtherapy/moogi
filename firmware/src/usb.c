@@ -129,6 +129,13 @@ static volatile uint8_t uac10;                         /* 1: presented and fed a
  * the last one leaving. MIX keeps its service as it was */
 #define UQ_MIN 4u                                      /* ticks (0.1 ms) before TxPktRdy is read: a 10 CH packet takes >= 0.58 ms */
 #define UQ_STALL 200u                                  /* ticks a packet may wait before the host is taken as gone (20 ms, as MIX) */
+/* moogi m11: 10 CH's ring keeps more in hand: the fill when a render starts is held in 224 .. 272 frames (5.1 .. 6.2 ms;
+ * MIX: 80 .. 128, 1.8 .. 2.9 ms). On the device, a heavy load (DRIVE, all the drums) gave drops that MIX and the headphones
+ * did not; the ring now covers a render up to ~5 ms later than the packets need it. The price: ~3.3 ms more latency */
+#define UA_LO10 224u
+#define UA_HI10 272u
+#define UA_PRIME10 248u
+_Static_assert(UA_HI10 + HALF_FRAMES + UA_MAXF10 < UA_N, "the ring holds 10 CH's band, a render and a packet");
 static uint32_t ep4tx_b[UA_MAXF10 * UA_W10] __attribute__((aligned(4), section(".pool")));   /* (the pool: RAM had 4008 B left, < 4096) */
 static struct {
     uint8_t slot;                                      /* the buffer the next packet is made in / sent from (0 ep4tx, 1 ep4tx_b) */
@@ -136,6 +143,7 @@ static struct {
     uint16_t len;                                      /* the prepared packet's bytes; 0: none (a (re)start) */
     uint32_t late;                                     /* IN tokens that found nothing queued since the stream started (ABOUT) */
     uint32_t under0;                                   /* uac.underruns when it started */
+    volatile uint32_t max_us;                          /* m11: the longest render (audio.c) since it started (ABOUT's MAX) */
 } uq;
 #else
 static uint32_t ua_ring[UA_N];
@@ -565,6 +573,7 @@ static void uac_stream(uint32_t alt)                    /* SET_INTERFACE, config
 #if FELUCCA_UAC10
         uq.late = 0;
         uq.under0 = uac.underruns;
+        uq.max_us = 0;
 #endif
         uac.starts++;
         uac.fill_lo = 0xFFFFFFFFu;
@@ -1159,6 +1168,7 @@ static __attribute__((noinline)) void uac_render_start(void)   /* audio ISR, bef
 #if FELUCCA_UAC10
         if (uac10) {                                    /* moogi m9: 10 CH frames */
             uint32_t k;
+            prime = UA_PRIME10;                         /* (m11: its own band) */
             for (i = 0; i < prime; i++)
                 for (k = 0; k < UA_W10; k++)
                     ua_ring[((r + i) & (UA_N - 1u)) * UA_W10 + k] = 0;
@@ -1323,10 +1333,10 @@ static uint32_t uac_packet10(uint32_t *d)
             d[i] = 0;
         return n;
     }
-    if (uac.fill_min > UA_HI) {
+    if (uac.fill_min > UA_HI10) {                       /* (m11: 10 CH's band) */
         n++;
         uac.adj_up++;
-    } else if (uac.fill_min < UA_LO) {
+    } else if (uac.fill_min < UA_LO10) {
         n--;
         uac.adj_down++;
     }

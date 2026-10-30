@@ -3,6 +3,7 @@
  * checks that the screen draws and that SELECT / ALGORITHM / PRESETS reach every control. */
 #define UI_TEST_NO_MAIN 1
 #define FELUCCA_FMINI_ONLY 1
+#define FELUCCA_UAC 1                                     /* (moogi m11: the USB audio input built in, as the firmware: ABOUT's 10 CH lines) */
 #include "ui_test.c"
 #include "../firmware/src/fmini_app.c"
 #include <stdio.h>
@@ -854,6 +855,17 @@ int main(int argc, char **argv)
         if (fa_usb10 != 0 || *fa_cfg_byte(212) != 0u) { printf("USB AUDIO: MIX saved\n"); return 1; }
         fa_gl = 1; fa_gl_row = 8; fturn(EN_ALGO, 1);
         if (fa_gl != 3) { printf("ABOUT opens\n"); return 1; }
+        {   /* moogi m11: ABOUT in 10 CH: USB DROPS (EMPTY, LATE) and the load, bottom left (the picture: fa_27.ppm) */
+            uint32_t sig0;
+            fa_usb10 = 1; uq.late = 3; uq.under0 = uac.underruns - 1234u; uq.max_us = 2610u; song.cpu_q8 = 180;
+            ui.force = 1; fa_draw(); dump(dir, 27);
+            sig0 = fa_signature();
+            uq.late = 4;
+            if (fa_signature() == sig0) { printf("ABOUT: a drop is not redrawn\n"); return 1; }
+            if (fa_cpu_max() != 89u || fa_cpu_avg() != 70u) { printf("ABOUT: the load %u %u\n", fa_cpu_max(), fa_cpu_avg()); return 1; }
+            fa_usb10 = 0; uq.late = 0; uq.under0 = uac.underruns; uq.max_us = 0;
+            fa_gl = 3;
+        }
         fa_gl = 3; fturn(EN_ALGO, 1);
         if (fa_gl != 1) { printf("about ALGO\n"); return 1; }
         fa_gl = 3; fturn(EN_SELECT, 1);

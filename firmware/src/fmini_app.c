@@ -693,7 +693,7 @@ static uint32_t fa_sound_keys(void)
  * with the version).
  * SELECT picks a line, ALGORITHM changes it (or opens MIDI CC / ABOUT); GLO goes back, then closes. The settings are
  * kept in the flash settings record (favorites.factory rows 7 and 8: no engine of this firmware uses them). */
-#define FMINI_VERSION "v1.8.0-m10"
+#define FMINI_VERSION "v1.8.0-m11"
 #define FA_NPG 44u                                        /* the controls of the seven screens (FMG_PAGE: 8+8+8+4+4+4+8) */
 #define FA_NCC (FA_NPG + FA_AR_N)                         /* .. and the ARP pop-up's six lines */
 static uint8_t fa_gl;                                     /* 0 closed, 1 the list, 2 MIDI CC, 3 ABOUT, 4 ACID (fmini_seq.c),
@@ -1191,7 +1191,13 @@ static void fa_scene(void)
         fa_pp_draw();
 }
 
-static const char *fa_splash_note;                       /* moogi m10: a line bottom left on the splash (ABOUT: USB DROPS) */
+static const char *fa_splash_note, *fa_splash_note2;     /* moogi m10 / m11: lines bottom left on the splash (ABOUT: USB DROPS, CPU) */
+#if FELUCCA_UAC10
+/* moogi m11: ABOUT's load in 10 CH: the render's average (song.cpu_q8, as Felucca's console) and its longest since the stream
+ * started (usb.c uq.max_us), in % of a half buffer */
+static uint32_t fa_cpu_avg(void) { return song.cpu_q8 * 100u / 256u; }
+static uint32_t fa_cpu_max(void) { return uq.max_us * 100u / (HALF_FRAMES * 1000000u / FS); }
+#endif
 static uint32_t fa_signature(void)
 {
     const track_t *t = TSEL;
@@ -1207,7 +1213,7 @@ static uint32_t fa_signature(void)
     h = (h ^ fa_gl ^ (uint32_t)fa_gl_row << 3 ^ (uint32_t)fa_cc_i << 6 ^ (uint32_t)fm_midi_src << 12 ^ (uint32_t)fm_bt << 17 ^ (uint32_t)fm_midi_ch << 14 ^ (uint32_t)fm_bend_mode << 19 ^ (uint32_t)fa_usb10 << 23) * 16777619u;   /* (m9: USB AUDIO) */
 #if FELUCCA_UAC10
     if (fa_gl == 3u && fa_usb10)
-        h = (h ^ uq_drops()) * 16777619u;                 /* (m10: ABOUT's USB DROPS, redrawn when it moves) */
+        h = (h ^ uq_drops() ^ uq.late << 16 ^ fa_cpu_avg() / 5u << 24 ^ fa_cpu_max() / 5u << 8) * 16777619u;   /* (m10, m11: ABOUT's lines, redrawn when they move; the load in 5 % steps) */
 #endif
     for (i = 0; i < FA_NCC; i++)
         h = (h ^ fa_cc[i]) * 16777619u;
@@ -1236,15 +1242,26 @@ static void fa_draw(void)
     fmg_force_page = (int8_t)fa_page;
     if (fa_gl == 3u) {                                    /* ABOUT: the splash, the version bottom right */
 #if FELUCCA_UAC10
-        char nb[24];                                      /* moogi m10: in 10 CH, USB DROPS bottom left (usb.c uq_drops) */
+        char nb[40], nc[32];                              /* moogi m10 / m11: in 10 CH, bottom left: USB DROPS (EMPTY: the ring ran dry,
+                                                           * LATE: the host found no packet; usb.c), above it the load */
         if (fa_usb10) {
-            str_cpy(nb, "USB DROPS ", 11);
+            str_cpy(nb, "DROPS ", 7);
             fmt_int(nb + str_len(nb), (int32_t)uq_drops());
+            str_cpy(nb + str_len(nb), "  EMPTY ", 9);
+            fmt_int(nb + str_len(nb), (int32_t)(uq_drops() - uq.late));
+            str_cpy(nb + str_len(nb), "  LATE ", 8);
+            fmt_int(nb + str_len(nb), (int32_t)uq.late);
+            str_cpy(nc, "CPU ", 5);
+            fmt_int(nc + str_len(nc), (int32_t)fa_cpu_avg());
+            str_cpy(nc + str_len(nc), "%  MAX ", 8);
+            fmt_int(nc + str_len(nc), (int32_t)fa_cpu_max());
+            str_cpy(nc + str_len(nc), "%", 2);
             fa_splash_note = nb;
+            fa_splash_note2 = nc;
         }
 #endif
         fa_splash();
-        fa_splash_note = 0;
+        fa_splash_note = fa_splash_note2 = 0;
         return;
     }
     for (band = 0; band < 2u; band++) {
@@ -1269,9 +1286,13 @@ static void fa_splash(void)                              /* the picture (assets/
                 cv_pset((int32_t)x, (int32_t)y, FMINI_SPLASH_PAL[FMINI_SPLASH[y * 240u + x]]);
         cv_rect(228 - text_w(&AF_S, FMINI_VERSION), 217, text_w(&AF_S, FMINI_VERSION) + 8, 18, FA_RGB(0x14, 0x10, 0x1E));   /* (on the busy art: a dark plate) */
         cv_text_on(232 - text_w(&AF_S, FMINI_VERSION), 220, &AF_S, FMINI_VERSION, FA_CR, 0);
-        if (fa_splash_note) {                             /* moogi m10: ABOUT's USB DROPS, bottom left */
-            cv_rect(4, 217, text_w(&AF_S, fa_splash_note) + 8, 18, FA_RGB(0x14, 0x10, 0x1E));
-            cv_text_on(8, 220, &AF_S, fa_splash_note, FA_CR, 0);
+        if (fa_splash_note) {                             /* moogi m10 / m11: ABOUT's USB DROPS and the load, bottom left, above the version's line */
+            cv_rect(4, 194, text_w(&AF_S, fa_splash_note) + 8, 18, FA_RGB(0x14, 0x10, 0x1E));
+            cv_text_on(8, 197, &AF_S, fa_splash_note, FA_CR, 0);
+        }
+        if (fa_splash_note2) {
+            cv_rect(4, 171, text_w(&AF_S, fa_splash_note2) + 8, 18, FA_RGB(0x14, 0x10, 0x1E));
+            cv_text_on(8, 174, &AF_S, fa_splash_note2, FA_CR, 0);
         }
         cv_oy = 0;
         cv_blit(0, band * 120u);

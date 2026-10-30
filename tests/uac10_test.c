@@ -29,6 +29,7 @@ static uint32_t fa_ul_out[CTL * 5u];                   /* (fx.c's: the block's f
 #include "../firmware/src/usb.c"
 
 static int fails;
+static int t_bunch;                                     /* m11: every render hands its 4 blocks over at 98 % of the half (full load) */
 static int check(const char *what, int ok)
 {
     printf("%-72s %s\n", what, ok ? "ok" : "FAIL");
@@ -181,15 +182,15 @@ static void run(uint32_t ms, int produce, int consume)
             next_half += (uint64_t)((double)HALF_FRAMES / fs_dev * 1e9);
             if (produce) {
                 lcg = lcg * 1103515245u + 12345u;
-                rend_len = REND_MIN + (lcg >> 8) % (REND_MAX - REND_MIN);
+                rend_len = t_bunch ? (uint64_t)(HALF_FRAMES * 1e9 / fs_dev * 0.98) : REND_MIN + (lcg >> 8) % (REND_MAX - REND_MIN);
                 uac_render_start();
                 blocks_left = HALF_FRAMES / CTL;
-                next_block = now_ns + rend_len / blocks_left;
+                next_block = now_ns + (t_bunch ? rend_len : rend_len / blocks_left);
             }
         } else if (blocks_left && now_ns == next_block) {
             render_block();
             blocks_left--;
-            next_block += rend_len / (HALF_FRAMES / CTL);
+            next_block += t_bunch ? 0u : rend_len / (HALF_FRAMES / CTL);
         } else if (now_ns == next_pkt) {
             lcg = lcg * 1103515245u + 12345u;
             next_pkt = (now_ns / 1000000u + 1u) * 1000000u + (lcg >> 8) % 500000u;
@@ -279,14 +280,14 @@ static void timing_run(uint32_t ms, int newsvc, uint32_t seed)
         } else if (now_ns == next_half) {
             next_half += (uint64_t)((double)HALF_FRAMES / fs_dev * 1e9);
             lcg = lcg * 1103515245u + 12345u;
-            rend_len = REND_MIN + (lcg >> 8) % (REND_MAX - REND_MIN);
+            rend_len = t_bunch ? (uint64_t)(HALF_FRAMES * 1e9 / fs_dev * 0.98) : REND_MIN + (lcg >> 8) % (REND_MAX - REND_MIN);
             uac_render_start();
             blocks_left = HALF_FRAMES / CTL;
-            next_block = now_ns + rend_len / blocks_left;
+            next_block = now_ns + (t_bunch ? rend_len : rend_len / blocks_left);
         } else if (blocks_left && now_ns == next_block) {
             render_block();
             blocks_left--;
-            next_block += rend_len / (HALF_FRAMES / CTL);
+            next_block += t_bunch ? 0u : rend_len / (HALF_FRAMES / CTL);
         } else if (now_ns == next_in) {                              /* the host's IN token */
             frame++;
             l = l * 1103515245u + 12345u;
@@ -355,6 +356,42 @@ static void test_timing(int newsvc)
     }
 }
 
+/* m11: the ring's band against renders that hand everything over only at the end of the half (the worst a render that
+ * meets the DAC's deadline can do): 10 CH's band (224 .. 272) covers it; MIX's (80 .. 128) would run dry */
+static void test_full_load(void)
+{
+    char s[140];
+    uint32_t pass, under[2];
+    usb.config = 1;
+    for (pass = 0; pass < 2u; pass++) {
+        uac10 = (uint8_t)(pass == 0u);
+        memset(&uac, 0, sizeof uac);
+        memset(&uq, 0, sizeof uq);
+        uac_stream(1);
+        t_pkt_ready = t_pkt_len = t_under = t_missed = t_got = 0;
+        t_tx_end = 0;
+        blocks_left = 0;
+        next_half = now_ns + 300000;
+        reset_counts();
+        t_bunch = 1;
+        if (uac10)
+            timing_run(5000, 1, 4242u);
+        else {                                          /* MIX's band, the same consumer at 1 kHz */
+            uac.flowing = 1;
+            run(5000, 1, 1);
+        }
+        t_bunch = 0;
+        under[pass] = uac.underruns;
+        snprintf(s, sizeof s, "%s at full load (blocks at the end of the half): %u underruns, %u bad frames, fill %u .. %u",
+                 uac10 ? "10 CH" : "MIX's band", uac.underruns, cons_bad, uac.fill_lo, uac.fill_hi);
+        if (uac10)
+            check(s, uac.underruns == 0 && cons_bad == 0 && cons_rep == 0 && t_missed <= 1u);
+        else
+            printf("%-72s %s\n", s, uac.underruns ? "(runs dry: why 10 CH has its own)" : "");
+    }
+    (void)under;
+}
+
 int main(void)
 {
     test_descriptors();
@@ -363,6 +400,7 @@ int main(void)
     test_ring(0);
     test_timing(0);
     test_timing(1);
+    test_full_load();
     printf("uac10_test (CDC %d): %s\n", T_CDC, fails ? "FAIL" : "ok");
     return fails != 0;
 }

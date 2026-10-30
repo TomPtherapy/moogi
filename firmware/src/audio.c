@@ -124,6 +124,10 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         us = shed_check(fm1_ticks() - t0);
         if (us > audio_max_us)
             audio_max_us = us;
+#if FELUCCA_UAC10
+        if (uac10 && uac.feed && us > uq.max_us)
+            uq.max_us = us;                             /* moogi m11: ABOUT's MAX while 10 CH streams */
+#endif
         {
             uint32_t load = song.cpu_q8 * (CPU_AVG - 1u) + (us * 256u) / (HALF_FRAMES * 1000000u / FS) + audio_cpu_rem;
             song.cpu_q8 = load / CPU_AVG;
